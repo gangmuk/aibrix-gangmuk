@@ -32,7 +32,7 @@ import (
 
 const (
 	defaultDecodingLength = 45                      // FIXME: decode length is hardcoded. Preble as well.
-	slidingWindowPeriod   = 3 * time.Minute         // NOTE: hardcoded
+	slidingWindowPeriod   = 1 * time.Minute         // NOTE: hardcoded
 	evictionLoopInterval  = 1000 * time.Millisecond // NOTE: hardcoded
 	targetGPU             = "V100"                  // A6000 // FIXME: make it configurable
 )
@@ -224,9 +224,9 @@ func (h *SlidingWindowHistogram) getPrefillCost(node *prefixcacheindexer.TreeNod
 	prefillTime := (baseTime + attnQuad) / 0.9
 	numPods := node.GetModelToPodCount() // You might need to adjust this based on your actual GPU allocation tracking
 	klog.Infof("numTokens: %d, contextLength: %d, targetGPU: %s", numTokens, contextLength, targetGPU)
-	klog.Infof("prefillTime: %.2f = (Base time(%.2f) + attnQuad(%.2f)) / 0.9", prefillTime, baseTime, attnQuad)
+	klog.Infof("prefillTime: %.4f = (Base time(%.4f) + attnQuad(%.4f)) / 0.9", prefillTime, baseTime, attnQuad)
 	totalPrefillCost := missRate * float64(h.nodeToCount[node]) * prefillTime / float64(numPods)
-	klog.Infof("totalPrefillCost: %.2f = miss rate(%.2f) * nodeToCount(%d) * prefillTime(%.2f) / numPods(%d)", totalPrefillCost, missRate, h.nodeToCount[node], prefillTime, numPods)
+	klog.Infof("totalPrefillCost: %.4f = miss rate(%.4f) * nodeToCount(%d) * prefillTime(%.4f) / numPods(%d)", totalPrefillCost, missRate, h.nodeToCount[node], prefillTime, numPods)
 	return totalPrefillCost
 }
 
@@ -440,6 +440,8 @@ func (p *prefixCacheAndLoadRouter) updatePodSet(readyPods []*v1.Pod) {
 }
 
 func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v1.Pod, model, message string) (string, error) {
+	ts_Route := time.Now()
+
 	readyPods := utils.FilterReadyPods(pods)
 	if len(readyPods) == 0 {
 		return "", fmt.Errorf("no pods to forward request")
@@ -449,25 +451,34 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 			return getPodAddress(pod.Status.PodIP)
 		}
 	}
-
+	ts_Lock := time.Now()
 	p.mu.Lock()
+	klog.Infof("Lock acquire latency %.4f", time.Since(ts_Lock).Seconds())
 	defer p.mu.Unlock()
 
 	// First, update pod set
 	klog.Infof("num pods in data structure: %d", p.numPods)
 	klog.Infof("current actual ready pods: %d", len(readyPods))
+	ts_updatePodSet := time.Now()
 	p.updatePodSet(readyPods)
+	klog.Infof("updatePodSet latency %.4f", time.Since(ts_updatePodSet).Seconds())
 	klog.Infof("num pods in data structure after updatePodSet: %d", p.numPods)
-	trimmedMessage := utils.TrimMessage(message)
-	klog.Infof("Trimmed message: '%s'", trimmedMessage)
-	tokens, err := utils.TokenizeInputText(trimmedMessage)
+	// trimmedMessage := utils.TrimMessage(message)
+	// klog.Infof("Trimmed message: '%s'", trimmedMessage)
+	klog.V(5).Infof("message: '%s'", message)
+	ts_tokenize := time.Now()
+	tokens, err := utils.TokenizeInputText(message)
+	klog.Infof("TokenizeInputText_latency, %.4f, numInputTokens, %d", time.Since(ts_tokenize).Seconds(), len(tokens))
 	if err != nil {
 		return "", err
 	}
-	klog.Info("AddPrefix to the tree: ", tokens)
+	klog.V(5).Infof("AddPrefix to the tree: ", tokens)
+	ts_AddPrefix := time.Now()
 	node, matchedTokens, _ := p.cache.AddPrefix(tokens, model, "")
+	klog.Infof("AddPrefix latency %.4f", time.Since(ts_AddPrefix).Seconds())
 	var matchedPods []*v1.Pod
 	var matchedPodsNames []string
+	ts_machedPods := time.Now()
 	if modelPods, ok := node.GetModelToPods()[model]; ok {
 		klog.Infof("node.ModelToPods[model]: %v", modelPods)
 		for podName := range modelPods {
@@ -480,17 +491,17 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 			}
 		}
 	}
-
+	klog.Infof("machedPods latency %.4f", time.Since(ts_machedPods).Seconds())
 	var targetPod *v1.Pod
 	matchRatio := float64(len(matchedTokens)) / float64(len(tokens))
 	prefix_routing_threshold := 0.5
-	klog.Infof("Total tokens: %d, Matched tokens: %d, Matching ratio: %.2f, # Matched pods: %d, Matched pods: %v",
+	klog.Infof("latency, Total tokens: %d, Matched tokens: %d, Matching ratio: %.4f, # Matched pods: %d, Matched pods: %v",
 		len(tokens), len(matchedTokens), matchRatio, len(matchedPods), matchedPodsNames)
 
 	if matchRatio > prefix_routing_threshold {
-		klog.Infof("Do prefix-aware routing! (matching ratio: %.2f > %.2f)", matchRatio, prefix_routing_threshold)
+		ts_prefixawarerouting := time.Now()
+		klog.Infof("Do prefix-aware routing! (matching ratio: %.4f > %.4f)", matchRatio, prefix_routing_threshold)
 		var prefixMatches []prefixMatch
-
 		currentNode := node
 		for currentNode != nil {
 			if modelPods, ok := currentNode.GetModelToPods()[model]; ok {
@@ -509,8 +520,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 						depth:       currentNode.GetDepth(),
 						matchLength: currentNode.ContextLength(),
 					})
-					klog.Infof("Found matching pod(s) in node with key %v, total match length: %d",
-						currentNode.GetKey(), currentNode.ContextLength())
+					klog.V(5).Infof("Found matching pod(s) in node with key %v, total match length: %d", currentNode.GetKey(), currentNode.ContextLength())
 				}
 			}
 			currentNode = currentNode.GetParent()
@@ -531,9 +541,12 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 				}
 			}
 			klog.Infof("Selected pod %s from longest matching node with match length %d", targetPod.Name, longestMatch.matchLength)
+			klog.Infof("prefixawarerouting latency %.4f", time.Since(ts_prefixawarerouting).Seconds())
 		} else {
+			ts_DetokenizeText := time.Now()
 			token_in_string, err := utils.DetokenizeText(tokens)
 			matched_tokens_in_string, _ := utils.DetokenizeText(matchedTokens)
+			klog.Infof("Detokenizer latency %.4f", time.Since(ts_DetokenizeText).Seconds())
 			if err != nil {
 				klog.Errorf("DetokenizeTexts failed: %s, tokens: '%v', matchedTokens: '%v', model: %s", err, token_in_string, matched_tokens_in_string, model)
 			} else {
@@ -544,7 +557,8 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 	}
 
 	if targetPod == nil {
-		klog.Infof("Do cost model based routing! (matching ratio: %.2f, len(matchedPods): %d)", matchRatio, len(matchedPods))
+		klog.Infof("Do cost model based routing! (matching ratio: %.4f, len(matchedPods): %d)", matchRatio, len(matchedPods))
+		ts_costmodelrouting := time.Now()
 		podCosts := p.histogram.getCurrentAllocationCostPerPod()
 		minCost := math.MaxFloat64
 		for _, pod := range readyPods {
@@ -556,6 +570,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 			}
 		}
 		klog.Infof("Lowest cost pod: %s", targetPod.Name)
+		klog.Infof("ts_costmodelrouting latency %.4f", time.Since(ts_costmodelrouting).Seconds())
 	}
 
 	if targetPod == nil {
@@ -565,14 +580,18 @@ func (p *prefixCacheAndLoadRouter) Route(ctx context.Context, pods map[string]*v
 	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
 	for currentNode != nil {
+		ts_AddOrUpdatePodForModel := time.Now()
 		currentNode.AddOrUpdatePodForModel(model, targetPod.Name, time.Now())
 		currentNode = currentNode.GetParent()
+		klog.Infof("AddOrUpdatePodForModel latency %.4f", time.Since(ts_AddOrUpdatePodForModel).Seconds())
 	}
-
+	ts_histogramupdate := time.Now()
 	p.histogram.update(time.Now(), node, node, targetPod.Name, defaultDecodingLength)
+	klog.Infof("Update histogram latency %.4f", time.Since(ts_histogramupdate).Seconds())
 
 	klog.InfoS("target_pod_name", targetPod.Name, "target_pod_ip", targetPod.Status.PodIP)
-	p.cache.PrettyPrint()
+	// p.cache.PrettyPrint()
+	klog.Infof("Route latency %.4f", time.Since(ts_Route).Seconds())
 	return getPodAddress(targetPod.Status.PodIP)
 }
 

@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
-
+	"time"
 	"github.com/vllm-project/aibrix/pkg/plugins/gateway/prefixcacheindexer"
 	"github.com/vllm-project/aibrix/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -71,8 +71,9 @@ func (p prefixCacheRouter) Route(ctx context.Context, pods map[string]*v1.Pod, m
 			return getPodAddress(pod.Status.PodIP)
 		}
 	}
-
+	tokenizer_ts := time.Now()
 	tokens, err := utils.TokenizeInputText(message)
+	klog.InfoS("tokenize latency", time.Since(tokenizer_ts).Milliseconds(), "length", len(tokens))
 	if err != nil {
 		return "", err
 	}

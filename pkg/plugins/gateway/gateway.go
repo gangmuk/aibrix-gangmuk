@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
@@ -45,7 +47,7 @@ import (
 	envoyTypePb "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/vllm-project/aibrix/pkg/cache"
 	routing "github.com/vllm-project/aibrix/pkg/plugins/gateway/algorithms"
-	"github.com/vllm-project/aibrix/pkg/plugins/gateway/ratelimiter"
+	ratelimiter "github.com/vllm-project/aibrix/pkg/plugins/gateway/ratelimiter"
 	"github.com/vllm-project/aibrix/pkg/utils"
 	healthPb "google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -82,6 +84,9 @@ const (
 	HeaderErrorIncrRPM     = "x-error-incr-rpm"
 	HeaderErrorIncrTPM     = "x-error-incr-tpm"
 
+	HeaderTTFT = "x-timing-ttft-ms"      // Time to first token in milliseconds
+	HeaderTPOT = "x-timing-tpot-ms"      // Time per output token in milliseconds
+
 	// Rate Limiting defaults
 	DefaultRPM           = 100
 	DefaultTPMMultiplier = 1000
@@ -98,6 +103,7 @@ const (
 	RouterLeastKvCache       = "least-kv-cache"
 	RouterLeastBusyTime      = "least-busy-time"
 	RouterLeastLatency       = "least-latency"
+	
 )
 
 var (
@@ -106,6 +112,9 @@ var (
 	ErrorUnknownResponse = errors.New("unknown response")
 
 	requestBuffers sync.Map // Thread-safe map to track buffers per request
+	streamingUsageCache sync.Map
+	requestMessages sync.Map
+	routingHistory sync.Map
 )
 
 // routerConstructors maps router names to their initialization functions.
@@ -127,6 +136,14 @@ type Server struct {
 	client              kubernetes.Interface
 	requestCountTracker map[string]int
 	cache               *cache.Cache
+	requestTimings  sync.Map // Map to track request timing information: requestID -> *RequestTiming
+	streamingChunksMap  sync.Map // requestID -> int
+}
+
+type RequestTiming struct {
+	startTime         time.Time  // When the request began processing
+	firstTokenTime    time.Time  // When the first token was received
+	tokenCount        int        // Count of tokens received so far
 }
 
 func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
@@ -163,6 +180,12 @@ func initializeRouters() map[string]routing.Router {
 
 type HealthServer struct{}
 
+func calculateMessageHash(message string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(message))
+	return hex.EncodeToString(hasher.Sum(nil))[:8]
+}
+
 func (s *HealthServer) Check(ctx context.Context, in *healthPb.HealthCheckRequest) (*healthPb.HealthCheckResponse, error) {
 	return &healthPb.HealthCheckResponse{Status: healthPb.HealthCheckResponse_SERVING}, nil
 }
@@ -182,7 +205,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 	completed := false
 
 	klog.InfoS("Processing request", "requestID", requestID)
-
+	// start_time := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -202,21 +225,29 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 		switch v := req.Request.(type) {
 
 		case *extProcPb.ProcessingRequest_RequestHeaders:
+			// HandleRequestBody_start_time := time.Now()
 			resp, user, rpm, routingStrategy = s.HandleRequestHeaders(ctx, requestID, req)
+			// klog.Infof("HandleRequestHeaders latency: %.4f", time.Since(HandleRequestBody_start_time).Seconds())
 
 		case *extProcPb.ProcessingRequest_RequestBody:
+			// HandleRequestBody_start_time := time.Now()
 			resp, model, targetPodIP, stream, traceTerm = s.HandleRequestBody(ctx, requestID, req, user, routingStrategy)
+			// klog.Infof("HandleRequestBody latency: %.4f", time.Since(HandleRequestBody_start_time).Seconds())
 
 		case *extProcPb.ProcessingRequest_ResponseHeaders:
+			// HandleResponseHeaders_start_time := time.Now()
 			resp, isRespError, respErrorCode = s.HandleResponseHeaders(ctx, requestID, req, targetPodIP)
+			// klog.Infof("HandleResponseHeaders latency: %.4f", time.Since(HandleResponseHeaders_start_time).Seconds())
 
 		case *extProcPb.ProcessingRequest_ResponseBody:
 			respBody := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
 			if isRespError {
 				klog.ErrorS(errors.New("request end"), string(respBody.ResponseBody.GetBody()), "requestID", requestID)
 				generateErrorResponse(envoyTypePb.StatusCode(respErrorCode), nil, string(respBody.ResponseBody.GetBody()))
-			} else {
-				resp, completed = s.HandleResponseBody(ctx, requestID, req, user, rpm, model, targetPodIP, stream, traceTerm, completed)
+				} else {
+					resp, completed = s.HandleResponseBody(ctx, requestID, req, user, rpm, model, targetPodIP, stream, traceTerm, completed)
+					// klog.Infof("E2E latency: %.4f", time.Since(start_time).Seconds())
+					// klog.Info("==========================================================================")
 			}
 		default:
 			klog.Infof("Unknown Request type %+v\n", v)
@@ -229,6 +260,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 }
 
 func (s *Server) HandleRequestHeaders(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest) (*extProcPb.ProcessingResponse, utils.User, int64, string) {
+	klog.Info("latency ==========================================================================")
 	klog.InfoS("-- In RequestHeaders processing ...", "requestID", requestID)
 	var username string
 	var user utils.User
@@ -254,7 +286,7 @@ func (s *Server) HandleRequestHeaders(ctx context.Context, requestID string, req
 	}
 
 	if username != "" {
-		user, err = utils.GetUser(ctx, utils.User{Name: username}, s.redisClient)
+		user, err = utils.GetUser(utils.User{Name: username}, s.redisClient)
 		if err != nil {
 			klog.ErrorS(err, "unable to process user info", "requestID", requestID, "username", username)
 			return generateErrorResponse(
@@ -295,6 +327,10 @@ func (s *Server) HandleRequestHeaders(ctx context.Context, requestID string, req
 
 func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, routingStrategy string) (*extProcPb.ProcessingResponse, string, string, bool, int64) {
 	klog.InfoS("-- In RequestBody processing ...", "requestID", requestID)
+	s.requestTimings.Store(requestID, &RequestTiming{
+		startTime: time.Now(),
+		tokenCount: 0,
+	})
 	var model, targetPodIP string
 	var ok, stream bool
 	var term int64 // Identify the trace window
@@ -358,6 +394,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 	}
 
 	headers := []*configPb.HeaderValueOption{}
+	klog.InfoS("request start", "routing-strategy", routingStrategy, "requestID", requestID, "model", model)
 	if routingStrategy == "" {
 		headers = append(headers, &configPb.HeaderValueOption{
 			Header: &configPb.HeaderValue{
@@ -365,14 +402,17 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 				RawValue: []byte(model),
 			},
 		})
-		klog.InfoS("request start", "requestID", requestID, "model", model)
+		klog.InfoS("routing-strategy is empty!")
 	} else {
 		message, extErr := getRequestMessage(jsonMap)
 		if extErr != nil {
 			return extErr, model, targetPodIP, stream, term
 		}
-
+		requestMessages.Store(requestID, message)
+		start_time := time.Now()
 		targetPodIP, err = s.selectTargetPod(ctx, routingStrategy, pods, model, message)
+		routingHistory.Store(requestID, targetPodIP)
+		klog.Infof("(Routing logic overhead) selectTargetPod latency: %.4f, target pod: %s", time.Since(start_time).Seconds(), targetPodIP)
 		if targetPodIP == "" || err != nil {
 			klog.ErrorS(err, "failed to select target pod", "requestID", requestID, "routingStrategy", routingStrategy, "model", model)
 			return generateErrorResponse(
@@ -395,11 +435,9 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 					RawValue: []byte(targetPodIP),
 				},
 			})
-		klog.InfoS("request start", "requestID", requestID, "model", model, "routingStrategy", routingStrategy, "targetPodIP", targetPodIP)
 	}
 
 	term = s.cache.AddRequestCount(requestID, model)
-
 	return &extProcPb.ProcessingResponse{
 		Response: &extProcPb.ProcessingResponse_RequestBody{
 			RequestBody: &extProcPb.BodyResponse{
@@ -415,6 +453,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 
 func (s *Server) HandleResponseHeaders(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, targetPodIP string) (*extProcPb.ProcessingResponse, bool, int) {
 	klog.InfoS("-- In ResponseHeaders processing ...", "requestID", requestID)
+	HandleResponseHeaders_start_time := time.Now()
 	b := req.Request.(*extProcPb.ProcessingRequest_ResponseHeaders)
 
 	headers := []*configPb.HeaderValueOption{{
@@ -449,7 +488,7 @@ func (s *Server) HandleResponseHeaders(ctx context.Context, requestID string, re
 			},
 		})
 	}
-
+	klog.Infof("HandleResponseHeaders latency: %.4f", time.Since(HandleResponseHeaders_start_time).Seconds())
 	return &extProcPb.ProcessingResponse{
 		Response: &extProcPb.ProcessingResponse_ResponseHeaders{
 			ResponseHeaders: &extProcPb.HeadersResponse{
@@ -464,158 +503,337 @@ func (s *Server) HandleResponseHeaders(ctx context.Context, requestID string, re
 	}, isProcessingError, processingErrorCode
 }
 
+func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) []*configPb.HeaderValueOption {
+    // Calculate TTFT (Time To First Token)
+    ttftMs := int64(0)
+    if !timing.firstTokenTime.IsZero() {
+        ttftMs = timing.firstTokenTime.Sub(timing.startTime).Milliseconds()
+    }
+    
+    // Calculate TPOT (Time Per Output Token)
+    tpotMs := int64(0)
+    if !timing.firstTokenTime.IsZero() {
+        totalGenerationTimeMs := currentTime.Sub(timing.firstTokenTime).Milliseconds()
+        
+        // Use the correct token count
+        effectiveTokenCount := int64(0)
+        if stream && timing.tokenCount > 1 {
+            // For streaming, use our counted tokens
+            effectiveTokenCount = int64(timing.tokenCount - 1) // Exclude first token
+        } else if numOutputTokens > 1 {
+            // Use the actual output tokens from usage
+            effectiveTokenCount = numOutputTokens - 1
+        }
+        
+        if effectiveTokenCount > 0 {
+            tpotMs = totalGenerationTimeMs / effectiveTokenCount
+        }
+    }
+    
+    // Add timing headers
+    headers := []*configPb.HeaderValueOption{
+        {
+            Header: &configPb.HeaderValue{
+                Key:      HeaderTTFT,
+                RawValue: []byte(fmt.Sprintf("%d", ttftMs)),
+            },
+        },
+        {
+            Header: &configPb.HeaderValue{
+                Key:      HeaderTPOT,
+                RawValue: []byte(fmt.Sprintf("%d", tpotMs)),
+            },
+        },
+    }
+    
+    // Log timing metrics with correct token counts
+    end_to_end := time.Since(timing.startTime).Milliseconds()
+    agg_latency := ttftMs
+    if numOutputTokens > 0 {
+        agg_latency += tpotMs * numOutputTokens
+    }
+	messageHash := ""
+    if messageInterface, exists := requestMessages.Load(requestID); exists {
+        message := messageInterface.(string)
+        messageHash = calculateMessageHash(message)
+        // Clean up the stored message
+        requestMessages.Delete(requestID)
+    }
+	selectedPodIP, _ := routingHistory.Load(requestID)
+	
+	klog.Infof("** latency metrics, hash(request), %s, selectedpod, %s, ttft, %d, tpot, %d, e2e, %d, numInputTokens, %d, numOutputTokens, %d, numTotalTokens, %d", messageHash, selectedPodIP, ttftMs, tpotMs, end_to_end, numInputTokens, numOutputTokens, numTotalTokens)
+    return headers
+}
+
 func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, rpm int64, model string, targetPodIP string, stream bool, traceTerm int64, hasCompleted bool) (*extProcPb.ProcessingResponse, bool) {
-	b := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
-	klog.InfoS("-- In ResponseBody processing ...", "requestID", requestID, "endOfSteam", b.ResponseBody.EndOfStream)
+    b := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
+    var res openai.ChatCompletion
+    var usage openai.CompletionUsage
+    var promptTokens, completionTokens int64
+    var headers []*configPb.HeaderValueOption
+    complete := hasCompleted
 
-	var res openai.ChatCompletion
-	var usage openai.CompletionUsage
-	var promptTokens, completionTokens int64
-	var headers []*configPb.HeaderValueOption
-	complete := hasCompleted
+    // Get timing object for this request
+    timingObj, exists := s.requestTimings.Load(requestID)
+    var timing *RequestTiming
+    if exists {
+        timing = timingObj.(*RequestTiming)
+    }
 
-	defer func() {
-		// Wrapped in a function to delay the evaluation of parameters. Using complete to make sure DoneRequestTrace only call once for a request.
-		if !hasCompleted && complete && b.ResponseBody.EndOfStream {
-			s.cache.DoneRequestTrace(requestID, model, promptTokens, completionTokens, traceTerm)
-		}
-	}()
+    // Process response body
+    currentTime := time.Now()
+    if timing != nil {
+        // Extract usage for streaming responses
+        if stream {
+            usage = s.handleStreamingResponse(requestID, b.ResponseBody.GetBody())
+            
+            // // Logging for verification
+            // klog.InfoS("Streaming usage extraction", 
+            //     "requestID", requestID,
+            //     "promptTokens", usage.PromptTokens,
+            //     "completionTokens", usage.CompletionTokens,
+            //     "totalTokens", usage.TotalTokens)
+        }
 
-	if stream {
-		t := &http.Response{
-			Body: io.NopCloser(bytes.NewReader(b.ResponseBody.GetBody())),
-		}
-		streaming := ssestream.NewStream[openai.ChatCompletionChunk](ssestream.NewDecoder(t), nil)
-		for streaming.Next() {
-			evt := streaming.Current()
-			if len(evt.Choices) == 0 {
-				// Do not overwrite model, res can be empty.
-				usage = evt.Usage
-			}
-		}
-		if err := streaming.Err(); err != nil {
-			klog.ErrorS(err, "error to unmarshal response", "requestID", requestID, "responseBody", string(b.ResponseBody.GetBody()))
-			complete = true
-			return generateErrorResponse(
-				envoyTypePb.StatusCode_InternalServerError,
-				[]*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
-					Key: HeaderErrorStreaming, RawValue: []byte("true"),
-				}}},
-				err.Error()), complete
-		}
-	} else {
-		// Use request ID as a key to store per-request buffer
-		// Retrieve or create buffer
-		buf, _ := requestBuffers.LoadOrStore(requestID, &bytes.Buffer{})
-		buffer := buf.(*bytes.Buffer)
-		// Append data to per-request buffer
-		buffer.Write(b.ResponseBody.Body)
+        if stream {
+            t := &http.Response{
+                Body: io.NopCloser(bytes.NewReader(b.ResponseBody.GetBody())),
+            }
+            streaming := ssestream.NewStream[openai.ChatCompletionChunk](ssestream.NewDecoder(t), nil)
+            
+            for streaming.Next() {
+                evt := streaming.Current()
+                
+                // Check if this is the first token for TTFT
+                if timing.firstTokenTime.IsZero() && len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
+                    timing.firstTokenTime = currentTime
+                    klog.InfoS("First token received", "requestID", requestID, 
+                        "ttft_ms", currentTime.Sub(timing.startTime).Milliseconds())
+                }
+                
+                // Count tokens for TPOT calculation
+                if len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
+                    timing.tokenCount++
+                }
+            }
+            
+            // Check for errors in streaming
+            if err := streaming.Err(); err != nil {
+                klog.ErrorS(err, "error processing streaming response", "requestID", requestID)
+                complete = true
+                return generateErrorResponse(
+                    envoyTypePb.StatusCode_InternalServerError,
+                    []*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
+                        Key: HeaderErrorStreaming, RawValue: []byte("true"),
+                    }}},
+                    err.Error()), complete
+            }
+        } else {
+            // For non-streaming, record first token time on final response
+            if b.ResponseBody.EndOfStream && timing.firstTokenTime.IsZero() {
+                timing.firstTokenTime = currentTime
+            }
+            
+            // Process the full response for non-streaming requests
+            if b.ResponseBody.EndOfStream {
+                // Get the full body
+                buf, _ := requestBuffers.LoadOrStore(requestID, &bytes.Buffer{})
+                buffer := buf.(*bytes.Buffer)
+                buffer.Write(b.ResponseBody.Body)
+                finalBody := buffer.Bytes()
+                requestBuffers.Delete(requestID)
+                
+                // Parse the response
+                if err := json.Unmarshal(finalBody, &res); err != nil {
+                    klog.ErrorS(err, "error unmarshaling response", "requestID", requestID)
+                    complete = true
+                    return generateErrorResponse(
+                        envoyTypePb.StatusCode_InternalServerError,
+                        []*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
+                            Key: HeaderErrorResponseUnmarshal, RawValue: []byte("true"),
+                        }}},
+                        err.Error()), complete
+                } else if len(res.Model) == 0 {
+                    msg := ErrorUnknownResponse.Error()
+                    responseBodyContent := string(finalBody)
+                    if len(responseBodyContent) != 0 {
+                        msg = responseBodyContent
+                    }
+                    klog.ErrorS(nil, "unexpected response", "requestID", requestID)
+                    complete = true
+                    return generateErrorResponse(
+                        envoyTypePb.StatusCode_InternalServerError,
+                        []*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
+                            Key: HeaderErrorResponseUnknown, RawValue: []byte("true"),
+                        }}},
+                        msg), complete
+                }
+                
+                // Get usage data
+                usage = res.Usage
+            } else {
+                // Just append data for partial responses
+                buf, _ := requestBuffers.LoadOrStore(requestID, &bytes.Buffer{})
+                buffer := buf.(*bytes.Buffer)
+                buffer.Write(b.ResponseBody.Body)
+                
+                // Return early for partial responses
+                return &extProcPb.ProcessingResponse{
+                    Response: &extProcPb.ProcessingResponse_ResponseBody{
+                        ResponseBody: &extProcPb.BodyResponse{
+                            Response: &extProcPb.CommonResponse{},
+                        },
+                    },
+                }, complete
+            }
+        }
+        
+        // Only calculate and add timing metrics at the end of the stream
+        if b.ResponseBody.EndOfStream {
+            // Calculate timing metrics and add headers
+            timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+            headers = append(headers, timingHeaders...)
+            
+            // Clean up timing data when we're done
+            s.requestTimings.Delete(requestID)
+        }
+    }
 
-		if !b.ResponseBody.EndOfStream {
-			// Partial data received, wait for more chunks, we just return a common response here.
-			return &extProcPb.ProcessingResponse{
-				Response: &extProcPb.ProcessingResponse_ResponseBody{
-					ResponseBody: &extProcPb.BodyResponse{
-						Response: &extProcPb.CommonResponse{},
-					},
-				},
-			}, complete
-		}
+    // Set completion flag if we have token usage data
+    if usage.TotalTokens > 0 {
+        complete = true
+        promptTokens = usage.PromptTokens
+        completionTokens = usage.CompletionTokens
+        
+        // Count token per user if needed
+        if user.Name != "" {
+            tpm, err := s.ratelimiter.Incr(ctx, fmt.Sprintf("%v_TPM_CURRENT", user), usage.TotalTokens)
+            if err != nil {
+                return generateErrorResponse(
+                    envoyTypePb.StatusCode_InternalServerError,
+                    []*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
+                        Key: HeaderErrorIncrTPM, RawValue: []byte("true"),
+                    }}},
+                    err.Error()), complete
+            }
 
-		// Last part received, process the full response
-		finalBody := buffer.Bytes()
-		// Clean up the buffer after final processing
-		requestBuffers.Delete(requestID)
+            headers = append(headers,
+                &configPb.HeaderValueOption{
+                    Header: &configPb.HeaderValue{
+                        Key:      HeaderUpdateRPM,
+                        RawValue: []byte(fmt.Sprintf("%d", rpm)),
+                    },
+                },
+                &configPb.HeaderValueOption{
+                    Header: &configPb.HeaderValue{
+                        Key:      HeaderUpdateTPM,
+                        RawValue: []byte(fmt.Sprintf("%d", tpm)),
+                    },
+                },
+            )
+        }
 
-		if err := json.Unmarshal(finalBody, &res); err != nil {
-			klog.ErrorS(err, "error to unmarshal response", "requestID", requestID, "responseBody", string(b.ResponseBody.GetBody()))
-			complete = true
-			return generateErrorResponse(
-				envoyTypePb.StatusCode_InternalServerError,
-				[]*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
-					Key: HeaderErrorResponseUnmarshal, RawValue: []byte("true"),
-				}}},
-				err.Error()), complete
-		} else if len(res.Model) == 0 {
-			msg := ErrorUnknownResponse.Error()
-			responseBodyContent := string(b.ResponseBody.GetBody())
-			if len(responseBodyContent) != 0 {
-				msg = responseBodyContent
-			}
-			klog.ErrorS(err, "unexpected response", "requestID", requestID, "responseBody", responseBodyContent)
-			complete = true
-			return generateErrorResponse(
-				envoyTypePb.StatusCode_InternalServerError,
-				[]*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
-					Key: HeaderErrorResponseUnknown, RawValue: []byte("true"),
-				}}},
-				msg), complete
-		}
-		// Do not overwrite model, res can be empty.
-		usage = res.Usage
-	}
+        // Add target pod information
+        if targetPodIP != "" {
+            headers = append(headers,
+                &configPb.HeaderValueOption{
+                    Header: &configPb.HeaderValue{
+                        Key:      HeaderTargetPod,
+                        RawValue: []byte(targetPodIP),
+                    },
+                },
+            )
+        }
 
-	var requestEnd string
-	if usage.TotalTokens != 0 {
-		complete = true
-		// Update promptTokens and completeTokens
-		promptTokens = usage.PromptTokens
-		completionTokens = usage.CompletionTokens
-		// Count token per user.
-		if user.Name != "" {
-			tpm, err := s.ratelimiter.Incr(ctx, fmt.Sprintf("%v_TPM_CURRENT", user), res.Usage.TotalTokens)
-			if err != nil {
-				return generateErrorResponse(
-					envoyTypePb.StatusCode_InternalServerError,
-					[]*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
-						Key: HeaderErrorIncrTPM, RawValue: []byte("true"),
-					}}},
-					err.Error()), complete
-			}
+        // Only log completion on the final chunk
+        if b.ResponseBody.EndOfStream {
+            klog.InfoS("Request completed", 
+                "requestID", requestID,
+                "targetPod", targetPodIP,
+                "promptTokens", promptTokens,
+                "completionTokens", completionTokens,
+                "totalTokens", promptTokens + completionTokens)
+        }
+    }
+    
+    // Call DoneRequestTrace when the request is complete
+    if !hasCompleted && complete && b.ResponseBody.EndOfStream {
+        s.cache.DoneRequestTrace(requestID, model, promptTokens, completionTokens, traceTerm)
+    }
 
-			headers = append(headers,
-				&configPb.HeaderValueOption{
-					Header: &configPb.HeaderValue{
-						Key:      HeaderUpdateRPM,
-						RawValue: []byte(fmt.Sprintf("%d", rpm)),
-					},
-				},
-				&configPb.HeaderValueOption{
-					Header: &configPb.HeaderValue{
-						Key:      HeaderUpdateTPM,
-						RawValue: []byte(fmt.Sprintf("%d", tpm)),
-					},
-				},
-			)
-			requestEnd = fmt.Sprintf(requestEnd+"rpm: %s, tpm: %s, ", rpm, tpm)
-		}
+    // Only log completion on the final chunk
+    if b.ResponseBody.EndOfStream {
+        klog.InfoS("HandleResponseBody completed", 
+            "requestID", requestID,
+            "promptTokens", promptTokens, 
+            "completionTokens", completionTokens,
+            "stream", stream)
+		klog.Info("latency ==========================================================================")
+    }
 
-		if targetPodIP != "" {
-			headers = append(headers,
-				&configPb.HeaderValueOption{
-					Header: &configPb.HeaderValue{
-						Key:      HeaderTargetPod,
-						RawValue: []byte(targetPodIP),
-					},
-				},
-			)
-			requestEnd = fmt.Sprintf(requestEnd+"targetPod: %s", targetPodIP)
-		}
+    return &extProcPb.ProcessingResponse{
+        Response: &extProcPb.ProcessingResponse_ResponseBody{
+            ResponseBody: &extProcPb.BodyResponse{
+                Response: &extProcPb.CommonResponse{
+                    HeaderMutation: &extProcPb.HeaderMutation{
+                        SetHeaders: headers,
+                    },
+                },
+            },
+        },
+    }, complete
+}
 
-		klog.Infof("request end, requestID: %s - %s", requestID, requestEnd)
-	}
 
-	return &extProcPb.ProcessingResponse{
-		Response: &extProcPb.ProcessingResponse_ResponseBody{
-			ResponseBody: &extProcPb.BodyResponse{
-				Response: &extProcPb.CommonResponse{
-					HeaderMutation: &extProcPb.HeaderMutation{
-						SetHeaders: headers,
-					},
-				},
-			},
-		},
-	}, complete
+func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) openai.CompletionUsage {
+    // Split the response into lines
+    lines := strings.Split(string(responseBody), "\n")
+    
+    // Retrieve existing usage for this request
+    existingUsageRaw, _ := streamingUsageCache.LoadOrStore(requestID, openai.CompletionUsage{})
+    existingUsage := existingUsageRaw.(openai.CompletionUsage)
+
+    for i := len(lines) - 1; i >= 0; i-- {
+        line := strings.TrimSpace(lines[i])
+        
+        // Skip empty lines or non-data lines
+        if !strings.HasPrefix(line, "data:") || line == "data: [DONE]" {
+            continue
+        }
+
+        // Remove "data: " prefix
+        cleanLine := strings.TrimPrefix(line, "data: ")
+        
+        // Try to parse the JSON
+        var chunk map[string]interface{}
+        if err := json.Unmarshal([]byte(cleanLine), &chunk); err != nil {
+            continue
+        }
+
+        // Check for usage
+        if usageMap, ok := chunk["usage"].(map[string]interface{}); ok {
+            promptTokens := int64(usageMap["prompt_tokens"].(float64))
+            completionTokens := int64(usageMap["completion_tokens"].(float64))
+            totalTokens := int64(usageMap["total_tokens"].(float64))
+
+            // Only update if we find meaningful usage
+            if promptTokens > 0 || completionTokens > 0 || totalTokens > 0 {
+                newUsage := openai.CompletionUsage{
+                    PromptTokens:     promptTokens,
+                    CompletionTokens: completionTokens,
+                    TotalTokens:      totalTokens,
+                }
+                
+                // Store the new usage
+                streamingUsageCache.Store(requestID, newUsage)
+                
+                return newUsage
+            }
+        }
+    }
+    
+    // Return existing usage if no new usage found
+    return existingUsage
 }
 
 func (s *Server) checkLimits(ctx context.Context, user utils.User) (int64, *extProcPb.ProcessingResponse, error) {
@@ -714,7 +932,6 @@ func (s *Server) selectTargetPod(ctx context.Context, routingStrategy string, po
 	default:
 		route = s.routers["random"]
 	}
-
 	return route.Route(ctx, pods, model, message)
 }
 
