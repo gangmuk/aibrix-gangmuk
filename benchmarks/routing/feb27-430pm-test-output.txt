@@ -1,0 +1,186 @@
+token length:  105
+TTFT random routing 0.5599400997161865 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.6352670192718506 target-pod 10.0.3.42:8000
+#2: TTFT prefix-cache routing 0.5888450145721436 target-pod 10.0.3.42:8000
+
+
+
+token length:  235
+TTFT random routing 0.5890359878540039 target-pod 10.0.0.33:8000
+#1: TTFT prefix-cache routing 0.6381981372833252 target-pod 10.0.1.53:8000
+#2: TTFT prefix-cache routing 0.6012182235717773 target-pod 10.0.1.53:8000
+
+
+
+token length:  124
+TTFT random routing 0.7269361019134521 target-pod 10.0.3.42:8000
+#1: TTFT prefix-cache routing 0.6404058933258057 target-pod 10.0.1.51:8000
+#2: TTFT prefix-cache routing 0.6740961074829102 target-pod 10.0.1.51:8000
+
+
+
+token length:  51
+TTFT random routing 0.5477218627929688 target-pod 10.0.0.90:8000
+#1: TTFT prefix-cache routing 0.5977139472961426 target-pod 10.0.0.134:8000
+#2: TTFT prefix-cache routing 0.6026220321655273 target-pod 10.0.0.134:8000
+
+
+
+token length:  409
+TTFT random routing 0.5948328971862793 target-pod 10.0.0.33:8000
+#1: TTFT prefix-cache routing 0.6395387649536133 target-pod 10.0.0.90:8000
+#2: TTFT prefix-cache routing 0.5869541168212891 target-pod 10.0.0.90:8000
+
+
+
+token length:  101
+TTFT random routing 0.5634019374847412 target-pod 10.0.0.134:8000
+#1: TTFT prefix-cache routing 0.6066291332244873 target-pod 10.0.1.26:8000
+#2: TTFT prefix-cache routing 0.626244068145752 target-pod 10.0.1.26:8000
+
+
+
+token length:  882
+TTFT random routing 0.6670899391174316 target-pod 10.0.1.26:8000
+#1: TTFT prefix-cache routing 0.7122881412506104 target-pod 10.0.3.32:8000
+#2: TTFT prefix-cache routing 0.595862865447998 target-pod 10.0.3.32:8000
+
+
+
+token length:  23
+TTFT random routing 0.5564589500427246 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.609295129776001 target-pod 10.0.0.33:8000
+#2: TTFT prefix-cache routing 0.5948731899261475 target-pod 10.0.0.33:8000
+
+
+
+token length:  31
+TTFT random routing 0.544503927230835 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.5977590084075928 target-pod 10.0.3.42:8000
+#2: TTFT prefix-cache routing 0.5878188610076904 target-pod 10.0.3.42:8000
+
+
+
+token length:  453
+TTFT random routing 0.5928797721862793 target-pod 10.0.1.53:8000
+#1: TTFT prefix-cache routing 0.6439192295074463 target-pod 10.0.3.42:8000
+#2: TTFT prefix-cache routing 0.5852489471435547 target-pod 10.0.3.42:8000
+  
+
+
+token length:  14
+TTFT random routing 0.5473818778991699 target-pod 10.0.0.90:8000
+#1: TTFT prefix-cache routing 0.5911731719970703 target-pod 10.0.1.51:8000
+#2: TTFT prefix-cache routing 0.5999069213867188 target-pod 10.0.1.51:8000
+
+
+
+token length:  1355
+TTFT random routing 0.721005916595459 target-pod 10.0.0.90:8000
+#1: TTFT prefix-cache routing 0.7801790237426758 target-pod 10.0.0.134:8000
+#2: TTFT prefix-cache routing 0.6039028167724609 target-pod 10.0.0.134:8000
+
+
+
+token length:  1435
+TTFT random routing 0.7632262706756592 target-pod 10.0.1.53:8000
+#1: TTFT prefix-cache routing 0.5985820293426514 target-pod 10.0.1.53:8000
+#2: TTFT prefix-cache routing 0.6099140644073486 target-pod 10.0.1.53:8000
+
+
+
+token length:  1002
+TTFT random routing 0.6691210269927979 target-pod 10.0.0.90:8000
+#1: TTFT prefix-cache routing 0.7208597660064697 target-pod 10.0.3.32:8000
+#2: TTFT prefix-cache routing 0.5954649448394775 target-pod 10.0.3.32:8000
+
+
+
+token length:  1012
+TTFT random routing 0.6778769493103027 target-pod 10.0.1.51:8000
+#1: TTFT prefix-cache routing 0.7213099002838135 target-pod 10.0.0.90:8000
+#2: TTFT prefix-cache routing 0.6019558906555176 target-pod 10.0.0.90:8000
+
+
+
+token length:  1002
+TTFT random routing 0.6668570041656494 target-pod 10.0.3.42:8000
+#1: TTFT prefix-cache routing 0.6025509834289551 target-pod 10.0.3.32:8000
+#2: TTFT prefix-cache routing 0.5912759304046631 target-pod 10.0.3.32:8000
+
+
+
+token length:  1266
+TTFT random routing 0.7113268375396729 target-pod 10.0.0.134:8000
+#1: TTFT prefix-cache routing 0.755119800567627 target-pod 10.0.0.33:8000
+#2: TTFT prefix-cache routing 0.5989580154418945 target-pod 10.0.0.33:8000
+
+
+
+token length:  1129
+TTFT random routing 0.6924400329589844 target-pod 10.0.1.51:8000
+#1: TTFT prefix-cache routing 0.73618483543396 target-pod 10.0.3.42:8000
+#2: TTFT prefix-cache routing 0.5897111892700195 target-pod 10.0.3.42:8000
+
+
+
+token length:  1309
+TTFT random routing 0.6989860534667969 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.7481110095977783 target-pod 10.0.1.53:8000
+#2: TTFT prefix-cache routing 0.5951390266418457 target-pod 10.0.1.53:8000
+
+
+
+token length:  1114
+TTFT random routing 0.6887397766113281 target-pod 10.0.0.134:8000
+#1: TTFT prefix-cache routing 0.7486672401428223 target-pod 10.0.1.51:8000
+#2: TTFT prefix-cache routing 0.5992021560668945 target-pod 10.0.1.51:8000
+
+
+
+token length:  1052
+TTFT random routing 0.6706130504608154 target-pod 10.0.1.26:8000
+#1: TTFT prefix-cache routing 0.7215209007263184 target-pod 10.0.0.134:8000
+#2: TTFT prefix-cache routing 0.601801872253418 target-pod 10.0.0.134:8000
+
+
+
+token length:  1170
+TTFT random routing 0.6892800331115723 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.7403290271759033 target-pod 10.0.1.26:8000
+#2: TTFT prefix-cache routing 1.1456358432769775 target-pod 10.0.1.26:8000
+
+
+
+token length:  1002
+TTFT random routing 3.052431106567383 target-pod 10.0.1.53:8000
+#1: TTFT prefix-cache routing 3.9377810955047607 target-pod 10.0.3.32:8000
+#2: TTFT prefix-cache routing 0.7609357833862305 target-pod 10.0.3.32:8000
+
+
+
+token length:  1126
+TTFT random routing 0.6907451152801514 target-pod 10.0.3.42:8000
+#1: TTFT prefix-cache routing 0.7386367321014404 target-pod 10.0.0.90:8000
+#2: TTFT prefix-cache routing 0.5921471118927002 target-pod 10.0.0.90:8000
+
+
+
+token length:  1247
+TTFT random routing 0.7371289730072021 target-pod 10.0.3.32:8000
+#1: TTFT prefix-cache routing 0.9846510887145996 target-pod 10.0.0.33:8000
+#2: TTFT prefix-cache routing 0.5952770709991455 target-pod 10.0.0.33:8000
+
+
+
+token length:  1046
+TTFT random routing 0.6928718090057373 target-pod 10.0.0.134:8000
+#1: TTFT prefix-cache routing 0.7400250434875488 target-pod 10.0.3.42:8000
+#2: TTFT prefix-cache routing 0.593315839767456 target-pod 10.0.3.42:8000
+
+
+
+token length:  1059
+TTFT random routing 0.6959538459777832 target-pod 10.0.0.134:8000
+#1: TTFT prefix-cache routing 0.7514398097991943 target-pod 10.0.1.51:8000
+#2: TTFT prefix-cache routing 0.599973201751709 target-pod 10.0.1.51:8000

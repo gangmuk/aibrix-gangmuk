@@ -1,0 +1,24 @@
+{
+  "config_stats": [
+    {
+      "config_id": 1,
+      "prefix_length": 10000,
+      "suffix_length": 1000,
+      "num_samples_per_prefix": 32,
+      "num_prefix": 10,
+      "rps": 5,
+      "randomize_order": true,
+      "num_requests": 320,
+      "total_tokens": 3520320,
+      "total_duration": 64.0,
+      "prefix_sharing_ratio": 0.18087560221798019,
+      "prefix_proportion": 0.9090909090909091,
+      "start_time": 159,
+      "end_time": 63822
+    }
+  ],
+  "num_tokens": 3520320,
+  "num_requests": 320,
+  "overall_sharing_ratio": 0.18087560221798019,
+  "overall_prefix_proportion": 0.9090909090909091
+}

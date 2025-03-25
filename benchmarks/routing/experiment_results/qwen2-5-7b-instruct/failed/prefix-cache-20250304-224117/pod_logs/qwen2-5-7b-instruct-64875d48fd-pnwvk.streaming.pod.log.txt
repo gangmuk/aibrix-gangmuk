@@ -1,0 +1,51 @@
+INFO 03-04 22:41:34 api_server.py:651] vLLM API server version 0.6.5
+INFO 03-04 22:41:34 api_server.py:652] args: Namespace(host=None, port=8000, uvicorn_log_level='info', allow_credentials=False, allowed_origins=['*'], allowed_methods=['*'], allowed_headers=['*'], api_key='sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi', lora_modules=None, prompt_adapters=None, chat_template=None, chat_template_content_format='auto', response_role='assistant', ssl_keyfile=None, ssl_certfile=None, ssl_ca_certs=None, ssl_cert_reqs=0, root_path=None, middleware=[], return_tokens_as_token_ids=False, disable_frontend_multiprocessing=False, enable_auto_tool_choice=False, tool_call_parser=None, tool_parser_plugin='', model='/models/Qwen2.5-7B-Instruct/', task='auto', tokenizer=None, skip_tokenizer_init=False, revision=None, code_revision=None, tokenizer_revision=None, tokenizer_mode='auto', trust_remote_code=True, allowed_local_media_path=None, download_dir=None, load_format='auto', config_format=<ConfigFormat.AUTO: 'auto'>, dtype='auto', kv_cache_dtype='auto', quantization_param_path=None, max_model_len=None, guided_decoding_backend='xgrammar', logits_processor_pattern=None, distributed_executor_backend=None, worker_use_ray=False, pipeline_parallel_size=1, tensor_parallel_size=1, max_parallel_loading_workers=None, ray_workers_use_nsight=False, block_size=None, enable_prefix_caching=True, disable_sliding_window=False, use_v2_block_manager=True, num_lookahead_slots=0, seed=0, swap_space=4, cpu_offload_gb=0, gpu_memory_utilization=0.9, num_gpu_blocks_override=None, max_num_batched_tokens=None, max_num_seqs=None, max_logprobs=20, disable_log_stats=False, quantization=None, rope_scaling=None, rope_theta=None, hf_overrides=None, enforce_eager=False, max_seq_len_to_capture=8192, disable_custom_all_reduce=False, tokenizer_pool_size=0, tokenizer_pool_type='ray', tokenizer_pool_extra_config=None, limit_mm_per_prompt=None, mm_processor_kwargs=None, mm_cache_preprocessor=False, enable_lora=False, enable_lora_bias=False, max_loras=1, max_lora_rank=16, lora_extra_vocab_size=256, lora_dtype='auto', long_lora_scaling_factors=None, max_cpu_loras=None, fully_sharded_loras=False, enable_prompt_adapter=False, max_prompt_adapters=1, max_prompt_adapter_token=0, device='auto', num_scheduler_steps=1, multi_step_stream_outputs=True, scheduler_delay_factor=0.0, enable_chunked_prefill=None, speculative_model=None, speculative_model_quantization=None, num_speculative_tokens=None, speculative_disable_mqa_scorer=False, speculative_draft_tensor_parallel_size=None, speculative_max_model_len=None, speculative_disable_by_batch_size=None, ngram_prompt_lookup_max=None, ngram_prompt_lookup_min=None, spec_decoding_acceptance_method='rejection_sampler', typical_acceptance_sampler_posterior_threshold=None, typical_acceptance_sampler_posterior_alpha=None, disable_logprobs_during_spec_decoding=None, model_loader_extra_config=None, ignore_patterns=[], preemption_mode=None, served_model_name=['qwen2-5-7b-instruct'], qlora_adapter_name_or_path=None, otlp_traces_endpoint=None, collect_detailed_traces=None, disable_async_output_proc=False, scheduling_policy='fcfs', override_neuron_config=None, override_pooler_config=None, compilation_config=None, kv_transfer_config=None, worker_cls='auto', disable_log_requests=False, max_log_len=None, disable_fastapi_docs=False, enable_prompt_tokens_details=False)
+INFO 03-04 22:41:34 api_server.py:199] Started engine process with PID 34
+INFO 03-04 22:41:38 config.py:478] This model supports multiple tasks: {'classify', 'reward', 'embed', 'generate', 'score'}. Defaulting to 'generate'.
+INFO 03-04 22:41:41 config.py:478] This model supports multiple tasks: {'reward', 'score', 'classify', 'embed', 'generate'}. Defaulting to 'generate'.
+INFO 03-04 22:41:42 selector.py:120] Using Flash Attention backend.
+INFO 03-04 22:41:42 model_runner.py:1092] Starting to load model /models/Qwen2.5-7B-Instruct/...
+
+Loading safetensors checkpoint shards:   0% Completed | 0/4 [00:00<?, ?it/s]
+
+Loading safetensors checkpoint shards:  25% Completed | 1/4 [00:00<00:01,  1.92it/s]
+
+Loading safetensors checkpoint shards:  50% Completed | 2/4 [00:01<00:01,  1.84it/s]
+
+Loading safetensors checkpoint shards:  75% Completed | 3/4 [00:01<00:00,  1.88it/s]
+
+Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:02<00:00,  1.83it/s]
+
+Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:02<00:00,  1.85it/s]
+
+INFO 03-04 22:41:45 model_runner.py:1097] Loading model weights took 14.2487 GB
+INFO 03-04 22:41:49 worker.py:241] Memory profiling takes 4.46 seconds
+INFO 03-04 22:41:49 worker.py:241] the current vLLM instance can use total_gpu_memory (47.51GiB) x gpu_memory_utilization (0.90) = 42.76GiB
+INFO 03-04 22:41:49 worker.py:241] model weights take 14.25GiB; non_torch_memory takes 0.11GiB; PyTorch activation peak memory takes 4.35GiB; the rest of the memory reserved for KV Cache is 24.05GiB.
+INFO 03-04 22:41:49 gpu_executor.py:76] # GPU blocks: 28146, # CPU blocks: 4681
+INFO 03-04 22:41:49 gpu_executor.py:80] Maximum concurrency for 32768 tokens per request: 13.74x
+INFO 03-04 22:41:51 model_runner.py:1413] Capturing cudagraphs for decoding. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+INFO 03-04 22:41:51 model_runner.py:1417] If out-of-memory error occurs during cudagraph capture, consider decreasing `gpu_memory_utilization` or switching to eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+INFO 03-04 22:42:00 model_runner.py:1527] Graph capturing finished in 9 secs, took 0.77 GiB
+INFO 03-04 22:42:00 llm_engine.py:446] init engine (profile, create kv cache, warmup model) took 15.74 seconds
+INFO 03-04 22:42:01 api_server.py:586] Using supplied chat template:
+INFO 03-04 22:42:01 api_server.py:586] None
+INFO 03-04 22:42:01 launcher.py:19] Available routes are:
+INFO 03-04 22:42:01 launcher.py:27] Route: /openapi.json, Methods: GET, HEAD
+INFO 03-04 22:42:01 launcher.py:27] Route: /docs, Methods: GET, HEAD
+INFO 03-04 22:42:01 launcher.py:27] Route: /docs/oauth2-redirect, Methods: GET, HEAD
+INFO 03-04 22:42:01 launcher.py:27] Route: /redoc, Methods: GET, HEAD
+INFO 03-04 22:42:01 launcher.py:27] Route: /health, Methods: GET
+INFO 03-04 22:42:01 launcher.py:27] Route: /tokenize, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /detokenize, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /v1/models, Methods: GET
+INFO 03-04 22:42:01 launcher.py:27] Route: /version, Methods: GET
+INFO 03-04 22:42:01 launcher.py:27] Route: /v1/chat/completions, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /v1/completions, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /v1/embeddings, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /score, Methods: POST
+INFO 03-04 22:42:01 launcher.py:27] Route: /v1/score, Methods: POST
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepseek-coder-33b-instruct
+  labels:
+    model.aibrix.ai/name: deepseek-coder-33b-instruct
+    model.aibrix.ai/port: "8000"
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      model.aibrix.ai/name: deepseek-coder-33b-instruct
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+        annotations:
+          vci.vke.volcengine.com/pod-ip-family: dualstack  # 主网卡使用的协议栈。
+          prometheus.io/scrape: "true"  # 配置为 true 表示开启服务发现
+          prometheus.io/port: "8000"  # 配置为采集指标暴露的端口号，该端口号必须在容器的配置中显示声明
+          prometheus.io/path: "/metrics" # 填写指标暴露的 URI 路径，一般是 /metrics
+        labels:
+          model.aibrix.ai/name: deepseek-coder-33b-instruct
+    spec:
+      affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: machine.cluster.vke.volcengine.com/gpu-name
+                      operator: In
+                      values:
+                        - NVIDIA-L20
+      containers:
+        - name: vllm-openai
+          image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/vllm-openai:v0.6.5
+          # image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/vllm-openai:v0.6.2-distributed
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING
+            value: "true"
+          command:
+            - python3
+            - -m
+            - vllm.entrypoints.openai.api_server
+            - --port
+            - "8000"
+            - --uvicorn-log-level
+            - warning
+            - --model
+            - /models/deepseek-coder-33b-instruct/
+            - --served-model-name
+            - deepseek-coder-33b-instruct
+            - --trust-remote-code
+            - --api-key
+            - sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi
+            - --tensor-parallel-size
+            - "4"
+            # - --max-model-len
+            # - "17000"
+            - --max-lora-rank
+            - "64"
+            - --enable-prefix-caching
+            - --disable-fastapi-docs
+            - --enable-lora
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - |
+                  while true; do
+                    RUNNING=$(curl -s http://localhost:8000/metrics | grep 'vllm:num_requests_running' | grep -v '#' | awk '{print $2}')
+                    WAITING=$(curl -s http://localhost:8000/metrics | grep 'vllm:num_requests_waiting' | grep -v '#' | awk '{print $2}')
+                    if [ "$RUNNING" = "0.0" ] && [ "$WAITING" = "0.0" ]; then
+                      echo "Terminating: No active or waiting requests, safe to terminate" >> /proc/1/fd/1
+                      exit 0
+                    else
+                      echo "Terminating: Running: $RUNNING, Waiting: $WAITING" >> /proc/1/fd/1
+                      sleep 5
+                    fi
+                  done
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 90
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 90
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+            requests:
+              nvidia.com/gpu: "1"
+          # We need to use dataset cache
+          volumeMounts:
+            - mountPath: /models
+              name: model-hostpath
+            - name: dshm
+              mountPath: /dev/shm
+      initContainers:
+        - name: init-model-text2tls
+          # image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.2.0-rc.2
+          image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.2.0
+          command:
+          - aibrix_download
+          - --model-uri
+          - tos://aibrix-artifact-testing/models/text2tls-lora-sft-deepseek-coder-33b-instruct-20250123/
+          - --local-dir
+          - /models/
+          env:
+            - name: DOWNLOADER_NUM_THREADS
+              value: "16"
+            - name: DOWNLOADER_ALLOW_FILE_SUFFIX
+              value: "json, safetensors"
+            - name: TOS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tos-credential
+                  key: TOS_ACCESS_KEY
+            - name: TOS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tos-credential
+                  key: TOS_SECRET_KEY
+            - name: TOS_ENDPOINT
+              value: https://tos-s3-cn-beijing.ivolces.com
+            - name: TOS_REGION
+              value: cn-beijing
+          volumeMounts:
+            - mountPath: /models
+              name: model-hostpath
+        - name: init-model-text2sql
+          # image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.2.0-rc.2
+          image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.2.0
+          command:
+          - aibrix_download
+          - --model-uri
+          - tos://aibrix-artifact-testing/models/text2sql-lora-sft-deepseek-coder-33b-instruct-1005/
+          - --local-dir
+          - /models/
+          env:
+            - name: DOWNLOADER_NUM_THREADS
+              value: "16"
+            - name: DOWNLOADER_ALLOW_FILE_SUFFIX
+              value: "json, safetensors"
+            - name: TOS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tos-credential
+                  key: TOS_ACCESS_KEY
+            - name: TOS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tos-credential
+                  key: TOS_SECRET_KEY
+            - name: TOS_ENDPOINT
+              value: https://tos-s3-cn-beijing.ivolces.com
+            - name: TOS_REGION
+              value: cn-beijing
+          volumeMounts:
+            - mountPath: /models
+              name: model-hostpath

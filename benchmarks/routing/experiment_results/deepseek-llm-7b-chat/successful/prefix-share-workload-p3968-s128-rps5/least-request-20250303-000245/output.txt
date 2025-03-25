@@ -1,0 +1,1527 @@
+Make sure deepseek-llm-7b-chat is the right deployment.
+output directory does not exist. Create the output directory (experiment_results/prefix-share-workload-p3968-s128-rps5/least-request-20250303-000245)
+----------------------------------------
+workload_name: prefix-share-workload-p3968-s128-rps5
+target_deployment: deepseek-llm-7b-chat
+routing: least-request
+autoscaler: none
+target_deployment: deepseek-llm-7b-chat
+input_workload_path: prefix-workload/prefix-share-workload-p3968-s128-rps5.jsonl
+experiment_result_dir: experiment_results/prefix-share-workload-p3968-s128-rps5/least-request-20250303-000245
+----------------------------------------
+started port-forwarding with PID: 75104
+No resources found
+No resources found
+Restart aibrix-controller-manager deployment
+Forwarding from 127.0.0.1:8888 -> 10080
+Forwarding from [::1]:8888 -> 10080
+deployment.apps/aibrix-controller-manager restarted
+Restart aibrix-gateway-plugins deployment
+deployment.apps/aibrix-gateway-plugins restarted
+Restart deepseek-llm-7b-chat deployment
+deployment.apps/deepseek-llm-7b-chat restarted
+Sleep for 20 seconds after restarting deployment
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+Container vllm-openai in pod deepseek-llm-7b-chat-7d8f9954bb-dfzkc is not ready
+All pods of deepseek-llm-7b-chat deployment and their containers are ready!
+All pods are ready
+All pods of aibrix-controller-manager deployment and their containers are ready!
+All pods are ready
+All pods of aibrix-gateway-plugins deployment and their containers are ready!
+All pods are ready
+started count_num_pods.py with PID: 77349
+INFO:root:Starting benchmark on endpoint http://localhost:8888
+INFO:root:Using streaming client
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1589970588684082
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24944806098937988
+INFO:root:Request 0: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1835310459136963
+INFO:root:Request 1: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15567517280578613
+INFO:root:Request 2: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10864377021789551
+INFO:root:Request 3: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20708084106445312
+INFO:root:Request 4: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11375308036804199
+INFO:root:Request 5: Starting streaming request to http://localhost:8888
+/Users/bytedance/projects/aibrix-routing-experiment/benchmarks/utils/count_num_pods.py:29: DeprecationWarning: There is no current event loop
+  asyncio_time = asyncio.get_event_loop().time()
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4446220397949219
+INFO:root:Request 6: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6616220474243164
+INFO:root:Request 7: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09437108039855957
+INFO:root:Request 8: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.29919910430908203
+INFO:root:Request 9: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14953827857971191
+INFO:root:Request 10: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 2: Completed successfully. Tokens: 3722, Latency: 2.15s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1651468276977539
+INFO:root:Request 11: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5190927982330322
+INFO:root:Request 12: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.013424158096313477
+INFO:root:Request 13: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01710987091064453
+INFO:root:Request 14: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0035810470581054688
+INFO:root:Request 15: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3576490879058838
+INFO:root:Request 16: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:root:Request 0: Completed successfully. Tokens: 3781, Latency: 3.64s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.299515962600708
+INFO:root:Request 17: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.40742993354797363
+INFO:root:Request 18: Starting streaming request to http://localhost:8888
+INFO:root:Request 7: Completed successfully. Tokens: 3722, Latency: 2.62s
+Handling connection for 8888
+INFO:root:Request 11: Completed successfully. Tokens: 3704, Latency: 1.61s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7675521373748779
+INFO:root:Request 19: Starting streaming request to http://localhost:8888
+INFO:root:Request 1: Completed successfully. Tokens: 3809, Latency: 4.28s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 9: Completed successfully. Tokens: 3732, Latency: 2.71s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.31949591636657715
+INFO:root:Request 20: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12354898452758789
+INFO:root:Request 21: Starting streaming request to http://localhost:8888
+INFO:root:Request 3: Completed successfully. Tokens: 3873, Latency: 5.02s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3015758991241455
+INFO:root:Request 22: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.023328065872192383
+INFO:root:Request 23: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2041759490966797
+INFO:root:Request 24: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 19: Completed successfully. Tokens: 3718, Latency: 1.58s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.020069122314453125
+INFO:root:Request 25: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5737237930297852
+INFO:root:Request 26: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1465458869934082
+INFO:root:Request 27: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 10: Completed successfully. Tokens: 3791, Latency: 4.36s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10560202598571777
+INFO:root:Request 28: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.060021162033081055
+INFO:root:Request 29: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 18: Completed successfully. Tokens: 3704, Latency: 3.05s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.29582715034484863
+INFO:root:Request 30: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12070703506469727
+INFO:root:Request 31: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 13: Completed successfully. Tokens: 3762, Latency: 4.13s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1671159267425537
+INFO:root:Request 32: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.003143787384033203
+INFO:root:Request 33: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19182324409484863
+INFO:root:Request 34: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18967890739440918
+INFO:root:Request 35: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19058704376220703
+INFO:root:Request 36: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.553516149520874
+INFO:root:Request 37: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22836804389953613
+INFO:root:Request 38: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 6: Completed successfully. Tokens: 4018, Latency: 7.94s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08810997009277344
+INFO:root:Request 39: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11377096176147461
+INFO:root:Request 40: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2386629581451416
+INFO:root:Request 41: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 33: Completed successfully. Tokens: 3719, Latency: 1.78s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.011786222457885742
+INFO:root:Request 42: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.217681884765625
+INFO:root:Request 43: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 31: Completed successfully. Tokens: 3753, Latency: 2.16s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22252273559570312
+INFO:root:Request 44: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0455780029296875
+INFO:root:Request 45: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.026446104049682617
+INFO:root:Request 46: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07519817352294922
+INFO:root:Request 47: Starting streaming request to http://localhost:8888
+INFO:root:Request 35: Completed successfully. Tokens: 3741, Latency: 2.16s
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09047627449035645
+INFO:root:Request 48: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16837501525878906
+INFO:root:Request 49: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 4: Completed successfully. Tokens: 4096, Latency: 9.58s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 34: Completed successfully. Tokens: 3760, Latency: 2.65s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11466598510742188
+INFO:root:Request 50: Starting streaming request to http://localhost:8888
+INFO:root:Request 23: Completed successfully. Tokens: 3822, Latency: 4.49s
+INFO:root:Request 5: Completed successfully. Tokens: 4096, Latency: 9.64s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.8903529644012451
+INFO:root:Request 51: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 29: Completed successfully. Tokens: 3820, Latency: 4.13s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.020282983779907227
+INFO:root:Request 52: Starting streaming request to http://localhost:8888
+INFO:root:Request 17: Completed successfully. Tokens: 3994, Latency: 7.67s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.042350053787231445
+INFO:root:Request 53: Starting streaming request to http://localhost:8888
+INFO:root:Request 26: Completed successfully. Tokens: 3854, Latency: 5.20s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03460502624511719
+INFO:root:Request 54: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21147894859313965
+INFO:root:Request 55: Starting streaming request to http://localhost:8888
+INFO:root:Request 20: Completed successfully. Tokens: 3879, Latency: 6.31s
+INFO:root:Request 25: Completed successfully. Tokens: 3863, Latency: 5.35s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05523800849914551
+INFO:root:Request 56: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12467598915100098
+INFO:root:Request 57: Starting streaming request to http://localhost:8888
+INFO:root:Request 37: Completed successfully. Tokens: 3763, Latency: 3.52s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05521869659423828
+INFO:root:Request 58: Starting streaming request to http://localhost:8888
+INFO:root:Request 50: Completed successfully. Tokens: 3719, Latency: 1.53s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03399300575256348
+INFO:root:Request 59: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02268815040588379
+INFO:root:Request 60: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21320581436157227
+INFO:root:Request 61: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.029458999633789062
+INFO:root:Request 62: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.042334794998168945
+INFO:root:Request 63: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09126400947570801
+INFO:root:Request 64: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 28: Completed successfully. Tokens: 3906, Latency: 5.41s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3418848514556885
+INFO:root:Request 65: Starting streaming request to http://localhost:8888
+INFO:root:Request 8: Completed successfully. Tokens: 4096, Latency: 10.35s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01867389678955078
+INFO:root:Request 66: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.33364319801330566
+INFO:root:Request 46: Completed successfully. Tokens: 3719, Latency: 2.76s
+INFO:root:Request 51: Completed successfully. Tokens: 3718, Latency: 2.28s
+INFO:root:Request 43: Completed successfully. Tokens: 3750, Latency: 3.24s
+INFO:root:Request 67: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 48: Completed successfully. Tokens: 3760, Latency: 2.87s
+INFO:root:Request 41: Completed successfully. Tokens: 3762, Latency: 3.72s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.018767833709716797
+INFO:root:Request 68: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7486319541931152
+INFO:root:Request 69: Starting streaming request to http://localhost:8888
+INFO:root:Request 40: Completed successfully. Tokens: 3766, Latency: 4.04s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 44: Completed successfully. Tokens: 3784, Latency: 3.66s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12517786026000977
+INFO:root:Request 70: Starting streaming request to http://localhost:8888
+INFO:root:Request 45: Completed successfully. Tokens: 3767, Latency: 4.05s
+INFO:root:Request 27: Completed successfully. Tokens: 3917, Latency: 7.24s
+INFO:root:Request 59: Completed successfully. Tokens: 3718, Latency: 2.09s
+INFO:root:Request 47: Completed successfully. Tokens: 3763, Latency: 3.99s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7132260799407959
+INFO:root:Request 71: Starting streaming request to http://localhost:8888
+INFO:root:Request 60: Completed successfully. Tokens: 3766, Latency: 2.11s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 52: Completed successfully. Tokens: 3771, Latency: 2.86s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 49: Completed successfully. Tokens: 3788, Latency: 4.10s
+INFO:root:Request 53: Completed successfully. Tokens: 3788, Latency: 3.08s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18469905853271484
+INFO:root:Request 72: Starting streaming request to http://localhost:8888
+INFO:root:Request 42: Completed successfully. Tokens: 3842, Latency: 5.34s
+INFO:root:Request 65: Completed successfully. Tokens: 3739, Latency: 2.48s
+INFO:root:Request 16: Completed successfully. Tokens: 4055, Latency: 11.50s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.267780065536499
+INFO:root:Request 73: Starting streaming request to http://localhost:8888
+INFO:root:Request 12: Completed successfully. Tokens: 4096, Latency: 12.27s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.006273031234741211
+INFO:root:Request 74: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06666994094848633
+INFO:root:Request 75: Starting streaming request to http://localhost:8888
+INFO:root:Request 58: Completed successfully. Tokens: 3768, Latency: 3.40s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 15: Completed successfully. Tokens: 4096, Latency: 11.93s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.016692161560058594
+INFO:root:Request 76: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0708169937133789
+INFO:root:Request 77: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02379608154296875
+INFO:root:Request 78: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0753011703491211
+INFO:root:Request 79: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10592794418334961
+INFO:root:Request 80: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 56: Completed successfully. Tokens: 3778, Latency: 3.86s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.013553142547607422
+INFO:root:Request 81: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23475885391235352
+INFO:root:Request 82: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16580891609191895
+INFO:root:Request 83: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 66: Completed successfully. Tokens: 3728, Latency: 3.16s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06068301200866699
+INFO:root:Request 84: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14848589897155762
+INFO:root:Request 85: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01784515380859375
+INFO:root:Request 86: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17080402374267578
+INFO:root:Request 87: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 68: Completed successfully. Tokens: 3743, Latency: 3.23s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5287978649139404
+INFO:root:Request 88: Starting streaming request to http://localhost:8888
+INFO:root:Request 14: Completed successfully. Tokens: 4096, Latency: 13.33s
+INFO:root:Request 21: Completed successfully. Tokens: 4096, Latency: 11.34s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07473993301391602
+INFO:root:Request 89: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21975183486938477
+INFO:root:Request 90: Starting streaming request to http://localhost:8888
+INFO:root:Request 22: Completed successfully. Tokens: 4096, Latency: 11.41s
+INFO:root:Request 70: Completed successfully. Tokens: 3783, Latency: 3.19s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.026806116104125977
+INFO:root:Request 91: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2508280277252197
+INFO:root:Request 92: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06671786308288574
+INFO:root:Request 93: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03948187828063965
+INFO:root:Request 94: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17449712753295898
+INFO:root:Request 95: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after -0.0014290809631347656
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3523728847503662
+INFO:root:Request 96: Starting streaming request to http://localhost:8888
+INFO:root:Request 97: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:root:Request 83: Completed successfully. Tokens: 3723, Latency: 2.18s
+INFO:root:Request 75: Completed successfully. Tokens: 3747, Latency: 2.81s
+INFO:root:Request 69: Completed successfully. Tokens: 3787, Latency: 4.95s
+WARNING:root:Prepare to launch 1 streaming tasks after -0.001238107681274414
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2254939079284668
+INFO:root:Request 98: Starting streaming request to http://localhost:8888
+INFO:root:Request 99: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 74: Completed successfully. Tokens: 3753, Latency: 2.96s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 63: Completed successfully. Tokens: 3788, Latency: 6.00s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06234097480773926
+INFO:root:Request 100: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.26449084281921387
+INFO:root:Request 101: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6535739898681641
+INFO:root:Request 102: Starting streaming request to http://localhost:8888
+INFO:root:Request 32: Completed successfully. Tokens: 4096, Latency: 11.45s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 84: Completed successfully. Tokens: 3747, Latency: 3.07s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05554318428039551
+INFO:root:Request 103: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17077183723449707
+INFO:root:Request 104: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1775057315826416
+INFO:root:Request 105: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16855192184448242
+INFO:root:Request 106: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 30: Completed successfully. Tokens: 4096, Latency: 12.80s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.048323869705200195
+INFO:root:Request 107: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6096498966217041
+INFO:root:Request 108: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 24: Completed successfully. Tokens: 4096, Latency: 14.54s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 62: Completed successfully. Tokens: 3842, Latency: 8.33s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11605715751647949
+INFO:root:Request 109: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3703141212463379
+INFO:root:Request 110: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 91: Completed successfully. Tokens: 3739, Latency: 3.75s
+INFO:root:Request 92: Completed successfully. Tokens: 3725, Latency: 3.72s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23848319053649902
+INFO:root:Request 111: Starting streaming request to http://localhost:8888
+INFO:root:Request 93: Completed successfully. Tokens: 3717, Latency: 3.68s
+INFO:root:Request 36: Completed successfully. Tokens: 4096, Latency: 13.16s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06953692436218262
+INFO:root:Request 112: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.33519482612609863
+INFO:root:Request 113: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09946513175964355
+INFO:root:Request 114: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4243471622467041
+INFO:root:Request 115: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17152810096740723
+INFO:root:Request 116: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4259989261627197
+INFO:root:Request 117: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 102: Completed successfully. Tokens: 3722, Latency: 3.76s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23287391662597656
+INFO:root:Request 118: Starting streaming request to http://localhost:8888
+INFO:root:Request 87: Completed successfully. Tokens: 3794, Latency: 6.69s
+INFO:root:Request 85: Completed successfully. Tokens: 3858, Latency: 6.88s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2563900947570801
+INFO:root:Request 119: Starting streaming request to http://localhost:8888
+INFO:root:Request 39: Completed successfully. Tokens: 4096, Latency: 14.10s
+INFO:root:Request 38: Completed successfully. Tokens: 4096, Latency: 14.52s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13877105712890625
+INFO:root:Request 120: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6236038208007812
+INFO:root:Request 121: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20449495315551758
+INFO:root:Request 122: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10850000381469727
+INFO:root:Request 123: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1862480640411377
+INFO:root:Request 124: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0025420188903808594
+INFO:root:Request 125: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06880712509155273
+INFO:root:Request 126: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21370601654052734
+INFO:root:Request 127: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06757783889770508
+INFO:root:Request 128: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19037413597106934
+INFO:root:Request 129: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11074995994567871
+INFO:root:Request 130: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.029090166091918945
+INFO:root:Request 131: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06866288185119629
+INFO:root:Request 132: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 97: Completed successfully. Tokens: 3738, Latency: 7.56s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16774988174438477
+INFO:root:Request 133: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1776900291442871
+INFO:root:Request 134: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 100: Completed successfully. Tokens: 3830, Latency: 7.22s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16953206062316895
+INFO:root:Request 135: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2109508514404297
+INFO:root:Request 136: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20957112312316895
+INFO:root:Request 137: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11259984970092773
+INFO:root:Request 138: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 96: Completed successfully. Tokens: 3746, Latency: 8.64s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4415609836578369
+INFO:root:Request 139: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09078598022460938
+INFO:root:Request 140: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1136019229888916
+INFO:root:Request 141: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 55: Completed successfully. Tokens: 4096, Latency: 15.57s
+INFO:root:Request 54: Completed successfully. Tokens: 4096, Latency: 15.61s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4436829090118408
+INFO:root:Request 142: Starting streaming request to http://localhost:8888
+INFO:root:Request 57: Completed successfully. Tokens: 4096, Latency: 15.43s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3267350196838379
+INFO:root:Request 143: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24138975143432617
+INFO:root:Request 144: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.020169973373413086
+INFO:root:Request 145: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5026190280914307
+INFO:root:Request 146: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 122: Completed successfully. Tokens: 3693, Latency: 4.21s
+INFO:root:Request 107: Completed successfully. Tokens: 3867, Latency: 8.68s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2500150203704834
+INFO:root:Request 147: Starting streaming request to http://localhost:8888
+INFO:root:Request 88: Completed successfully. Tokens: 3974, Latency: 12.45s
+INFO:root:Request 71: Completed successfully. Tokens: 4096, Latency: 14.82s
+WARNING:root:Prepare to launch 1 streaming tasks after 1.3516459465026855
+INFO:root:Request 148: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 99: Completed successfully. Tokens: 3929, Latency: 11.67s
+INFO:root:Request 101: Completed successfully. Tokens: 3934, Latency: 11.61s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.030450820922851562
+INFO:root:Request 149: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4034271240234375
+INFO:root:Request 150: Starting streaming request to http://localhost:8888
+INFO:root:Request 90: Completed successfully. Tokens: 4007, Latency: 13.60s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03467583656311035
+INFO:root:Request 151: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18975615501403809
+INFO:root:Request 152: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0245208740234375
+INFO:root:Request 153: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3763611316680908
+INFO:root:Request 154: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.32763195037841797
+INFO:root:Request 155: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 67: Completed successfully. Tokens: 4096, Latency: 18.58s
+INFO:root:Request 61: Completed successfully. Tokens: 4096, Latency: 19.50s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16869807243347168
+INFO:root:Request 156: Starting streaming request to http://localhost:8888
+INFO:root:Request 64: Completed successfully. Tokens: 4096, Latency: 19.49s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10259413719177246
+INFO:root:Request 157: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.013504981994628906
+INFO:root:Request 158: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23752307891845703
+INFO:root:Request 159: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10952997207641602
+INFO:root:Request 160: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24958205223083496
+INFO:root:Request 161: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.40050482749938965
+INFO:root:Request 162: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 95: Completed successfully. Tokens: 3886, Latency: 15.19s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7404389381408691
+INFO:root:Request 163: Starting streaming request to http://localhost:8888
+INFO:root:Request 81: Completed successfully. Tokens: 4096, Latency: 18.07s
+INFO:root:Request 82: Completed successfully. Tokens: 4096, Latency: 18.07s
+INFO:root:Request 80: Completed successfully. Tokens: 4096, Latency: 18.19s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.38657402992248535
+INFO:root:Request 164: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after -4.9114227294921875e-05
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08875894546508789
+INFO:root:Request 165: Starting streaming request to http://localhost:8888
+INFO:root:Request 166: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2618560791015625
+INFO:root:Request 167: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03637981414794922
+INFO:root:Request 168: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1435987949371338
+INFO:root:Request 169: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 112: Completed successfully. Tokens: 3912, Latency: 13.25s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.008730173110961914
+INFO:root:Request 170: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.044499874114990234
+INFO:root:Request 171: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.002722024917602539
+INFO:root:Request 172: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.31343793869018555
+INFO:root:Request 173: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:root:Request 103: Completed successfully. Tokens: 4003, Latency: 15.46s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05014395713806152
+INFO:root:Request 174: Starting streaming request to http://localhost:8888
+INFO:root:Request 77: Completed successfully. Tokens: 4096, Latency: 19.72s
+INFO:root:Request 73: Completed successfully. Tokens: 4096, Latency: 20.09s
+INFO:root:Request 76: Completed successfully. Tokens: 4096, Latency: 19.74s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08459806442260742
+INFO:root:Request 175: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5253429412841797
+INFO:root:Request 176: Starting streaming request to http://localhost:8888
+INFO:root:Request 79: Completed successfully. Tokens: 4096, Latency: 19.81s
+INFO:root:Request 72: Completed successfully. Tokens: 4096, Latency: 20.47s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 78: Completed successfully. Tokens: 4096, Latency: 19.87s
+INFO:root:Request 104: Completed successfully. Tokens: 3996, Latency: 15.91s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2431201934814453
+INFO:root:Request 177: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 120: Completed successfully. Tokens: 3857, Latency: 12.37s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.005166053771972656
+INFO:root:Request 178: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03567981719970703
+INFO:root:Request 179: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19362521171569824
+INFO:root:Request 180: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17105913162231445
+INFO:root:Request 181: Starting streaming request to http://localhost:8888
+INFO:root:Request 86: Completed successfully. Tokens: 4096, Latency: 19.94s
+INFO:root:Request 89: Completed successfully. Tokens: 4096, Latency: 19.25s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.046437740325927734
+INFO:root:Request 94: Completed successfully. Tokens: 4096, Latency: 18.75s
+INFO:root:Request 182: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5429849624633789
+INFO:root:Request 183: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 118: Completed successfully. Tokens: 3904, Latency: 13.86s
+INFO:root:Request 98: Completed successfully. Tokens: 4096, Latency: 18.65s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19031500816345215
+INFO:root:Request 184: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15237879753112793
+INFO:root:Request 185: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17654180526733398
+INFO:root:Request 186: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.26146697998046875
+INFO:root:Request 187: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06510686874389648
+INFO:root:Request 188: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09917998313903809
+INFO:root:Request 189: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04583096504211426
+INFO:root:Request 190: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.039701223373413086
+INFO:root:Request 191: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.576650857925415
+INFO:root:Request 192: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 121: Completed successfully. Tokens: 3972, Latency: 14.93s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2674229145050049
+INFO:root:Request 193: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13344788551330566
+INFO:root:Request 194: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 139: Completed successfully. Tokens: 3863, Latency: 12.48s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05081009864807129
+INFO:root:Request 195: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.057806968688964844
+INFO:root:Request 196: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.011544942855834961
+INFO:root:Request 197: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11340999603271484
+INFO:root:Request 198: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07368803024291992
+INFO:root:Request 199: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 113: Completed successfully. Tokens: 4096, Latency: 17.86s
+INFO:root:Request 110: Completed successfully. Tokens: 4096, Latency: 18.54s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22634291648864746
+INFO:root:Request 200: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 114: Completed successfully. Tokens: 4096, Latency: 17.59s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09379792213439941
+INFO:root:Request 201: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03869199752807617
+INFO:root:Request 202: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.003628253936767578
+INFO:root:Request 203: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.012005090713500977
+INFO:root:Request 204: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22600507736206055
+INFO:root:Request 205: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11963105201721191
+INFO:root:Request 206: Starting streaming request to http://localhost:8888
+INFO:root:Request 111: Completed successfully. Tokens: 4096, Latency: 18.79s
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1524820327758789
+INFO:root:Request 207: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.45235681533813477
+INFO:root:Request 208: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 142: Completed successfully. Tokens: 3904, Latency: 13.14s
+INFO:root:Request 109: Completed successfully. Tokens: 4096, Latency: 19.65s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.927131175994873
+INFO:root:Request 209: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 158: Completed successfully. Tokens: 3730, Latency: 8.98s
+INFO:root:Request 152: Completed successfully. Tokens: 3757, Latency: 10.29s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.045699119567871094
+INFO:root:Request 210: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21558499336242676
+INFO:root:Request 211: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.060201168060302734
+INFO:root:Request 212: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.002537965774536133
+INFO:root:Request 213: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.28143310546875
+INFO:root:Request 214: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 157: Completed successfully. Tokens: 3762, Latency: 10.17s
+INFO:root:Request 119: Completed successfully. Tokens: 4096, Latency: 18.99s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07142186164855957
+INFO:root:Request 215: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09402990341186523
+INFO:root:Request 216: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17719793319702148
+INFO:root:Request 217: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3528611660003662
+INFO:root:Request 218: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1966562271118164
+INFO:root:Request 219: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.41106605529785156
+INFO:root:Request 220: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 106: Completed successfully. Tokens: 4096, Latency: 23.68s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0631110668182373
+INFO:root:Request 221: Starting streaming request to http://localhost:8888
+INFO:root:Request 105: Completed successfully. Tokens: 4096, Latency: 23.90s
+INFO:root:Request 143: Completed successfully. Tokens: 3968, Latency: 15.96s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3194601535797119
+INFO:root:Request 222: Starting streaming request to http://localhost:8888
+INFO:root:Request 108: Completed successfully. Tokens: 4096, Latency: 23.67s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.039833784103393555
+INFO:root:Request 223: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6094930171966553
+INFO:root:Request 224: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 117: Completed successfully. Tokens: 3894, Latency: 21.70s
+INFO:root:Request 164: Completed successfully. Tokens: 3730, Latency: 10.47s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23057889938354492
+INFO:root:Request 225: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 170: Completed successfully. Tokens: 3705, Latency: 9.92s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.047939300537109375
+INFO:root:Request 226: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5884649753570557
+INFO:root:Request 227: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 133: Completed successfully. Tokens: 4096, Latency: 19.39s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 135: Completed successfully. Tokens: 4096, Latency: 19.24s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 174: Completed successfully. Tokens: 3708, Latency: 10.03s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 165: Completed successfully. Tokens: 3780, Latency: 11.25s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.26135706901550293
+INFO:root:Request 228: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05557084083557129
+INFO:root:Request 229: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0467371940612793
+INFO:root:Request 230: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14455771446228027
+INFO:root:Request 231: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0035848617553710938
+INFO:root:Request 232: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04566192626953125
+INFO:root:Request 233: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10965991020202637
+INFO:root:Request 234: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08678722381591797
+INFO:root:Request 235: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12284708023071289
+INFO:root:Request 236: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 178: Completed successfully. Tokens: 3705, Latency: 10.30s
+INFO:root:Request 177: Completed successfully. Tokens: 3708, Latency: 10.54s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 182: Completed successfully. Tokens: 3705, Latency: 9.95s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 176: Completed successfully. Tokens: 3748, Latency: 11.14s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04793691635131836
+INFO:root:Request 237: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 123: Completed successfully. Tokens: 3706, Latency: 21.95s
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17585992813110352
+INFO:root:Request 238: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 144: Completed successfully. Tokens: 4096, Latency: 18.60s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.39780592918395996
+INFO:root:Request 239: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.023867130279541016
+INFO:root:Request 240: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1448221206665039
+INFO:root:Request 241: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.023013830184936523
+INFO:root:Request 242: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2471470832824707
+INFO:root:Request 186: Completed successfully. Tokens: 3706, Latency: 9.85s
+INFO:root:Request 243: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 181: Completed successfully. Tokens: 3749, Latency: 11.18s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10068988800048828
+INFO:root:Request 244: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16565680503845215
+INFO:root:Request 245: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.038574934005737305
+INFO:root:Request 246: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.030531883239746094
+INFO:root:Request 247: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13231205940246582
+INFO:root:Request 248: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 187: Completed successfully. Tokens: 3718, Latency: 10.31s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 124: Completed successfully. Tokens: 3764, Latency: 23.36s
+INFO:root:Request 180: Completed successfully. Tokens: 3760, Latency: 11.85s
+INFO:root:Request 115: Completed successfully. Tokens: 4096, Latency: 25.96s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08571887016296387
+INFO:root:Request 249: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5645389556884766
+INFO:root:Request 250: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 131: Completed successfully. Tokens: 3741, Latency: 22.92s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 175: Completed successfully. Tokens: 3835, Latency: 13.36s
+INFO:root:Request 179: Completed successfully. Tokens: 3796, Latency: 12.50s
+INFO:root:Request 148: Completed successfully. Tokens: 4096, Latency: 19.51s
+INFO:root:Request 166: Completed successfully. Tokens: 3906, Latency: 14.32s
+INFO:root:Request 116: Completed successfully. Tokens: 4096, Latency: 26.20s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.28780221939086914
+INFO:root:Request 251: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 147: Completed successfully. Tokens: 4096, Latency: 19.90s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2754249572753906
+INFO:root:Request 252: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 184: Completed successfully. Tokens: 3759, Latency: 12.09s
+INFO:root:Request 163: Completed successfully. Tokens: 3970, Latency: 16.05s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 150: Completed successfully. Tokens: 4096, Latency: 18.75s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4666018486022949
+INFO:root:Request 253: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 149: Completed successfully. Tokens: 4096, Latency: 18.83s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01217508316040039
+INFO:root:Request 254: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15980291366577148
+INFO:root:Request 255: Starting streaming request to http://localhost:8888
+INFO:root:Request 137: Completed successfully. Tokens: 3735, Latency: 23.53s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1748490333557129
+INFO:root:Request 256: Starting streaming request to http://localhost:8888
+INFO:root:Request 151: Completed successfully. Tokens: 4096, Latency: 19.03s
+INFO:root:Request 207: Completed successfully. Tokens: 3714, Latency: 9.88s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6451048851013184
+INFO:root:Request 257: Starting streaming request to http://localhost:8888
+INFO:root:Request 153: Completed successfully. Tokens: 4096, Latency: 19.57s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0678720474243164
+INFO:root:Request 258: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.053807973861694336
+INFO:root:Request 259: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.020618200302124023
+INFO:root:Request 260: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0013720989227294922
+INFO:root:Request 261: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5234649181365967
+INFO:root:Request 262: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 156: Completed successfully. Tokens: 4096, Latency: 19.28s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2217097282409668
+INFO:root:Request 263: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.30660009384155273
+INFO:root:Request 264: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 201: Completed successfully. Tokens: 3770, Latency: 12.05s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05435800552368164
+INFO:root:Request 265: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17508506774902344
+INFO:root:Request 266: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.012465953826904297
+INFO:root:Request 267: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13200092315673828
+INFO:root:Request 268: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 200: Completed successfully. Tokens: 3811, Latency: 12.79s
+INFO:root:Request 128: Completed successfully. Tokens: 3858, Latency: 27.13s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7570130825042725
+INFO:root:Request 269: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 193: Completed successfully. Tokens: 3822, Latency: 13.61s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.41752004623413086
+INFO:root:Request 270: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07601690292358398
+INFO:root:Request 271: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6512329578399658
+INFO:root:Request 272: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0520017147064209
+INFO:root:Request 273: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5952129364013672
+INFO:root:Request 274: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 185: Completed successfully. Tokens: 3922, Latency: 17.45s
+INFO:root:Request 141: Completed successfully. Tokens: 3756, Latency: 27.65s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5661070346832275
+INFO:root:Request 275: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 140: Completed successfully. Tokens: 3766, Latency: 27.87s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3147859573364258
+INFO:root:Request 276: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1980581283569336
+INFO:root:Request 277: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.41268205642700195
+INFO:root:Request 278: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 138: Completed successfully. Tokens: 3925, Latency: 29.74s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06750893592834473
+INFO:root:Request 279: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.37673497200012207
+INFO:root:Request 280: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1904740333557129
+INFO:root:Request 281: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0018382072448730469
+INFO:root:Request 282: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08152174949645996
+INFO:root:Request 283: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.024669885635375977
+INFO:root:Request 284: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.8007540702819824
+INFO:root:Request 285: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 221: Completed successfully. Tokens: 3820, Latency: 13.67s
+INFO:root:Request 183: Completed successfully. Tokens: 4096, Latency: 20.94s
+INFO:root:Request 230: Completed successfully. Tokens: 3705, Latency: 11.62s
+INFO:root:Request 216: Completed successfully. Tokens: 3844, Latency: 15.11s
+INFO:root:Request 225: Completed successfully. Tokens: 3735, Latency: 12.93s
+INFO:root:Request 226: Completed successfully. Tokens: 3748, Latency: 13.00s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12677502632141113
+INFO:root:Request 286: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 132: Completed successfully. Tokens: 4096, Latency: 32.45s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13668584823608398
+INFO:root:Request 287: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 134: Completed successfully. Tokens: 4096, Latency: 32.43s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20278096199035645
+INFO:root:Request 288: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 227: Completed successfully. Tokens: 3766, Latency: 13.26s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 136: Completed successfully. Tokens: 4096, Latency: 32.27s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09087896347045898
+INFO:root:Request 289: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.028427839279174805
+INFO:root:Request 290: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3445758819580078
+INFO:root:Request 291: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 125: Completed successfully. Tokens: 4096, Latency: 33.97s
+INFO:root:Request 130: Completed successfully. Tokens: 4096, Latency: 33.42s
+INFO:root:Request 129: Completed successfully. Tokens: 4096, Latency: 33.61s
+INFO:root:Request 126: Completed successfully. Tokens: 4096, Latency: 33.97s
+INFO:root:Request 127: Completed successfully. Tokens: 4096, Latency: 33.90s
+INFO:root:Request 195: Completed successfully. Tokens: 4096, Latency: 19.68s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 202: Completed successfully. Tokens: 4096, Latency: 19.06s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04154515266418457
+INFO:root:Request 292: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14276599884033203
+INFO:root:Request 293: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 209: Completed successfully. Tokens: 4096, Latency: 18.25s
+INFO:root:Request 155: Completed successfully. Tokens: 3766, Latency: 27.53s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.048689842224121094
+INFO:root:Request 294: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01977705955505371
+INFO:root:Request 295: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3948061466217041
+INFO:root:Request 296: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 229: Completed successfully. Tokens: 3831, Latency: 13.53s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 222: Completed successfully. Tokens: 3930, Latency: 15.77s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7208259105682373
+INFO:root:Request 297: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 161: Completed successfully. Tokens: 3705, Latency: 27.14s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 224: Completed successfully. Tokens: 3920, Latency: 15.61s
+INFO:root:Request 231: Completed successfully. Tokens: 3876, Latency: 13.80s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.646212100982666
+INFO:root:Request 298: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4727659225463867
+INFO:root:Request 299: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 212: Completed successfully. Tokens: 4096, Latency: 19.16s
+INFO:root:Request 162: Completed successfully. Tokens: 3793, Latency: 28.44s
+INFO:root:Request 210: Completed successfully. Tokens: 4096, Latency: 19.47s
+INFO:root:Request 211: Completed successfully. Tokens: 4096, Latency: 19.52s
+INFO:root:Request 254: Completed successfully. Tokens: 3752, Latency: 11.65s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2955739498138428
+INFO:root:Request 300: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 215: Completed successfully. Tokens: 4096, Latency: 19.05s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07976698875427246
+INFO:root:Request 301: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0157320499420166
+INFO:root:Request 302: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10276412963867188
+INFO:root:Request 303: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 255: Completed successfully. Tokens: 3773, Latency: 12.10s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.052392005920410156
+INFO:root:Request 304: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.028697967529296875
+INFO:root:Request 305: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.00958395004272461
+INFO:root:Request 306: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2574479579925537
+INFO:root:Request 307: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 160: Completed successfully. Tokens: 3822, Latency: 29.61s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0014729499816894531
+INFO:root:Request 308: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.29312896728515625
+INFO:root:Request 309: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03068089485168457
+INFO:root:Request 310: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.014381885528564453
+INFO:root:Request 311: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.018664121627807617
+INFO:root:Request 312: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22218680381774902
+INFO:root:Request 313: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 154: Completed successfully. Tokens: 3954, Latency: 31.49s
+INFO:root:Request 173: Completed successfully. Tokens: 3708, Latency: 27.80s
+INFO:root:Request 257: Completed successfully. Tokens: 3807, Latency: 12.67s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.054451704025268555
+INFO:root:Request 314: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 223: Completed successfully. Tokens: 4096, Latency: 18.80s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10854697227478027
+INFO:root:Request 315: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16212081909179688
+INFO:root:Request 316: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.39261698722839355
+INFO:root:Request 317: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 145: Completed successfully. Tokens: 4096, Latency: 34.94s
+INFO:root:Request 146: Completed successfully. Tokens: 4096, Latency: 35.04s
+INFO:root:Request 172: Completed successfully. Tokens: 3748, Latency: 28.51s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25743699073791504
+INFO:root:Request 318: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 228: Completed successfully. Tokens: 4073, Latency: 18.14s
+INFO:root:Request 319: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 169: Completed successfully. Tokens: 3782, Latency: 29.19s
+INFO:root:Request 171: Completed successfully. Tokens: 3831, Latency: 29.58s
+INFO:root:Request 256: Completed successfully. Tokens: 3954, Latency: 14.60s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 189: Completed successfully. Tokens: 3706, Latency: 27.08s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 191: Completed successfully. Tokens: 3717, Latency: 27.22s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 167: Completed successfully. Tokens: 3983, Latency: 31.05s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 159: Completed successfully. Tokens: 4096, Latency: 33.32s
+INFO:root:Request 190: Completed successfully. Tokens: 3705, Latency: 27.47s
+INFO:root:Request 258: Completed successfully. Tokens: 4055, Latency: 14.94s
+INFO:root:Request 194: Completed successfully. Tokens: 3713, Latency: 26.80s
+INFO:root:Request 253: Completed successfully. Tokens: 4096, Latency: 16.61s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 259: Completed successfully. Tokens: 4096, Latency: 15.38s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 188: Completed successfully. Tokens: 3774, Latency: 28.47s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 204: Completed successfully. Tokens: 3766, Latency: 27.25s
+INFO:root:Request 203: Completed successfully. Tokens: 3769, Latency: 27.25s
+INFO:root:Request 205: Completed successfully. Tokens: 3769, Latency: 27.24s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 168: Completed successfully. Tokens: 4096, Latency: 32.66s
+INFO:root:Request 217: Completed successfully. Tokens: 3765, Latency: 24.95s
+INFO:root:Request 214: Completed successfully. Tokens: 3772, Latency: 25.50s
+INFO:root:Request 218: Completed successfully. Tokens: 3766, Latency: 25.22s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 232: Completed successfully. Tokens: 3705, Latency: 23.29s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 220: Completed successfully. Tokens: 3841, Latency: 26.25s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 219: Completed successfully. Tokens: 3870, Latency: 27.01s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 250: Completed successfully. Tokens: 3708, Latency: 23.13s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 252: Completed successfully. Tokens: 3705, Latency: 22.52s
+INFO:root:Request 249: Completed successfully. Tokens: 3709, Latency: 23.47s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 238: Completed successfully. Tokens: 3712, Latency: 25.23s
+INFO:root:Request 240: Completed successfully. Tokens: 3719, Latency: 24.66s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 235: Completed successfully. Tokens: 3795, Latency: 25.90s
+INFO:root:Request 197: Completed successfully. Tokens: 4096, Latency: 33.34s
+INFO:root:Request 263: Completed successfully. Tokens: 3703, Latency: 21.21s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 208: Completed successfully. Tokens: 4096, Latency: 33.89s
+INFO:root:Request 206: Completed successfully. Tokens: 4096, Latency: 34.17s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 192: Completed successfully. Tokens: 4096, Latency: 36.65s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 198: Completed successfully. Tokens: 4096, Latency: 35.80s
+INFO:root:Request 196: Completed successfully. Tokens: 4096, Latency: 35.88s
+INFO:root:Request 199: Completed successfully. Tokens: 4096, Latency: 35.81s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 213: Completed successfully. Tokens: 4096, Latency: 33.54s
+INFO:root:Request 271: Completed successfully. Tokens: 3740, Latency: 22.14s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 272: Completed successfully. Tokens: 3751, Latency: 22.27s
+INFO:root:Request 270: Completed successfully. Tokens: 3758, Latency: 22.93s
+INFO:root:Request 274: Completed successfully. Tokens: 3715, Latency: 21.77s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 237: Completed successfully. Tokens: 3799, Latency: 29.76s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 264: Completed successfully. Tokens: 3799, Latency: 25.05s
+INFO:root:Request 275: Completed successfully. Tokens: 3736, Latency: 21.95s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 262: Completed successfully. Tokens: 3822, Latency: 26.17s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 273: Completed successfully. Tokens: 3751, Latency: 22.91s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 278: Completed successfully. Tokens: 3754, Latency: 21.32s
+INFO:root:Request 277: Completed successfully. Tokens: 3766, Latency: 21.64s
+INFO:root:Request 269: Completed successfully. Tokens: 3858, Latency: 25.15s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 280: Completed successfully. Tokens: 3746, Latency: 23.47s
+INFO:root:Request 282: Completed successfully. Tokens: 3756, Latency: 23.54s
+INFO:root:Request 267: Completed successfully. Tokens: 3881, Latency: 28.40s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 276: Completed successfully. Tokens: 3872, Latency: 26.24s
+INFO:root:Request 286: Completed successfully. Tokens: 3781, Latency: 23.82s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 293: Completed successfully. Tokens: 3793, Latency: 23.68s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 284: Completed successfully. Tokens: 3806, Latency: 26.04s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 233: Completed successfully. Tokens: 4096, Latency: 37.47s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 245: Completed successfully. Tokens: 3943, Latency: 36.84s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 307: Completed successfully. Tokens: 3718, Latency: 23.97s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 236: Completed successfully. Tokens: 4096, Latency: 41.27s
+INFO:root:Request 290: Completed successfully. Tokens: 3862, Latency: 29.32s
+INFO:root:Request 251: Completed successfully. Tokens: 3962, Latency: 39.58s
+INFO:root:Request 299: Completed successfully. Tokens: 3790, Latency: 28.18s
+INFO:root:Request 312: Completed successfully. Tokens: 3741, Latency: 27.58s
+INFO:root:Request 305: Completed successfully. Tokens: 3793, Latency: 29.48s
+INFO:root:Request 306: Completed successfully. Tokens: 3823, Latency: 30.50s
+INFO:root:Request 304: Completed successfully. Tokens: 3819, Latency: 30.60s
+INFO:root:Request 260: Completed successfully. Tokens: 4096, Latency: 41.84s
+INFO:root:Request 261: Completed successfully. Tokens: 4096, Latency: 41.83s
+INFO:root:Request 248: Completed successfully. Tokens: 4037, Latency: 45.00s
+INFO:root:Request 302: Completed successfully. Tokens: 3843, Latency: 31.14s
+INFO:root:Request 265: Completed successfully. Tokens: 4096, Latency: 41.17s
+INFO:root:Request 268: Completed successfully. Tokens: 4096, Latency: 40.92s
+INFO:root:Request 266: Completed successfully. Tokens: 4096, Latency: 41.11s
+INFO:root:Request 308: Completed successfully. Tokens: 3916, Latency: 31.53s
+INFO:root:Request 244: Completed successfully. Tokens: 4096, Latency: 46.40s
+INFO:root:Request 234: Completed successfully. Tokens: 4096, Latency: 47.82s
+INFO:root:Request 246: Completed successfully. Tokens: 4096, Latency: 46.14s
+INFO:root:Request 242: Completed successfully. Tokens: 4096, Latency: 46.70s
+INFO:root:Request 239: Completed successfully. Tokens: 4096, Latency: 47.27s
+INFO:root:Request 241: Completed successfully. Tokens: 4096, Latency: 46.85s
+INFO:root:Request 243: Completed successfully. Tokens: 4096, Latency: 46.67s
+INFO:root:Request 247: Completed successfully. Tokens: 4096, Latency: 46.12s
+INFO:root:Request 296: Completed successfully. Tokens: 4096, Latency: 35.04s
+INFO:root:Request 289: Completed successfully. Tokens: 4096, Latency: 35.77s
+INFO:root:Request 285: Completed successfully. Tokens: 4041, Latency: 37.26s
+INFO:root:Request 316: Completed successfully. Tokens: 3869, Latency: 31.42s
+INFO:root:Request 294: Completed successfully. Tokens: 4096, Latency: 35.35s
+INFO:root:Request 292: Completed successfully. Tokens: 4096, Latency: 35.54s
+INFO:root:Request 295: Completed successfully. Tokens: 4096, Latency: 35.41s
+INFO:root:Request 291: Completed successfully. Tokens: 4096, Latency: 35.99s
+INFO:root:Request 288: Completed successfully. Tokens: 4064, Latency: 36.37s
+INFO:root:Request 281: Completed successfully. Tokens: 4096, Latency: 37.77s
+INFO:root:Request 279: Completed successfully. Tokens: 4096, Latency: 38.36s
+INFO:root:Request 287: Completed successfully. Tokens: 4096, Latency: 36.71s
+INFO:root:Request 283: Completed successfully. Tokens: 4096, Latency: 37.77s
+INFO:root:Request 301: Completed successfully. Tokens: 4096, Latency: 33.13s
+INFO:root:Request 319: Completed successfully. Tokens: 4096, Latency: 31.01s
+INFO:root:Request 309: Completed successfully. Tokens: 4096, Latency: 32.57s
+INFO:root:Request 297: Completed successfully. Tokens: 4096, Latency: 35.30s
+INFO:root:Request 314: Completed successfully. Tokens: 3936, Latency: 32.02s
+INFO:root:Request 300: Completed successfully. Tokens: 4096, Latency: 33.45s
+INFO:root:Request 303: Completed successfully. Tokens: 4096, Latency: 33.06s
+INFO:root:Request 310: Completed successfully. Tokens: 3935, Latency: 32.31s
+INFO:root:Request 298: Completed successfully. Tokens: 4096, Latency: 34.69s
+INFO:root:Request 311: Completed successfully. Tokens: 4096, Latency: 32.47s
+INFO:root:Request 313: Completed successfully. Tokens: 4096, Latency: 33.04s
+INFO:root:Request 317: Completed successfully. Tokens: 4096, Latency: 32.66s
+INFO:root:Request 315: Completed successfully. Tokens: 4096, Latency: 32.94s
+INFO:root:Request 318: Completed successfully. Tokens: 4096, Latency: 32.30s
+WARNING:root:All 320 requests completed for deployment.
+INFO:root:Benchmark completed in 95.86 seconds
+Set routing-strategy header to least-request
+header: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'AsyncOpenAI/Python 1.59.7', 'X-Stainless-Lang': 'python', 'X-Stainless-Package-Version': '1.59.7', 'X-Stainless-OS': 'MacOS', 'X-Stainless-Arch': 'arm64', 'X-Stainless-Runtime': 'CPython', 'X-Stainless-Runtime-Version': '3.12.9', 'Authorization': 'Bearer sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi', 'routing-strategy': 'least-request', 'X-Stainless-Async': 'async:false', 'OpenAI-Organization': <openai.Omit object at 0x1034b1f40>, 'OpenAI-Project': <openai.Omit object at 0x1045376e0>}
+Set routing-strategy header to least-request
+header: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'AsyncOpenAI/Python 1.59.7', 'X-Stainless-Lang': 'python', 'X-Stainless-Package-Version': '1.59.7', 'X-Stainless-OS': 'MacOS', 'X-Stainless-Arch': 'arm64', 'X-Stainless-Runtime': 'CPython', 'X-Stainless-Runtime-Version': '3.12.9', 'Authorization': 'Bearer sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi', 'routing-strategy': 'least-request', 'X-Stainless-Async': 'async:false', 'OpenAI-Organization': <openai.Omit object at 0x1034b1f40>, 'OpenAI-Project': <openai.Omit object at 0x1045376e0>}
+routing-strategy header: least-request
+Experiment is done. date: Mon Mar  3 00:06:26 PST 2025
+./run-test.sh: line 117: 77350 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py ${target_deployment} default ${pod_log_dir} none ${exclude}
+./run-test.sh: line 117: 77351 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py aibrix-controller-manager aibrix-system ${pod_log_dir} none none
+./run-test.sh: line 117: 77352 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py aibrix-gateway-plugins aibrix-system ${pod_log_dir} none none
+No resources found
+Stopping monitoring processes...
+killed count_num_pods.py with PID: 77349
+killed port-forwarding with PID: 75104

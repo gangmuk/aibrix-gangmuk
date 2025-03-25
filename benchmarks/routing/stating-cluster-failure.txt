@@ -1,0 +1,253 @@
+INFO 02-25 11:22:50 logger.py:36] Received request chat-a241079c87834e8fb3daa47834186f5c: prompt: '<｜begin▁of▁sentence｜>User: Summarize the main ideas of Jeff Walkers Product Launch Formula into bullet points as it pertains to a growth marketing agency implementing these strategies and tactics for their clients...\n\nAssistant:', params: SamplingParams(n=1, best_of=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, top_p=1.0, top_k=-1, min_p=0.0, seed=None, use_beam_search=False, length_penalty=1.0, early_stopping=False, stop=[], stop_token_ids=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=10, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None), prompt_token_ids: [100000, 5726, 25, 9142, 3969, 945, 254, 1969, 5121, 280, 13698, 14325, 408, 10482, 31438, 45377, 881, 23795, 3487, 372, 359, 84848, 276, 245, 6026, 7562, 12719, 23546, 1069, 11830, 285, 32513, 327, 704, 6514, 1204, 185, 185, 77398, 25], lora_request: None, prompt_adapter_request: None.
+INFO 02-25 11:22:50 engine.py:288] Added request chat-a241079c87834e8fb3daa47834186f5c.
+INFO 02-25 11:22:50 metrics.py:351] Avg prompt throughput: 4.7 tokens/s, Avg generation throughput: 0.1 tokens/s, Running: 1 reqs, Swapped: 0 reqs, Pending: 0 reqs, GPU KV cache usage: 0.2%, CPU KV cache usage: 0.0%.
+INFO 02-25 11:22:50 metrics.py:367] Prefix cache hit rate: GPU: 0.00%, CPU: 0.00%
+INFO 02-25 11:22:54 logger.py:36] Received request chat-2365550c87204196b9733ad9cf432bad: prompt: '<｜begin▁of▁sentence｜>User: Summarize the main ideas of Jeff Walkers Product Launch Formula into bullet points as it pertains to a growth marketing agency implementing these strategies and tactics for their clients...\n\nAssistant:', params: SamplingParams(n=1, best_of=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, top_p=1.0, top_k=-1, min_p=0.0, seed=None, use_beam_search=False, length_penalty=1.0, early_stopping=False, stop=[], stop_token_ids=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=10, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None), prompt_token_ids: [100000, 5726, 25, 9142, 3969, 945, 254, 1969, 5121, 280, 13698, 14325, 408, 10482, 31438, 45377, 881, 23795, 3487, 372, 359, 84848, 276, 245, 6026, 7562, 12719, 23546, 1069, 11830, 285, 32513, 327, 704, 6514, 1204, 185, 185, 77398, 25], lora_request: None, prompt_adapter_request: None.
+INFO 02-25 11:22:54 engine.py:288] Added request chat-2365550c87204196b9733ad9cf432bad.
+python3: /project/lib/Analysis/Allocation.cpp:47: std::pair<llvm::SmallVector<unsigned int>, llvm::SmallVector<unsigned int> > mlir::triton::getCvtOrder(mlir::Attribute, mlir::Attribute): Assertion `!(srcMmaLayout && dstMmaLayout && !srcMmaLayout.isAmpere()) && "mma -> mma layout conversion is only supported on Ampere"' failed.
+ERROR 02-25 11:23:05 client.py:244] TimeoutError('No heartbeat received from MQLLMEngine')
+ERROR 02-25 11:23:05 client.py:244] NoneType: None
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 77, in collapse_excgroups
+  |     yield
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 186, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/usr/local/lib/python3.12/dist-packages/anyio/_backends/_asyncio.py", line 736, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 83, in collapse_excgroups
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 187, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 444, in authentication
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 163, in call_next
+    |     raise app_exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 715, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 735, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 288, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 76, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 73, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 301, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 269, in health
+    |     await engine_client(raw_request).check_health()
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 352, in check_health
+    |     raise self._errored_with
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 187, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 444, in authentication
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 163, in call_next
+    |     raise app_exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 715, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 735, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 288, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 76, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 73, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 301, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 269, in health
+    |     await engine_client(raw_request).check_health()
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 352, in check_health
+    |     raise self._errored_with
+    | TimeoutError: No heartbeat received from MQLLMEngine
+    +------------------------------------
+During handling of the above exception, another exception occurred:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    with collapse_excgroups():
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 83, in collapse_excgroups
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 444, in authentication
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 163, in call_next
+    raise app_exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 269, in health
+    await engine_client(raw_request).check_health()
+  File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 352, in check_health
+    raise self._errored_with
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 444, in authentication
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 163, in call_next
+    raise app_exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/api_server.py", line 269, in health
+    await engine_client(raw_request).check_health()
+  File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 352, in check_health
+    raise self._errored_with
+TimeoutError: No heartbeat received from MQLLMEngine
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 77, in collapse_excgroups
+  |     yield
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 186, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/usr/local/lib/python3.12/dist-packages/anyio/_backends/_asyncio.py", line 736, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   

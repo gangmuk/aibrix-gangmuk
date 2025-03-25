@@ -1,0 +1,228 @@
+INFO 02-25 12:44:49 logger.py:37] Received request chatcmpl-23034426-3ba3-4690-9950-399a385b744f: prompt: '<｜begin▁of▁sentence｜>User: Hi, I am Gangmuk. I am going to ask you something or just mention something. If it is a question, then give me the answer. If it is just a sentence but not a question. Give me your thoughts. Here is my prompt. 润色一下，使其更通顺，更有逻辑，更有专业性：Organic matter degradation in marine sediments is mediated by a series of microbial redox reactions that decrease in energy yield, ranging from oxic respiration, denitrification, Mn reduction, Fe reduction, sulfate reduction, and methanogenesis (Jarvis et al., 1994; Pufahl and Groat, 2017). The lower phosphorites were formed in an anoxic water environment, where oxygen in overlying water was limited during diagenesis. In this scenario, bacteria-driven breakdown of organic matter is very efficient especially in the presence of microbial sulfate reduction (MSR) (Arning et al., 2009; Hiatt et al., 2015). The presence of pyrite framboids in lower phosphorites is indicative of an authigenic microbial origin and suggests the presence of sulfate, which would fuel sulfate reduction (Hiatt et al., 2015; Hiatt et al., 2020). The increased supply of sulfate from oxidative weathering into the Ediacaran ocean (Laakso et al., 2020) likely fueled the microbial sulfate reduction and, thus organic matter degradation (Chen et al., 2022). Pyrite precipitates in the zone of sulfate reduction when ferrous Fe from Fe(oxyhydr)oxides dissolution combines with bacterially reduced sulfide (Pufahl, 2010). In addition, the observation of sulfur bacteria in Zhangcunping lower phosphorites supports our view (Bailey et al., 2013).\n\nAssistant:', params: SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, top_p=1.0, top_k=-1, min_p=0.0, seed=None, stop=[], stop_token_ids=[], bad_words=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=2048, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None, guided_decoding=None), prompt_token_ids: None, lora_request: None, prompt_adapter_request: None.
+INFO 02-25 12:44:49 engine.py:267] Added request chatcmpl-23034426-3ba3-4690-9950-399a385b744f.
+python3: /project/lib/Analysis/Allocation.cpp:47: std::pair<llvm::SmallVector<unsigned int>, llvm::SmallVector<unsigned int> > mlir::triton::getCvtOrder(mlir::Attribute, mlir::Attribute): Assertion `!(srcMmaLayout && dstMmaLayout && !srcMmaLayout.isAmpere()) && "mma -> mma layout conversion is only supported on Ampere"' failed.
+
+
+
+INFO 02-25 12:44:49 logger.py:37] Received request chatcmpl-23034426-3ba3-4690-9950-399a385b744f: prompt: '<｜begin▁of▁sentence｜>User: Hi, I am Gangmuk. I am going to ask you something or just mention something. If it is a question, then give me the answer. If it is just a sentence but not a question. Give me your thoughts. Here is my prompt. 润色一下，使其更通顺，更有逻辑，更有专业性：Organic matter degradation in marine sediments is mediated by a series of microbial redox reactions that decrease in energy yield, ranging from oxic respiration, denitrification, Mn reduction, Fe reduction, sulfate reduction, and methanogenesis (Jarvis et al., 1994; Pufahl and Groat, 2017). The lower phosphorites were formed in an anoxic water environment, where oxygen in overlying water was limited during diagenesis. In this scenario, bacteria-driven breakdown of organic matter is very efficient especially in the presence of microbial sulfate reduction (MSR) (Arning et al., 2009; Hiatt et al., 2015). The presence of pyrite framboids in lower phosphorites is indicative of an authigenic microbial origin and suggests the presence of sulfate, which would fuel sulfate reduction (Hiatt et al., 2015; Hiatt et al., 2020). The increased supply of sulfate from oxidative weathering into the Ediacaran ocean (Laakso et al., 2020) likely fueled the microbial sulfate reduction and, thus organic matter degradation (Chen et al., 2022). Pyrite precipitates in the zone of sulfate reduction when ferrous Fe from Fe(oxyhydr)oxides dissolution combines with bacterially reduced sulfide (Pufahl, 2010). In addition, the observation of sulfur bacteria in Zhangcunping lower phosphorites supports our view (Bailey et al., 2013).\n\nAssistant:', params: SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, top_p=1.0, top_k=-1, min_p=0.0, seed=None, stop=[], stop_token_ids=[], bad_words=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=2048, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None, guided_decoding=None), prompt_token_ids: None, lora_request: None, prompt_adapter_request: None.
+INFO 02-25 12:44:49 engine.py:267] Added request chatcmpl-23034426-3ba3-4690-9950-399a385b744f.
+python3: /project/lib/Analysis/Allocation.cpp:47: std::pair<llvm::SmallVector<unsigned int>, llvm::SmallVector<unsigned int> > mlir::triton::getCvtOrder(mlir::Attribute, mlir::Attribute): Assertion `!(srcMmaLayout && dstMmaLayout && !srcMmaLayout.isAmpere()) && "mma -> mma layout conversion is only supported on Ampere"' failed.
+INFO 02-25 12:44:58 logger.py:37] Received request chatcmpl-fce69373-c1a5-4172-bb2f-9f98d768de3d: prompt: '<｜begin▁of▁sentence｜>User: Hi, I am Gangmuk. I am going to ask you something or just mention something. If it is a question, then give me the answer. If it is just a sentence but not a question. Give me your thoughts. Here is my prompt. If we execute the search query above with the input query string "Abc" and filter by `OrganisationId` with the value of the shared organization, both "Abcd test" and "ttabcd testtest" documents will be returned in the search results.\n\nThis is because the ngram tokenizer will generate the following ngrams for each document:\n\n* "Abcd test": "ab", "abc", "abcd", "cd", "cd ", "d ", "te", "tes", "test", "es", "est"\n* "ttabcd testtest": "tt", "ttabc", "tabc", "abcd", "bcd ", "cd t", "d te", " tes", "test", "testt", "estt", "stte", "ttes", "test", "est"\n\nBoth documents have the ngram "abc", which is a partial match for the input query string "Abc", so they will both be returned in the search results. However, "Abcd test" will have a higher relevance score because it has a closer match to the input query string than "ttabcd testtest". The score of a document depends on how many of its fields match the input query string and how closely they match.\n\nAssistant:', params: SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, top_p=1.0, top_k=-1, min_p=0.0, seed=None, stop=[], stop_token_ids=[], bad_words=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=2048, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None, guided_decoding=None), prompt_token_ids: None, lora_request: None, prompt_adapter_request: None.
+ERROR 02-25 12:46:28 client.py:282] RuntimeError('Engine process (pid 20) died.')
+ERROR 02-25 12:46:28 client.py:282] NoneType: None
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 76, in collapse_excgroups
+  |     yield
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 186, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/usr/local/lib/python3.12/dist-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 188, in __call__
+    |     await response(scope, wrapped_receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 222, in __call__
+    |     async for chunk in self.body_iterator:
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 179, in body_stream
+    |     raise app_exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 255, in wrap
+    |     await func()
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 244, in stream_response
+    |     async for chunk in self.body_iterator:
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/serving_chat.py", line 318, in chat_completion_stream_generator
+    |     async for res in result_generator:
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 640, in _process_request
+    |     raise request_output
+    | vllm.engine.multiprocessing.MQEngineDeadError: Engine loop is not running. Inspect the stacktrace to find the original error: RuntimeError('Engine process (pid 20) died.').
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    with collapse_excgroups():
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 188, in __call__
+    await response(scope, wrapped_receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 222, in __call__
+    async for chunk in self.body_iterator:
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 179, in body_stream
+    raise app_exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    with collapse_excgroups():
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 255, in wrap
+    await func()
+  File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 244, in stream_response
+    async for chunk in self.body_iterator:
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/serving_chat.py", line 318, in chat_completion_stream_generator
+    async for res in result_generator:
+  File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 640, in _process_request
+    raise request_output
+vllm.engine.multiprocessing.MQEngineDeadError: Engine loop is not running. Inspect the stacktrace to find the original error: RuntimeError('Engine process (pid 20) died.').
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 76, in collapse_excgroups
+  |     yield
+  |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 186, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/usr/local/lib/python3.12/dist-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 188, in __call__
+    |     await response(scope, wrapped_receive, send)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 222, in __call__
+    |     async for chunk in self.body_iterator:
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 179, in body_stream
+    |     raise app_exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 255, in wrap
+    |     await func()
+    |   File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 244, in stream_response
+    |     async for chunk in self.body_iterator:
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/serving_chat.py", line 318, in chat_completion_stream_generator
+    |     async for res in result_generator:
+    |   File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 640, in _process_request
+    |     raise request_output
+    | vllm.engine.multiprocessing.MQEngineDeadError: Engine loop is not running. Inspect the stacktrace to find the original error: RuntimeError('Engine process (pid 20) died.').
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    with collapse_excgroups():
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 188, in __call__
+    await response(scope, wrapped_receive, send)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 222, in __call__
+    async for chunk in self.body_iterator:
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 179, in body_stream
+    raise app_exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/middleware/base.py", line 185, in __call__
+    with collapse_excgroups():
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/usr/local/lib/python3.12/dist-packages/starlette/_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 255, in wrap
+    await func()
+  File "/usr/local/lib/python3.12/dist-packages/starlette/responses.py", line 244, in stream_response
+    async for chunk in self.body_iterator:
+  File "/usr/local/lib/python3.12/dist-packages/vllm/entrypoints/openai/serving_chat.py", line 318, in chat_completion_stream_generator
+    async for res in result_generator:
+  File "/usr/local/lib/python3.12/dist-packages/vllm/engine/multiprocessing/client.py", line 640, in _process_request
+    raise request_output
+vllm.engine.multiprocessing.MQEngineDeadError: Engine loop is not running. Inspect the stacktrace to find the original error: RuntimeError('Engine process (pid 20) died.').
+CRITICAL 02-25 12:46:30 launcher.py:72] AsyncLLMEngine has failed, terminating server process
+CRITICAL 02-25 12:46:30 launcher.py:72] AsyncLLMEngine has failed, terminating server process

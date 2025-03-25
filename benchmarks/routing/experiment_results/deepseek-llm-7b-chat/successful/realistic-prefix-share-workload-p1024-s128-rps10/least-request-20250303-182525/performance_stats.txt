@@ -1,0 +1,47 @@
+Performance Statistics, autoscaler: NONE
+Sample Count: 320
+Average Latency: 0.525
+Latency P50: 0.460
+Latency P90: 0.637
+Latency P95: 0.827
+Latency P99: 1.505
+Latency Std Dev: 0.220
+Min Latency: 0.389
+Max Latency: 1.731
+Average RPS: 11.031
+Success RPS: 11.031
+Failed RPS: 0.000
+Total Tokens (avg): 1127.9
+Prompt Tokens (avg): 1117.9
+Output Tokens (avg): 10.0
+Total Tokens (min): 1118.0
+Prompt Tokens (min): 1108.0
+Output Tokens (min): 10.0
+Total Tokens (max): 1134.0
+Prompt Tokens (max): 1124.0
+Output Tokens (max): 10.0
+Total Tokens (p99): 1133.0
+Prompt Tokens (p99): 1123.0
+Output Tokens (p99): 10.0
+Total Tokens (std): 3.0
+Prompt Tokens (std): 3.0
+Output Tokens (std): 0.0
+Average TTFT: 0.348
+TTFT P50: 0.290
+TTFT P90: 0.431
+TTFT P95: 0.665
+TTFT P99: 1.334
+Average TPOT: 0.020
+TPOT P50: 0.019
+TPOT P90: 0.026
+TPOT P95: 0.032
+TPOT P99: 0.041
+Average Throughput: 20.740
+Throughput P50: 21.751
+Throughput P90: 25.255
+Throughput P95: 25.439
+Throughput P99: 25.641
+Successful Num Requests: 320.000
+Failed Num Requests: 0.000
+Total Cost: 0.08
+Total Number of Requests: 320

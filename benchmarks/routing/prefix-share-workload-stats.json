@@ -1,0 +1,21 @@
+{
+  "config_stats": [
+    {
+      "config_id": 1,
+      "prefix_length": 3000,
+      "suffix_length": 127,
+      "num_samples_per_prefix": 32,
+      "num_prefix": 10,
+      "rps": 5,
+      "num_requests": 320,
+      "total_tokens": 1000960,
+      "total_duration": 64.0,
+      "prefix_sharing_ratio": 0.18984774616368286,
+      "start_time": 159,
+      "end_time": 63822
+    }
+  ],
+  "num_tokens": 1000960,
+  "num_requests": 320,
+  "overall_sharing_ratio": 0.18984774616368286
+}

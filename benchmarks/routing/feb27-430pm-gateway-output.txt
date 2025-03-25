@@ -1,0 +1,179 @@
+I0228 00:29:24.280619       1 gateway.go:564] ** latency metrics, hash(request), 6cce3a57, selectedpod, 10.0.3.32:8000, ttft, 31, tpot, 0, e2e, 31, numInputTokens, 127, numOutputTokens, 1, numTotalTokens, 128
+I0228 00:29:24.886072       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0887
+I0228 00:29:24.917328       1 gateway.go:564] ** latency metrics, hash(request), 6cce3a57, selectedpod, 10.0.3.42:8000, ttft, 119, tpot, 0, e2e, 120, numInputTokens, 127, numOutputTokens, 1, numTotalTokens, 128
+I0228 00:29:25.482745       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0474
+I0228 00:29:25.507829       1 gateway.go:564] ** latency metrics, hash(request), 6cce3a57, selectedpod, 10.0.3.42:8000, ttft, 72, tpot, 0, e2e, 72, numInputTokens, 127, numOutputTokens, 1, numTotalTokens, 128
+I0228 00:29:26.175789       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0444
+I0228 00:29:38.385102       1 gateway.go:564] ** latency metrics, hash(request), 6cce3a57, selectedpod, 10.0.3.42:8000, ttft, 69, tpot, 17, e2e, 12253, numInputTokens, 127, numOutputTokens, 702, numTotalTokens, 829
+I0228 00:29:40.983019       1 gateway.go:564] ** latency metrics, hash(request), fee55ea6, selectedpod, 10.0.0.33:8000, ttft, 75, tpot, 0, e2e, 75, numInputTokens, 253, numOutputTokens, 1, numTotalTokens, 254
+I0228 00:29:41.572780       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0485
+I0228 00:29:41.621163       1 gateway.go:564] ** latency metrics, hash(request), fee55ea6, selectedpod, 10.0.1.53:8000, ttft, 96, tpot, 0, e2e, 96, numInputTokens, 253, numOutputTokens, 1, numTotalTokens, 254
+I0228 00:29:42.192228       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0449
+I0228 00:29:42.220013       1 gateway.go:564] ** latency metrics, hash(request), fee55ea6, selectedpod, 10.0.1.53:8000, ttft, 72, tpot, 0, e2e, 72, numInputTokens, 253, numOutputTokens, 1, numTotalTokens, 254
+I0228 00:29:42.474884       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0497
+I0228 00:29:46.685427       1 gateway.go:564] ** latency metrics, hash(request), fee55ea6, selectedpod, 10.0.1.53:8000, ttft, 104, tpot, 17, e2e, 4289, numInputTokens, 253, numOutputTokens, 243, numTotalTokens, 496
+I0228 00:29:49.417100       1 gateway.go:564] ** latency metrics, hash(request), 9f59f789, selectedpod, 10.0.3.42:8000, ttft, 43, tpot, 0, e2e, 43, numInputTokens, 136, numOutputTokens, 1, numTotalTokens, 137
+I0228 00:29:49.985709       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0492
+I0228 00:29:50.058154       1 gateway.go:564] ** latency metrics, hash(request), 9f59f789, selectedpod, 10.0.1.51:8000, ttft, 121, tpot, 0, e2e, 121, numInputTokens, 136, numOutputTokens, 1, numTotalTokens, 137
+I0228 00:29:50.659278       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0474
+I0228 00:29:50.688839       1 gateway.go:564] ** latency metrics, hash(request), 9f59f789, selectedpod, 10.0.1.51:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 136, numOutputTokens, 1, numTotalTokens, 137
+I0228 00:29:50.957031       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0464
+I0228 00:29:51.635792       1 gateway.go:564] ** latency metrics, hash(request), 9f59f789, selectedpod, 10.0.1.51:8000, ttft, 72, tpot, 17, e2e, 725, numInputTokens, 136, numOutputTokens, 39, numTotalTokens, 175
+I0228 00:29:54.186722       1 gateway.go:564] ** latency metrics, hash(request), af08121e, selectedpod, 10.0.0.90:8000, ttft, 29, tpot, 0, e2e, 29, numInputTokens, 58, numOutputTokens, 1, numTotalTokens, 59
+I0228 00:29:54.754595       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0458
+I0228 00:29:54.784293       1 gateway.go:564] ** latency metrics, hash(request), af08121e, selectedpod, 10.0.0.134:8000, ttft, 75, tpot, 0, e2e, 75, numInputTokens, 58, numOutputTokens, 1, numTotalTokens, 59
+I0228 00:29:55.349458       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0474
+I0228 00:29:55.376398       1 gateway.go:564] ** latency metrics, hash(request), af08121e, selectedpod, 10.0.0.134:8000, ttft, 74, tpot, 0, e2e, 74, numInputTokens, 58, numOutputTokens, 1, numTotalTokens, 59
+I0228 00:29:55.608002       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0425
+I0228 00:29:55.720340       1 gateway.go:564] ** latency metrics, hash(request), af08121e, selectedpod, 10.0.0.134:8000, ttft, 67, tpot, 21, e2e, 154, numInputTokens, 58, numOutputTokens, 6, numTotalTokens, 64
+I0228 00:29:58.380955       1 gateway.go:564] ** latency metrics, hash(request), 24c39110, selectedpod, 10.0.0.33:8000, ttft, 74, tpot, 0, e2e, 75, numInputTokens, 442, numOutputTokens, 1, numTotalTokens, 443
+I0228 00:29:58.942440       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0471
+I0228 00:29:59.017375       1 gateway.go:564] ** latency metrics, hash(request), 24c39110, selectedpod, 10.0.0.90:8000, ttft, 122, tpot, 0, e2e, 122, numInputTokens, 442, numOutputTokens, 1, numTotalTokens, 443
+I0228 00:29:59.578582       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0453
+I0228 00:29:59.607788       1 gateway.go:564] ** latency metrics, hash(request), 24c39110, selectedpod, 10.0.0.90:8000, ttft, 74, tpot, 0, e2e, 74, numInputTokens, 442, numOutputTokens, 1, numTotalTokens, 443
+I0228 00:29:59.829247       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0484
+I0228 00:30:00.639412       1 gateway.go:564] ** latency metrics, hash(request), 24c39110, selectedpod, 10.0.0.90:8000, ttft, 75, tpot, 17, e2e, 858, numInputTokens, 442, numOutputTokens, 46, numTotalTokens, 488
+I0228 00:30:03.201914       1 gateway.go:564] ** latency metrics, hash(request), baafd9f8, selectedpod, 10.0.0.134:8000, ttft, 43, tpot, 0, e2e, 43, numInputTokens, 138, numOutputTokens, 1, numTotalTokens, 139
+I0228 00:30:03.767126       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0482
+I0228 00:30:03.810966       1 gateway.go:564] ** latency metrics, hash(request), baafd9f8, selectedpod, 10.0.1.26:8000, ttft, 92, tpot, 0, e2e, 92, numInputTokens, 138, numOutputTokens, 1, numTotalTokens, 139
+I0228 00:30:04.406303       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0451
+I0228 00:30:04.435769       1 gateway.go:564] ** latency metrics, hash(request), baafd9f8, selectedpod, 10.0.1.26:8000, ttft, 74, tpot, 0, e2e, 74, numInputTokens, 138, numOutputTokens, 1, numTotalTokens, 139
+I0228 00:30:04.659568       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0447
+I0228 00:30:11.016848       1 gateway.go:564] ** latency metrics, hash(request), baafd9f8, selectedpod, 10.0.1.26:8000, ttft, 70, tpot, 19, e2e, 6402, numInputTokens, 138, numOutputTokens, 368, numTotalTokens, 506
+I0228 00:30:13.689889       1 gateway.go:564] ** latency metrics, hash(request), 83dccf39, selectedpod, 10.0.1.26:8000, ttft, 154, tpot, 0, e2e, 154, numInputTokens, 1030, numOutputTokens, 1, numTotalTokens, 1031
+I0228 00:30:14.248933       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0473
+I0228 00:30:14.402291       1 gateway.go:564] ** latency metrics, hash(request), 83dccf39, selectedpod, 10.0.3.32:8000, ttft, 200, tpot, 0, e2e, 200, numInputTokens, 1030, numOutputTokens, 1, numTotalTokens, 1031
+I0228 00:30:14.964289       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0486
+I0228 00:30:14.995269       1 gateway.go:564] ** latency metrics, hash(request), 83dccf39, selectedpod, 10.0.3.32:8000, ttft, 79, tpot, 0, e2e, 79, numInputTokens, 1030, numOutputTokens, 1, numTotalTokens, 1031
+I0228 00:30:15.219716       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0450
+I0228 00:30:21.157965       1 gateway.go:564] ** latency metrics, hash(request), 83dccf39, selectedpod, 10.0.3.32:8000, ttft, 75, tpot, 17, e2e, 5983, numInputTokens, 1030, numOutputTokens, 333, numTotalTokens, 1363
+I0228 00:30:23.717225       1 gateway.go:564] ** latency metrics, hash(request), ee23049d, selectedpod, 10.0.3.32:8000, ttft, 30, tpot, 0, e2e, 30, numInputTokens, 30, numOutputTokens, 1, numTotalTokens, 31
+I0228 00:30:24.289116       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0462
+I0228 00:30:24.320139       1 gateway.go:564] ** latency metrics, hash(request), ee23049d, selectedpod, 10.0.0.33:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 30, numOutputTokens, 1, numTotalTokens, 31
+I0228 00:30:24.892049       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0479
+I0228 00:30:24.921146       1 gateway.go:564] ** latency metrics, hash(request), ee23049d, selectedpod, 10.0.0.33:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 30, numOutputTokens, 1, numTotalTokens, 31
+I0228 00:30:25.147635       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0442
+I0228 00:30:32.396748       1 gateway.go:564] ** latency metrics, hash(request), ee23049d, selectedpod, 10.0.0.33:8000, ttft, 69, tpot, 17, e2e, 7293, numInputTokens, 30, numOutputTokens, 421, numTotalTokens, 451
+I0228 00:30:34.942358       1 gateway.go:564] ** latency metrics, hash(request), 7216bc23, selectedpod, 10.0.3.32:8000, ttft, 27, tpot, 0, e2e, 27, numInputTokens, 39, numOutputTokens, 1, numTotalTokens, 40
+I0228 00:30:35.508951       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0487
+I0228 00:30:35.537418       1 gateway.go:564] ** latency metrics, hash(request), 7216bc23, selectedpod, 10.0.3.42:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 39, numOutputTokens, 1, numTotalTokens, 40
+I0228 00:30:36.101359       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0472
+I0228 00:30:36.126614       1 gateway.go:564] ** latency metrics, hash(request), 7216bc23, selectedpod, 10.0.3.42:8000, ttft, 72, tpot, 0, e2e, 72, numInputTokens, 39, numOutputTokens, 1, numTotalTokens, 40
+I0228 00:30:36.370076       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0449
+I0228 00:30:37.094918       1 gateway.go:564] ** latency metrics, hash(request), 7216bc23, selectedpod, 10.0.3.42:8000, ttft, 70, tpot, 17, e2e, 769, numInputTokens, 39, numOutputTokens, 42, numTotalTokens, 81
+I0228 00:30:39.690727       1 gateway.go:564] ** latency metrics, hash(request), 542da26f, selectedpod, 10.0.1.53:8000, ttft, 80, tpot, 0, e2e, 80, numInputTokens, 476, numOutputTokens, 1, numTotalTokens, 477
+I0228 00:30:40.252833       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0478
+I0228 00:30:40.331977       1 gateway.go:564] ** latency metrics, hash(request), 542da26f, selectedpod, 10.0.3.42:8000, ttft, 126, tpot, 0, e2e, 127, numInputTokens, 476, numOutputTokens, 1, numTotalTokens, 477
+I0228 00:30:40.892213       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0444
+I0228 00:30:40.919321       1 gateway.go:564] ** latency metrics, hash(request), 542da26f, selectedpod, 10.0.3.42:8000, ttft, 71, tpot, 0, e2e, 71, numInputTokens, 476, numOutputTokens, 1, numTotalTokens, 477
+I0228 00:30:41.146417       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0495
+I0228 00:30:49.030933       1 gateway.go:564] ** latency metrics, hash(request), 542da26f, selectedpod, 10.0.3.42:8000, ttft, 74, tpot, 17, e2e, 7934, numInputTokens, 476, numOutputTokens, 449, numTotalTokens, 925
+I0228 00:30:51.584949       1 gateway.go:564] ** latency metrics, hash(request), 82da5be7, selectedpod, 10.0.0.90:8000, ttft, 29, tpot, 0, e2e, 30, numInputTokens, 22, numOutputTokens, 1, numTotalTokens, 23
+I0228 00:30:52.143999       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0462
+I0228 00:30:52.174569       1 gateway.go:564] ** latency metrics, hash(request), 82da5be7, selectedpod, 10.0.1.51:8000, ttft, 76, tpot, 0, e2e, 76, numInputTokens, 22, numOutputTokens, 1, numTotalTokens, 23
+I0228 00:30:52.748556       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0465
+I0228 00:30:52.776184       1 gateway.go:564] ** latency metrics, hash(request), 82da5be7, selectedpod, 10.0.1.51:8000, ttft, 74, tpot, 0, e2e, 74, numInputTokens, 22, numOutputTokens, 1, numTotalTokens, 23
+I0228 00:30:52.995651       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0437
+I0228 00:30:54.061881       1 gateway.go:564] ** latency metrics, hash(request), 82da5be7, selectedpod, 10.0.1.51:8000, ttft, 69, tpot, 17, e2e, 1109, numInputTokens, 22, numOutputTokens, 62, numTotalTokens, 84
+I0228 00:31:18.991776       1 gateway.go:564] ** latency metrics, hash(request), 4c26fd28, selectedpod, 10.0.0.90:8000, ttft, 206, tpot, 0, e2e, 206, numInputTokens, 1453, numOutputTokens, 1, numTotalTokens, 1454
+I0228 00:31:19.557935       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0482
+I0228 00:31:19.768813       1 gateway.go:564] ** latency metrics, hash(request), 4c26fd28, selectedpod, 10.0.0.134:8000, ttft, 259, tpot, 0, e2e, 259, numInputTokens, 1453, numOutputTokens, 1, numTotalTokens, 1454
+I0228 00:31:20.338235       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0493
+I0228 00:31:20.376050       1 gateway.go:564] ** latency metrics, hash(request), 4c26fd28, selectedpod, 10.0.0.134:8000, ttft, 87, tpot, 0, e2e, 87, numInputTokens, 1453, numOutputTokens, 1, numTotalTokens, 1454
+I0228 00:31:21.003153       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0459
+I0228 00:31:21.528274       1 gateway.go:564] ** latency metrics, hash(request), 4c26fd28, selectedpod, 10.0.0.134:8000, ttft, 81, tpot, 18, e2e, 571, numInputTokens, 1453, numOutputTokens, 28, numTotalTokens, 1481
+I0228 00:31:24.297370       1 gateway.go:564] ** latency metrics, hash(request), 4692af5e, selectedpod, 10.0.1.53:8000, ttft, 220, tpot, 0, e2e, 220, numInputTokens, 1559, numOutputTokens, 1, numTotalTokens, 1560
+I0228 00:31:24.862574       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0484
+I0228 00:31:24.896573       1 gateway.go:564] ** latency metrics, hash(request), 4692af5e, selectedpod, 10.0.1.53:8000, ttft, 82, tpot, 0, e2e, 82, numInputTokens, 1559, numOutputTokens, 1, numTotalTokens, 1560
+I0228 00:31:25.474992       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0454
+I0228 00:31:25.508906       1 gateway.go:564] ** latency metrics, hash(request), 4692af5e, selectedpod, 10.0.1.53:8000, ttft, 95, tpot, 0, e2e, 95, numInputTokens, 1559, numOutputTokens, 1, numTotalTokens, 1560
+I0228 00:31:25.735405       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0504
+I0228 00:31:28.777869       1 gateway.go:564] ** latency metrics, hash(request), 4692af5e, selectedpod, 10.0.1.53:8000, ttft, 84, tpot, 18, e2e, 3093, numInputTokens, 1559, numOutputTokens, 168, numTotalTokens, 1727
+I0228 00:31:31.469218       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.0.90:8000, ttft, 156, tpot, 0, e2e, 156, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:31:32.035223       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0486
+I0228 00:31:32.189459       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 202, tpot, 0, e2e, 203, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:31:32.749224       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0463
+I0228 00:31:32.779421       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 76, tpot, 0, e2e, 76, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:31:33.009695       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0494
+I0228 00:31:36.499183       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 78, tpot, 17, e2e, 3539, numInputTokens, 1053, numOutputTokens, 196, numTotalTokens, 1249
+I0228 00:31:39.177907       1 gateway.go:564] ** latency metrics, hash(request), d111601d, selectedpod, 10.0.1.51:8000, ttft, 156, tpot, 0, e2e, 156, numInputTokens, 1120, numOutputTokens, 1, numTotalTokens, 1121
+I0228 00:31:39.745434       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0504
+I0228 00:31:39.905006       1 gateway.go:564] ** latency metrics, hash(request), d111601d, selectedpod, 10.0.0.90:8000, ttft, 210, tpot, 0, e2e, 210, numInputTokens, 1120, numOutputTokens, 1, numTotalTokens, 1121
+I0228 00:31:40.474231       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0457
+I0228 00:31:40.505750       1 gateway.go:564] ** latency metrics, hash(request), d111601d, selectedpod, 10.0.0.90:8000, ttft, 90, tpot, 0, e2e, 90, numInputTokens, 1120, numOutputTokens, 1, numTotalTokens, 1121
+I0228 00:31:40.728505       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0462
+I0228 00:32:04.162764       1 gateway.go:564] ** latency metrics, hash(request), d111601d, selectedpod, 10.0.0.90:8000, ttft, 76, tpot, 18, e2e, 23480, numInputTokens, 1120, numOutputTokens, 1289, numTotalTokens, 2409
+I0228 00:32:06.843590       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.42:8000, ttft, 153, tpot, 0, e2e, 154, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:32:07.418441       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0475
+I0228 00:32:07.448571       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:32:08.006601       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0451
+I0228 00:32:08.037093       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 75, tpot, 0, e2e, 75, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:32:08.265312       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0498
+I0228 00:32:10.691250       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 80, tpot, 17, e2e, 2475, numInputTokens, 1053, numOutputTokens, 136, numTotalTokens, 1189
+I0228 00:32:13.410118       1 gateway.go:564] ** latency metrics, hash(request), d399491b, selectedpod, 10.0.0.134:8000, ttft, 185, tpot, 0, e2e, 185, numInputTokens, 1359, numOutputTokens, 1, numTotalTokens, 1360
+I0228 00:32:13.978860       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0472
+I0228 00:32:14.167018       1 gateway.go:564] ** latency metrics, hash(request), d399491b, selectedpod, 10.0.0.33:8000, ttft, 235, tpot, 0, e2e, 235, numInputTokens, 1359, numOutputTokens, 1, numTotalTokens, 1360
+I0228 00:32:14.733898       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0482
+I0228 00:32:14.767683       1 gateway.go:564] ** latency metrics, hash(request), d399491b, selectedpod, 10.0.0.33:8000, ttft, 82, tpot, 0, e2e, 82, numInputTokens, 1359, numOutputTokens, 1, numTotalTokens, 1360
+I0228 00:32:14.989438       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0453
+I0228 00:32:25.657823       1 gateway.go:564] ** latency metrics, hash(request), d399491b, selectedpod, 10.0.0.33:8000, ttft, 77, tpot, 18, e2e, 10713, numInputTokens, 1359, numOutputTokens, 589, numTotalTokens, 1948
+I0228 00:32:28.363166       1 gateway.go:564] ** latency metrics, hash(request), 8c8a531c, selectedpod, 10.0.1.51:8000, ttft, 177, tpot, 0, e2e, 177, numInputTokens, 1225, numOutputTokens, 1, numTotalTokens, 1226
+I0228 00:32:28.922495       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0469
+I0228 00:32:29.096821       1 gateway.go:564] ** latency metrics, hash(request), 8c8a531c, selectedpod, 10.0.3.42:8000, ttft, 221, tpot, 0, e2e, 221, numInputTokens, 1225, numOutputTokens, 1, numTotalTokens, 1226
+I0228 00:32:29.658032       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0450
+I0228 00:32:29.689197       1 gateway.go:564] ** latency metrics, hash(request), 8c8a531c, selectedpod, 10.0.3.42:8000, ttft, 76, tpot, 0, e2e, 76, numInputTokens, 1225, numOutputTokens, 1, numTotalTokens, 1226
+I0228 00:32:29.917369       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0490
+I0228 00:32:34.269679       1 gateway.go:564] ** latency metrics, hash(request), 8c8a531c, selectedpod, 10.0.3.42:8000, ttft, 77, tpot, 18, e2e, 4401, numInputTokens, 1225, numOutputTokens, 242, numTotalTokens, 1467
+I0228 00:32:36.995886       1 gateway.go:564] ** latency metrics, hash(request), ca94a34d, selectedpod, 10.0.3.32:8000, ttft, 183, tpot, 0, e2e, 183, numInputTokens, 1381, numOutputTokens, 1, numTotalTokens, 1382
+I0228 00:32:37.559724       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0490
+I0228 00:32:37.744830       1 gateway.go:564] ** latency metrics, hash(request), ca94a34d, selectedpod, 10.0.1.53:8000, ttft, 234, tpot, 0, e2e, 234, numInputTokens, 1381, numOutputTokens, 1, numTotalTokens, 1382
+I0228 00:32:38.305478       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0444
+I0228 00:32:38.338374       1 gateway.go:564] ** latency metrics, hash(request), ca94a34d, selectedpod, 10.0.1.53:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 1381, numOutputTokens, 1, numTotalTokens, 1382
+I0228 00:32:38.566697       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0492
+I0228 00:32:39.118990       1 gateway.go:564] ** latency metrics, hash(request), ca94a34d, selectedpod, 10.0.1.53:8000, ttft, 80, tpot, 18, e2e, 601, numInputTokens, 1381, numOutputTokens, 30, numTotalTokens, 1411
+I0228 00:32:41.838192       1 gateway.go:564] ** latency metrics, hash(request), 2d0b2147, selectedpod, 10.0.0.134:8000, ttft, 176, tpot, 0, e2e, 176, numInputTokens, 1220, numOutputTokens, 1, numTotalTokens, 1221
+I0228 00:32:42.406097       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0469
+I0228 00:32:42.583152       1 gateway.go:564] ** latency metrics, hash(request), 2d0b2147, selectedpod, 10.0.1.51:8000, ttft, 224, tpot, 0, e2e, 224, numInputTokens, 1220, numOutputTokens, 1, numTotalTokens, 1221
+I0228 00:32:43.149860       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0460
+I0228 00:32:43.182506       1 gateway.go:564] ** latency metrics, hash(request), 2d0b2147, selectedpod, 10.0.1.51:8000, ttft, 78, tpot, 0, e2e, 78, numInputTokens, 1220, numOutputTokens, 1, numTotalTokens, 1221
+I0228 00:32:43.411734       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0497
+I0228 00:32:47.778804       1 gateway.go:564] ** latency metrics, hash(request), 2d0b2147, selectedpod, 10.0.1.51:8000, ttft, 80, tpot, 18, e2e, 4416, numInputTokens, 1220, numOutputTokens, 242, numTotalTokens, 1462
+I0228 00:32:50.477924       1 gateway.go:564] ** latency metrics, hash(request), b317b111, selectedpod, 10.0.1.26:8000, ttft, 156, tpot, 0, e2e, 156, numInputTokens, 1093, numOutputTokens, 1, numTotalTokens, 1094
+I0228 00:32:51.043766       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0513
+I0228 00:32:51.200694       1 gateway.go:564] ** latency metrics, hash(request), b317b111, selectedpod, 10.0.0.134:8000, ttft, 208, tpot, 0, e2e, 208, numInputTokens, 1093, numOutputTokens, 1, numTotalTokens, 1094
+I0228 00:32:51.762933       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0473
+I0228 00:32:51.795791       1 gateway.go:564] ** latency metrics, hash(request), b317b111, selectedpod, 10.0.0.134:8000, ttft, 80, tpot, 0, e2e, 80, numInputTokens, 1093, numOutputTokens, 1, numTotalTokens, 1094
+I0228 00:32:52.027570       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0495
+I0228 00:32:53.037895       1 gateway.go:564] ** latency metrics, hash(request), b317b111, selectedpod, 10.0.0.134:8000, ttft, 80, tpot, 18, e2e, 1059, numInputTokens, 1093, numOutputTokens, 56, numTotalTokens, 1149
+I0228 00:32:55.748325       1 gateway.go:564] ** latency metrics, hash(request), a1f2076b, selectedpod, 10.0.3.32:8000, ttft, 174, tpot, 0, e2e, 174, numInputTokens, 1254, numOutputTokens, 1, numTotalTokens, 1255
+I0228 00:32:56.309241       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0479
+I0228 00:32:56.487706       1 gateway.go:564] ** latency metrics, hash(request), a1f2076b, selectedpod, 10.0.1.26:8000, ttft, 226, tpot, 0, e2e, 226, numInputTokens, 1254, numOutputTokens, 1, numTotalTokens, 1255
+I0228 00:32:57.083010       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0485
+I0228 00:32:57.115784       1 gateway.go:564] ** latency metrics, hash(request), a1f2076b, selectedpod, 10.0.1.26:8000, ttft, 81, tpot, 0, e2e, 81, numInputTokens, 1254, numOutputTokens, 1, numTotalTokens, 1255
+I0228 00:32:57.859775       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0482
+I0228 00:32:57.962154       1 gateway.go:564] ** latency metrics, hash(request), a1f2076b, selectedpod, 10.0.1.26:8000, ttft, 79, tpot, 23, e2e, 150, numInputTokens, 1254, numOutputTokens, 5, numTotalTokens, 1259
+I0228 00:33:03.769174       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.1.53:8000, ttft, 155, tpot, 0, e2e, 155, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:33:07.778981       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0505
+I0228 00:33:07.810103       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 81, tpot, 0, e2e, 81, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:33:08.539866       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0462
+I0228 00:33:08.570685       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 77, tpot, 0, e2e, 77, numInputTokens, 1053, numOutputTokens, 1, numTotalTokens, 1054
+I0228 00:33:09.133918       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0464
+I0228 00:33:14.531248       1 gateway.go:564] ** latency metrics, hash(request), 6c051d33, selectedpod, 10.0.3.32:8000, ttft, 75, tpot, 17, e2e, 5443, numInputTokens, 1053, numOutputTokens, 302, numTotalTokens, 1355
+I0228 00:33:17.260765       1 gateway.go:564] ** latency metrics, hash(request), 84b4a264, selectedpod, 10.0.3.42:8000, ttft, 172, tpot, 0, e2e, 172, numInputTokens, 1167, numOutputTokens, 1, numTotalTokens, 1168
+I0228 00:33:17.826076       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0493
+I0228 00:33:18.001452       1 gateway.go:564] ** latency metrics, hash(request), 84b4a264, selectedpod, 10.0.0.90:8000, ttft, 224, tpot, 0, e2e, 224, numInputTokens, 1167, numOutputTokens, 1, numTotalTokens, 1168
+I0228 00:33:18.560104       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0464
+I0228 00:33:18.593343       1 gateway.go:564] ** latency metrics, hash(request), 84b4a264, selectedpod, 10.0.0.90:8000, ttft, 79, tpot, 0, e2e, 79, numInputTokens, 1167, numOutputTokens, 1, numTotalTokens, 1168
+I0228 00:33:18.816848       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0469
+I0228 00:33:30.880493       1 gateway.go:564] ** latency metrics, hash(request), 84b4a264, selectedpod, 10.0.0.90:8000, ttft, 78, tpot, 18, e2e, 12110, numInputTokens, 1167, numOutputTokens, 669, numTotalTokens, 1836
+I0228 00:33:34.713086       1 gateway.go:564] ** latency metrics, hash(request), 9c293630, selectedpod, 10.0.3.32:8000, ttft, 217, tpot, 0, e2e, 217, numInputTokens, 1584, numOutputTokens, 1, numTotalTokens, 1585
+I0228 00:33:35.483845       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0497
+I0228 00:33:35.703077       1 gateway.go:564] ** latency metrics, hash(request), 9c293630, selectedpod, 10.0.0.33:8000, ttft, 304, tpot, 0, e2e, 304, numInputTokens, 1584, numOutputTokens, 1, numTotalTokens, 1585
+I0228 00:33:36.264707       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0469
+I0228 00:33:36.298368       1 gateway.go:564] ** latency metrics, hash(request), 9c293630, selectedpod, 10.0.0.33:8000, ttft, 80, tpot, 0, e2e, 80, numInputTokens, 1584, numOutputTokens, 1, numTotalTokens, 1585
+I0228 00:33:36.522384       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0477
+I0228 00:33:42.512329       1 gateway.go:564] ** latency metrics, hash(request), 9c293630, selectedpod, 10.0.0.33:8000, ttft, 79, tpot, 18, e2e, 6037, numInputTokens, 1584, numOutputTokens, 330, numTotalTokens, 1914
+I0228 00:33:45.218953       1 gateway.go:564] ** latency metrics, hash(request), f86fad4e, selectedpod, 10.0.0.134:8000, ttft, 175, tpot, 0, e2e, 175, numInputTokens, 1180, numOutputTokens, 1, numTotalTokens, 1181
+I0228 00:33:45.786456       1 prefix_cache_and_load.go:471] TokenizeInputText latency 0.0498
+I0228 00:33:45.959807       1 gateway.go:564] ** latency metrics, hash(request), f86fad4e, selectedpod, 10.0.3.42:8000, ttft, 223, tpot, 0, e2e, 223, numInputTokens, 1180, numOutputTokens, 1, numTotalTokens, 1181
+I

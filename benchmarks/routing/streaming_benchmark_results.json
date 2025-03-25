@@ -1,0 +1,26 @@
+[
+  {
+    "request_id": 1,
+    "error": "500, message='Internal Server Error', url='http://localhost:8888/v1/chat/completions'",
+    "total_latency": 0.5261728763580322,
+    "target_pod": "error"
+  },
+  {
+    "request_id": 2,
+    "error": "500, message='Internal Server Error', url='http://localhost:8888/v1/chat/completions'",
+    "total_latency": 0.17546582221984863,
+    "target_pod": "error"
+  },
+  {
+    "request_id": 3,
+    "error": "500, message='Internal Server Error', url='http://localhost:8888/v1/chat/completions'",
+    "total_latency": 0.17400097846984863,
+    "target_pod": "error"
+  },
+  {
+    "request_id": 4,
+    "error": "500, message='Internal Server Error', url='http://localhost:8888/v1/chat/completions'",
+    "total_latency": 0.17769718170166016,
+    "target_pod": "error"
+  }
+]

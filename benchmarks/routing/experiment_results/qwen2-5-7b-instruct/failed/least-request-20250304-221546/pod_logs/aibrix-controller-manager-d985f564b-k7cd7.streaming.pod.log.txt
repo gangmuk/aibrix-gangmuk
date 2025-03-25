@@ -1,0 +1,41 @@
+W0305 06:15:50.939647       1 util.go:47] environment variable AIBRIX_POD_METRIC_REFRESH_INTERVAL_MS is not set, using default value: 
+I0305 06:15:50.939732       1 cache.go:141] using default refresh interval: 50 ms
+I0305 06:15:50.941829       1 main.go:212] "msg"="starting cache" "logger"="setup"
+I0305 06:15:50.941844       1 main.go:220] "msg"="using in-cluster configuration" "logger"="setup"
+W0305 06:15:51.142185       1 util.go:47] environment variable PROMETHEUS_ENDPOINT is not set, using default value: 
+W0305 06:15:51.142208       1 util.go:47] environment variable PROMETHEUS_BASIC_AUTH_USERNAME is not set, using default value: 
+W0305 06:15:51.142211       1 util.go:47] environment variable PROMETHEUS_BASIC_AUTH_PASSWORD is not set, using default value: 
+I0305 06:15:51.142349       1 podautoscaler_controller.go:129] "Added AIBrix pod-autoscaler-controller successfully"
+I0305 06:15:51.142366       1 podautoscaler_controller.go:133] "Run pod-autoscaler-controller periodical syncs successfully"
+I0305 06:15:51.147586       1 modelrouter_controller.go:56] "Starting modelrouter controller"
+I0305 06:15:51.151482       1 kvcache_controller.go:124] "Finished to add kv-cache-controller"
+I0305 06:15:51.151509       1 main.go:257] "msg"="starting manager" "logger"="setup"
+I0305 06:15:51.151730       1 server.go:50] "msg"="starting server" "addr"={"IP":"::","Port":8081,"Zone":""} "kind"="health probe"
+I0305 06:15:51.252275       1 leaderelection.go:250] attempting to acquire leader lease aibrix-system/aibrix-controller-manager...
+I0305 06:16:19.666718       1 leaderelection.go:260] successfully acquired lease aibrix-system/aibrix-controller-manager
+I0305 06:16:19.666907       1 controller.go:178] "msg"="Starting EventSource" "controller"="podautoscaler" "controllerGroup"="autoscaling.aibrix.ai" "controllerKind"="PodAutoscaler" "source"="kind source: *v1alpha1.PodAutoscaler"
+I0305 06:16:19.666919       1 controller.go:178] "msg"="Starting EventSource" "controller"="rayclusterfleet" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterFleet" "source"="kind source: *v1alpha1.RayClusterFleet"
+I0305 06:16:19.666934       1 controller.go:178] "msg"="Starting EventSource" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache" "source"="kind source: *v1alpha1.KVCache"
+I0305 06:16:19.666938       1 controller.go:178] "msg"="Starting EventSource" "controller"="podautoscaler" "controllerGroup"="autoscaling.aibrix.ai" "controllerKind"="PodAutoscaler" "source"="kind source: *v2.HorizontalPodAutoscaler"
+I0305 06:16:19.666940       1 controller.go:178] "msg"="Starting EventSource" "controller"="rayclusterfleet" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterFleet" "source"="kind source: *v1alpha1.RayClusterReplicaSet"
+I0305 06:16:19.666952       1 controller.go:178] "msg"="Starting EventSource" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache" "source"="kind source: *v1.Service"
+I0305 06:16:19.666956       1 controller.go:178] "msg"="Starting EventSource" "controller"="rayclusterfleet" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterFleet" "source"="kind source: *v1.RayCluster"
+I0305 06:16:19.666958       1 controller.go:178] "msg"="Starting EventSource" "controller"="podautoscaler" "controllerGroup"="autoscaling.aibrix.ai" "controllerKind"="PodAutoscaler" "source"="channel source: 0xc000452380"
+I0305 06:16:19.666962       1 controller.go:178] "msg"="Starting EventSource" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache" "source"="kind source: *v1.Deployment"
+I0305 06:16:19.666970       1 controller.go:186] "msg"="Starting Controller" "controller"="rayclusterfleet" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterFleet"
+I0305 06:16:19.666975       1 controller.go:186] "msg"="Starting Controller" "controller"="podautoscaler" "controllerGroup"="autoscaling.aibrix.ai" "controllerKind"="PodAutoscaler"
+I0305 06:16:19.666972       1 controller.go:178] "msg"="Starting EventSource" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache" "source"="kind source: *v1.Pod"
+I0305 06:16:19.666996       1 controller.go:186] "msg"="Starting Controller" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache"
+I0305 06:16:19.666999       1 controller.go:178] "msg"="Starting EventSource" "controller"="rayclusterreplicaset" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterReplicaSet" "source"="kind source: *v1alpha1.RayClusterReplicaSet"
+I0305 06:16:19.667019       1 controller.go:178] "msg"="Starting EventSource" "controller"="rayclusterreplicaset" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterReplicaSet" "source"="kind source: *v1.RayCluster"
+I0305 06:16:19.667030       1 controller.go:186] "msg"="Starting Controller" "controller"="rayclusterreplicaset" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterReplicaSet"
+I0305 06:16:19.667059       1 controller.go:178] "msg"="Starting EventSource" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter" "source"="kind source: *v1alpha1.ModelAdapter"
+I0305 06:16:19.667080       1 controller.go:178] "msg"="Starting EventSource" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter" "source"="kind source: *v1.Service"
+I0305 06:16:19.667091       1 controller.go:178] "msg"="Starting EventSource" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter" "source"="kind source: *v1.EndpointSlice"
+I0305 06:16:19.667100       1 controller.go:178] "msg"="Starting EventSource" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter" "source"="kind source: *v1.Pod"
+I0305 06:16:19.667109       1 controller.go:186] "msg"="Starting Controller" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter"
+I0305 06:16:19.772211       1 controller.go:220] "msg"="Starting workers" "controller"="model-adapter-controller" "controllerGroup"="model.aibrix.ai" "controllerKind"="ModelAdapter" "worker count"=1
+I0305 06:16:19.772220       1 controller.go:220] "msg"="Starting workers" "controller"="podautoscaler" "controllerGroup"="autoscaling.aibrix.ai" "controllerKind"="PodAutoscaler" "worker count"=1
+I0305 06:16:19.774345       1 controller.go:220] "msg"="Starting workers" "controller"="rayclusterreplicaset" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterReplicaSet" "worker count"=1
+I0305 06:16:19.774352       1 controller.go:220] "msg"="Starting workers" "controller"="rayclusterfleet" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="RayClusterFleet" "worker count"=1
+I0305 06:16:19.774357       1 controller.go:220] "msg"="Starting workers" "controller"="kv-cache-controller" "controllerGroup"="orchestration.aibrix.ai" "controllerKind"="KVCache" "worker count"=1

@@ -1,0 +1,2124 @@
+Make sure qwen2-5-7b-instruct is the right deployment.
+output directory does not exist. Create the output directory (experiment_results/qwen2-5-7b-instruct/realistic-prefix-share-workload-p8192-s128-rps5-randomized/prefix-cache-20250304-224117)
+----------------------------------------
+workload_name: realistic-prefix-share-workload-p8192-s128-rps5-randomized
+target_deployment: qwen2-5-7b-instruct
+routing: prefix-cache
+autoscaler: none
+target_deployment: qwen2-5-7b-instruct
+input_workload_path: prefix-workload/realistic-prefix-share-workload-p8192-s128-rps5-randomized.jsonl
+experiment_result_dir: experiment_results/qwen2-5-7b-instruct/realistic-prefix-share-workload-p8192-s128-rps5-randomized/prefix-cache-20250304-224117
+----------------------------------------
+started port-forwarding with PID: 15411
+No resources found
+No resources found
+Set number of replicas to 8
+Forwarding from 127.0.0.1:8888 -> 10080
+Forwarding from [::1]:8888 -> 10080
+Deployment qwen2-5-7b-instruct scaled to 8 replica(s)
+Restart aibrix-controller-manager deployment
+deployment.apps/aibrix-controller-manager restarted
+Restart aibrix-gateway-plugins deployment
+deployment.apps/aibrix-gateway-plugins restarted
+Restart qwen2-5-7b-instruct deployment
+deployment.apps/qwen2-5-7b-instruct restarted
+Sleep for 20 seconds after restarting deployment
+All pods of aibrix-controller-manager deployment and their containers are ready!
+All pods are ready
+All pods of aibrix-gateway-plugins deployment and their containers are ready!
+All pods are ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-67x6l is not ready
+Container vllm-openai in pod qwen2-5-7b-instruct-64875d48fd-6fgnl is not ready
+All pods of qwen2-5-7b-instruct deployment and their containers are ready!
+All pods are ready
+started count_num_pods.py with PID: 17452
+INFO:root:Starting benchmark on endpoint http://localhost:8888
+INFO:root:Using streaming client
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1589977741241455
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2493882179260254
+INFO:root:Request 0: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18340611457824707
+INFO:root:Request 1: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15556931495666504
+INFO:root:Request 2: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1085050106048584
+INFO:root:Request 3: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20662307739257812
+INFO:root:Request 4: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11356282234191895
+INFO:root:Request 5: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+/Users/bytedance/projects/aibrix-routing-experiment/benchmarks/utils/count_num_pods.py:29: DeprecationWarning: There is no current event loop
+  asyncio_time = asyncio.get_event_loop().time()
+WARNING:root:Prepare to launch 1 streaming tasks after 0.44439005851745605
+INFO:root:Request 6: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 0: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6622591018676758
+INFO:root:Request 7: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 1: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 2: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 3: Target pod: 10.0.1.7:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09440112113952637
+INFO:root:Request 8: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.31241798400878906
+INFO:root:Request 9: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 4: Target pod: 10.0.1.20:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14971518516540527
+INFO:root:Request 10: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16620278358459473
+INFO:root:Request 11: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 5: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5193519592285156
+INFO:root:Request 12: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 6: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01419210433959961
+INFO:root:Request 13: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01702713966369629
+INFO:root:Request 14: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.002760171890258789
+INFO:root:Request 15: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3570523262023926
+INFO:root:Request 16: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 0: Completed successfully. Tokens: 7630, Latency: 3.67s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.29956722259521484
+INFO:root:Request 17: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 7: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.40641093254089355
+INFO:root:Request 18: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7678930759429932
+INFO:root:Request 19: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 1: Completed successfully. Tokens: 7630, Latency: 4.30s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 17: Target pod: 10.0.3.28:8000
+INFO:root:Request 3: Completed successfully. Tokens: 7632, Latency: 4.67s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3141767978668213
+INFO:root:Request 20: Starting streaming request to http://localhost:8888
+INFO:root:Request 2: Completed successfully. Tokens: 7630, Latency: 4.85s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1226949691772461
+INFO:root:Request 21: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.30126500129699707
+INFO:root:Request 22: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.023344039916992188
+INFO:root:Request 23: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2035210132598877
+INFO:root:Request 24: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 9: Target pod: 10.0.1.20:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.029851198196411133
+INFO:root:Request 25: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5765938758850098
+INFO:root:Request 26: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14669585227966309
+INFO:root:Request 27: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10558891296386719
+INFO:root:Request 28: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.060340166091918945
+INFO:root:Request 29: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.29537200927734375
+INFO:root:Request 30: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 8: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 11: Target pod: 10.0.1.7:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12135100364685059
+INFO:root:Request 31: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16646718978881836
+INFO:root:Request 32: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 12: Target pod: 10.0.1.20:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0033788681030273438
+INFO:root:Request 33: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1907651424407959
+INFO:root:Request 34: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 10: Target pod: 10.0.1.20:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18947291374206543
+INFO:root:Request 35: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1897890567779541
+INFO:root:Request 36: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 13: Target pod: 10.0.1.7:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5744302272796631
+INFO:root:Request 37: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 6: Completed successfully. Tokens: 7623, Latency: 7.87s
+INFO:root:Request 5: Completed successfully. Tokens: 7630, Latency: 7.98s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22803211212158203
+INFO:root:Request 38: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08747196197509766
+INFO:root:Request 39: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 20: Target pod: 10.0.0.4:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 21: Target pod: 10.0.1.20:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11234688758850098
+INFO:root:Request 40: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23746609687805176
+INFO:root:Request 41: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 17: Completed successfully. Tokens: 7626, Latency: 5.60s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 15: Target pod: 10.0.0.44:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 16: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.011420011520385742
+INFO:root:Request 42: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21813297271728516
+INFO:root:Request 43: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2216200828552246
+INFO:root:Request 44: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.046065330505371094
+INFO:root:Request 45: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.025672197341918945
+INFO:root:Request 46: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07468414306640625
+INFO:root:Request 47: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08954119682312012
+INFO:root:Request 48: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 7: Completed successfully. Tokens: 7620, Latency: 8.77s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 18: Target pod: 10.0.0.44:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16786503791809082
+INFO:root:Request 49: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11436820030212402
+INFO:root:Request 50: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.8894190788269043
+INFO:root:Request 51: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 4: Completed successfully. Tokens: 7629, Latency: 9.94s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 14: Target pod: 10.0.0.44:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 19: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 38: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 39: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0193328857421875
+INFO:root:Request 52: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04629993438720703
+INFO:root:Request 53: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.033718109130859375
+INFO:root:Request 54: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2106621265411377
+INFO:root:Request 55: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05765795707702637
+INFO:root:Request 56: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12378406524658203
+INFO:root:Request 57: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05453777313232422
+INFO:root:Request 58: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.034345149993896484
+INFO:root:Request 59: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.021626949310302734
+INFO:root:Request 60: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2128310203552246
+INFO:root:Request 61: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.028568029403686523
+INFO:root:Request 62: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.041509151458740234
+INFO:root:Request 63: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09052109718322754
+INFO:root:Request 64: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3434939384460449
+INFO:root:Request 65: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.018898963928222656
+INFO:root:Request 66: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.36213016510009766
+INFO:root:Request 67: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.019227027893066406
+INFO:root:Request 68: Starting streaming request to http://localhost:8888
+INFO:root:Request 15: Completed successfully. Tokens: 7631, Latency: 9.75s
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 24: Target pod: 10.0.1.7:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 34: Target pod: 10.0.0.44:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 23: Target pod: 10.0.0.44:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7475090026855469
+INFO:root:Request 69: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 9: Completed successfully. Tokens: 7624, Latency: 11.39s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 22: Target pod: 10.0.3.38:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12469196319580078
+INFO:root:Request 70: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7516598701477051
+INFO:root:Request 71: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 25: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 28: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 26: Target pod: 10.0.3.38:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18368196487426758
+INFO:root:Request 72: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2684750556945801
+INFO:root:Request 73: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.006955146789550781
+INFO:root:Request 74: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06655311584472656
+INFO:root:Request 75: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.023646116256713867
+INFO:root:Request 76: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06956005096435547
+INFO:root:Request 77: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02348804473876953
+INFO:root:Request 78: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07467293739318848
+INFO:root:Request 79: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 27: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10589885711669922
+INFO:root:Request 80: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.012760162353515625
+INFO:root:Request 81: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23534893989562988
+INFO:root:Request 82: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16575908660888672
+INFO:root:Request 83: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06025409698486328
+INFO:root:Request 84: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 14: Completed successfully. Tokens: 7622, Latency: 12.71s
+INFO:root:Request 18: Completed successfully. Tokens: 7627, Latency: 12.03s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14769196510314941
+INFO:root:Request 85: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.017510175704956055
+INFO:root:Request 86: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17126202583312988
+INFO:root:Request 87: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5285680294036865
+INFO:root:Request 88: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 8: Completed successfully. Tokens: 7623, Latency: 14.41s
+INFO:root:Request 22: Completed successfully. Tokens: 7630, Latency: 11.28s
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 29: Target pod: 10.0.1.7:8000
+INFO:root:Request 24: Completed successfully. Tokens: 7630, Latency: 10.97s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07254695892333984
+INFO:root:Request 89: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2203991413116455
+INFO:root:Request 90: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.026446104049682617
+INFO:root:Request 91: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25087428092956543
+INFO:root:Request 92: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 11: Completed successfully. Tokens: 7631, Latency: 14.70s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0664670467376709
+INFO:root:Request 93: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0400700569152832
+INFO:root:Request 94: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17458891868591309
+INFO:root:Request 95: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 32: Target pod: 10.0.0.4:8000
+INFO:root:Request 12: Completed successfully. Tokens: 7628, Latency: 14.98s
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0034530162811279297
+INFO:root:Request 96: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3531219959259033
+INFO:root:Request 97: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+WARNING:root:Prepare to launch 1 streaming tasks after -0.001458883285522461
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2251420021057129
+INFO:root:Request 98: Starting streaming request to http://localhost:8888
+INFO:root:Request 99: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:root:Request 10: Completed successfully. Tokens: 7630, Latency: 15.76s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06147313117980957
+INFO:root:Request 100: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 35: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2645590305328369
+INFO:root:Request 101: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6537671089172363
+INFO:root:Request 102: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05572104454040527
+INFO:root:Request 103: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17055797576904297
+INFO:root:Request 104: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1773090362548828
+INFO:root:Request 105: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16832900047302246
+INFO:root:Request 106: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 30: Target pod: 10.0.0.44:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04893803596496582
+INFO:root:Request 107: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6102302074432373
+INFO:root:Request 108: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 33: Target pod: 10.0.1.7:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 31: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 37: Target pod: 10.0.3.28:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 36: Target pod: 10.0.1.20:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11130332946777344
+INFO:root:Request 109: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3734891414642334
+INFO:root:Request 110: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 13: Completed successfully. Tokens: 7628, Latency: 17.68s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2396101951599121
+INFO:root:Request 111: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:root:Request 21: Completed successfully. Tokens: 7631, Latency: 15.59s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06961202621459961
+INFO:root:Request 112: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.334277868270874
+INFO:root:Request 113: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 45: Target pod: 10.0.3.28:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 43: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09936404228210449
+INFO:root:Request 114: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 41: Target pod: 10.0.0.4:8000
+WARNING:root:Prepare to launch 1 streaming tasks after 0.423206090927124
+INFO:root:Request 115: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 20: Completed successfully. Tokens: 7630, Latency: 17.02s
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17250609397888184
+INFO:root:Request 116: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4255681037902832
+INFO:root:Request 117: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23534917831420898
+INFO:root:Request 118: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25700831413269043
+INFO:root:Request 119: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13859200477600098
+INFO:root:Request 120: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6234080791473389
+INFO:root:Request 121: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20488214492797852
+INFO:root:Request 122: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10830998420715332
+INFO:root:Request 123: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18520307540893555
+INFO:root:Request 124: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0025060176849365234
+INFO:root:Request 125: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07183003425598145
+INFO:root:Request 126: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21387982368469238
+INFO:root:Request 127: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06775116920471191
+INFO:root:Request 128: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19106626510620117
+INFO:root:Request 129: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11067605018615723
+INFO:root:Request 130: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0285489559173584
+INFO:root:Request 131: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06894993782043457
+INFO:root:Request 132: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16765403747558594
+INFO:root:Request 133: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17755913734436035
+INFO:root:Request 134: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16962814331054688
+INFO:root:Request 135: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.21074485778808594
+INFO:root:Request 136: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.20966625213623047
+INFO:root:Request 137: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1116340160369873
+INFO:root:Request 138: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.451693058013916
+INFO:root:Request 139: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09050917625427246
+INFO:root:Request 140: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11338615417480469
+INFO:root:Request 141: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.44341015815734863
+INFO:root:Request 142: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3264031410217285
+INFO:root:Request 143: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24138998985290527
+INFO:root:Request 144: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.019332170486450195
+INFO:root:Request 145: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5026118755340576
+INFO:root:Request 146: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24955296516418457
+INFO:root:Request 147: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 1.3513121604919434
+INFO:root:Request 148: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 49: Target pod: 10.0.0.4:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 40: Target pod: 10.0.1.20:8000
+INFO:root:Request 16: Completed successfully. Tokens: 7631, Latency: 25.84s
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 48: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03048992156982422
+INFO:root:Request 149: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4038112163543701
+INFO:root:Request 150: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 46: Target pod: 10.0.1.7:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 44: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03461885452270508
+INFO:root:Request 151: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18953919410705566
+INFO:root:Request 152: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 47: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.024332046508789062
+INFO:root:Request 153: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3755528926849365
+INFO:root:Request 154: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 52: Target pod: 10.0.3.38:8000
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3274412155151367
+INFO:root:Request 155: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 51: Target pod: 10.0.0.44:8000
+INFO:root:Request 38: Completed successfully. Tokens: 7629, Latency: 22.53s
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 42: Target pod: 10.0.1.20:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16821503639221191
+INFO:root:Request 156: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10245203971862793
+INFO:root:Request 157: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.013337135314941406
+INFO:root:Request 158: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23848700523376465
+INFO:root:Request 159: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12057209014892578
+INFO:root:Request 160: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25460195541381836
+INFO:root:Request 161: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4006819725036621
+INFO:root:Request 162: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 61: Target pod: 10.0.1.7:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 54: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7405319213867188
+INFO:root:Request 163: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 55: Target pod: 10.0.3.38:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 75: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 58: Target pod: 10.0.3.28:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.38645315170288086
+INFO:root:Request 164: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Request 50: Target pod: 10.0.0.4:8000
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0005362033843994141
+INFO:root:Request 165: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08420395851135254
+INFO:root:Request 166: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.26059508323669434
+INFO:root:Request 167: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475992 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.439457 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.484393 seconds
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.394950 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.401674 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.491856 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.450586 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.487921 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.449014 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.482293 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.499183 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.412829 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.495379 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.384480 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.477249 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403786 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.417358 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.446401 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.378673 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403649 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403477 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.427580 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.402182 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403348 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.498221 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.455884 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.480364 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475031 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.411980 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.395561 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.406615 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.427224 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.384297 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.404786 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.495425 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.386022 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.391850 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.425487 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.449385 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.499973 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.401647 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.416981 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.438128 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.465337 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.387576 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.470623 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03643083572387695
+INFO:root:Request 168: Starting streaming request to http://localhost:8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.469764 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.487412 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.384195 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.442409 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.393840 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.426301 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398502 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.464453 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.461910 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.459979 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.423377 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.412089 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475933 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.477667 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.493022 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.494499 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.409125 seconds
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14546704292297363
+INFO:root:Request 169: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.420976 seconds
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431964 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.009304285049438477
+INFO:root:Request 170: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04408407211303711
+INFO:root:Request 171: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0037598609924316406
+INFO:root:Request 172: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3148820400238037
+INFO:root:Request 173: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+INFO:httpx:HTTP Request: POST http://localhost:8888/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.402995 seconds
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0497431755065918
+INFO:root:Request 174: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08203625679016113
+INFO:root:Request 175: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5253019332885742
+INFO:root:Request 176: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.24307012557983398
+INFO:root:Request 177: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0044269561767578125
+INFO:root:Request 178: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03335905075073242
+INFO:root:Request 179: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19344210624694824
+INFO:root:Request 180: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17046189308166504
+INFO:root:Request 181: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05213809013366699
+INFO:root:Request 182: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5425131320953369
+INFO:root:Request 183: Starting streaming request to http://localhost:8888
+Handling connection for 8888
+error: lost connection to pod
+INFO:openai._base_client:Retrying request to /chat/completions in 0.922063 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.411311 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.395644 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.890600 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.401784 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.958879 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.851134 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.792857 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.976059 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.955025 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.929344 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.908794 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.949405 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.789817 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.938414 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.854490 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.942492 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.928097 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.799406 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.987515 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.893757 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.928969 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805032 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.895055 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.861656 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.750957 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.782864 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.902654 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.897447 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.915839 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.785015 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.862443 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.823068 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.807012 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.988459 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.837707 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.896520 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.790629 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805550 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.776819 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.765042 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.880017 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.937790 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.972146 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.432869 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.774825 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.869500 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.861313 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.434646 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.762517 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805374 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.918900 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.767354 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.980796 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.773123 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.894796 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.959928 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.970832 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.926556 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805620 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.968635 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.757185 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.885945 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.798893 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.949660 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.770038 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.769342 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.863269 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.838945 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.952002 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.435150 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.973981 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.434771 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.434190 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.483292 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431669 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.422165 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398145 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.412671 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475450 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.413217 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.477559 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.378758 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.429448 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431169 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403416 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.469488 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.418119 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.473741 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.402095 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.481644 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475489 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.386392 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.461754 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.396493 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.474812 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.479317 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431549 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.415395 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.480159 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.496355 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.488413 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.385814 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.386475 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.426453 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398333 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.378027 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.387898 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.419539 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.495491 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.459009 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.416030 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.404410 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.386253 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.426704 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.392951 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.445160 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.376075 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.448235 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.476881 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.447927 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.416743 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.436484 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.451082 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.491035 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.402402 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.433939 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.451463 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.449198 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.478643 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.464817 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.443833 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.470175 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.448602 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398380 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.463708 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.487528 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.463707 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.485563 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.441985 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.488568 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.480905 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.406263 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.375792 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.421843 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.420694 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.443199 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.379118 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.476803 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.425466 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.484899 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.479051 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.472446 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.458396 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.487514 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.472992 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.462447 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.393595 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.498769 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.391303 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18949007987976074
+INFO:root:Request 184: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.480708 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.810321 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.957380 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.912094 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.837309 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.780103 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.977669 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805232 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.964801 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.813814 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.799830 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.958992 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.854370 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.764577 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.804203 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.756545 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.941924 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.956862 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.962343 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.758567 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.777601 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.928265 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.849965 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.971169 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.807931 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.901180 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.889339 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.925300 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.864322 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.937478 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.940118 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.800540 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.898136 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.889883 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.821731 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.778634 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.970000 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.927877 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.776926 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.845432 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.868281 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.835179 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.756970 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.905691 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.889405 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.807597 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.908273 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.947399 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.872124 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.787981 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.941579 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.815512 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.866139 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.939075 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.923389 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.783732 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15222406387329102
+INFO:root:Request 185: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.908691 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.423648 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.774745 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.921349 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.884870 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.786452 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.861206 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.975838 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.805486 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.779094 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.822429 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.994303 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.759059 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.763461 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.763108 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.988247 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.931156 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.761478 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.795025 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.794137 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.958529 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.996014 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.787594 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.969584 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.810949 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.882288 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.944561 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.863153 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.753932 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.971595 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.787523 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.806091 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.859824 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.872044 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.937375 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.960263 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.877048 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.786932 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.862260 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.997564 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17678618431091309
+INFO:root:Request 186: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.394038 seconds
+ERROR:root:Request 85: Error (APIConnectionError): Connection error.
+ERROR:root:Request 78: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.874169 seconds
+ERROR:root:Request 92: Error (APIConnectionError): Connection error.
+ERROR:root:Request 67: Error (APIConnectionError): Connection error.
+ERROR:root:Request 93: Error (APIConnectionError): Connection error.
+ERROR:root:Request 27: Error (APIConnectionError): Connection error.
+ERROR:root:Request 23: Error (APIConnectionError): Connection error.
+ERROR:root:Request 66: Error (APIConnectionError): Connection error.
+ERROR:root:Request 34: Error (APIConnectionError): Connection error.
+ERROR:root:Request 69: Error (APIConnectionError): Connection error.
+ERROR:root:Request 59: Error (APIConnectionError): Connection error.
+ERROR:root:Request 86: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.26098012924194336
+INFO:root:Request 187: Starting streaming request to http://localhost:8888
+ERROR:root:Request 94: Error (APIConnectionError): Connection error.
+ERROR:root:Request 35: Error (APIConnectionError): Connection error.
+ERROR:root:Request 100: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.432134 seconds
+ERROR:root:Request 98: Error (APIConnectionError): Connection error.
+ERROR:root:Request 95: Error (APIConnectionError): Connection error.
+ERROR:root:Request 72: Error (APIConnectionError): Connection error.
+ERROR:root:Request 82: Error (APIConnectionError): Connection error.
+ERROR:root:Request 103: Error (APIConnectionError): Connection error.
+ERROR:root:Request 56: Error (APIConnectionError): Connection error.
+ERROR:root:Request 101: Error (APIConnectionError): Connection error.
+ERROR:root:Request 28: Error (APIConnectionError): Connection error.
+ERROR:root:Request 79: Error (APIConnectionError): Connection error.
+ERROR:root:Request 29: Error (APIConnectionError): Connection error.
+ERROR:root:Request 39: Error (APIConnectionError): Connection error.
+ERROR:root:Request 57: Error (APIConnectionError): Connection error.
+ERROR:root:Request 81: Error (APIConnectionError): Connection error.
+ERROR:root:Request 73: Error (APIConnectionError): Connection error.
+ERROR:root:Request 71: Error (APIConnectionError): Connection error.
+ERROR:root:Request 32: Error (APIConnectionError): Connection error.
+ERROR:root:Request 64: Error (APIConnectionError): Connection error.
+ERROR:root:Request 37: Error (APIConnectionError): Connection error.
+ERROR:root:Request 105: Error (APIConnectionError): Connection error.
+ERROR:root:Request 91: Error (APIConnectionError): Connection error.
+ERROR:root:Request 63: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.902307 seconds
+ERROR:root:Request 87: Error (APIConnectionError): Connection error.
+ERROR:root:Request 96: Error (APIConnectionError): Connection error.
+ERROR:root:Request 19: Error (APIConnectionError): Connection error.
+ERROR:root:Request 53: Error (APIConnectionError): Connection error.
+ERROR:root:Request 108: Error (APIConnectionError): Connection error.
+ERROR:root:Request 104: Error (APIConnectionError): Connection error.
+ERROR:root:Request 31: Error (APIConnectionError): Connection error.
+ERROR:root:Request 84: Error (APIConnectionError): Connection error.
+ERROR:root:Request 88: Error (APIConnectionError): Connection error.
+ERROR:root:Request 90: Error (APIConnectionError): Connection error.
+ERROR:root:Request 97: Error (APIConnectionError): Connection error.
+ERROR:root:Request 106: Error (APIConnectionError): Connection error.
+ERROR:root:Request 60: Error (APIConnectionError): Connection error.
+ERROR:root:Request 33: Error (APIConnectionError): Connection error.
+ERROR:root:Request 70: Error (APIConnectionError): Connection error.
+ERROR:root:Request 25: Error (APIConnectionError): Connection error.
+ERROR:root:Request 74: Error (APIConnectionError): Connection error.
+ERROR:root:Request 30: Error (APIConnectionError): Connection error.
+ERROR:root:Request 65: Error (APIConnectionError): Connection error.
+ERROR:root:Request 76: Error (APIConnectionError): Connection error.
+ERROR:root:Request 102: Error (APIConnectionError): Connection error.
+ERROR:root:Request 89: Error (APIConnectionError): Connection error.
+ERROR:root:Request 68: Error (APIConnectionError): Connection error.
+ERROR:root:Request 77: Error (APIConnectionError): Connection error.
+ERROR:root:Request 62: Error (APIConnectionError): Connection error.
+ERROR:root:Request 99: Error (APIConnectionError): Connection error.
+ERROR:root:Request 26: Error (APIConnectionError): Connection error.
+ERROR:root:Request 107: Error (APIConnectionError): Connection error.
+ERROR:root:Request 83: Error (APIConnectionError): Connection error.
+ERROR:root:Request 80: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.932348 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07389020919799805
+INFO:root:Request 188: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.397426 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10076308250427246
+INFO:root:Request 189: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.420140 seconds
+ERROR:root:Request 148: Error (APIConnectionError): Connection error.
+ERROR:root:Request 165: Error (APIConnectionError): Connection error.
+ERROR:root:Request 40: Error (APIConnectionError): Connection error.
+ERROR:root:Request 55: Error (APIConnectionError): Connection error.
+ERROR:root:Request 179: Error (APIConnectionError): Connection error.
+ERROR:root:Request 159: Error (APIConnectionError): Connection error.
+ERROR:root:Request 173: Error (APIConnectionError): Connection error.
+ERROR:root:Request 49: Error (APIConnectionError): Connection error.
+ERROR:root:Request 140: Error (APIConnectionError): Connection error.
+ERROR:root:Request 42: Error (APIConnectionError): Connection error.
+ERROR:root:Request 146: Error (APIConnectionError): Connection error.
+ERROR:root:Request 175: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0463719367980957
+INFO:root:Request 190: Starting streaming request to http://localhost:8888
+ERROR:root:Request 132: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.791466 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.440329 seconds
+ERROR:root:Request 141: Error (APIConnectionError): Connection error.
+ERROR:root:Request 138: Error (APIConnectionError): Connection error.
+ERROR:root:Request 131: Error (APIConnectionError): Connection error.
+ERROR:root:Request 125: Error (APIConnectionError): Connection error.
+ERROR:root:Request 162: Error (APIConnectionError): Connection error.
+ERROR:root:Request 135: Error (APIConnectionError): Connection error.
+ERROR:root:Request 157: Error (APIConnectionError): Connection error.
+ERROR:root:Request 52: Error (APIConnectionError): Connection error.
+ERROR:root:Request 121: Error (APIConnectionError): Connection error.
+ERROR:root:Request 160: Error (APIConnectionError): Connection error.
+ERROR:root:Request 153: Error (APIConnectionError): Connection error.
+ERROR:root:Request 147: Error (APIConnectionError): Connection error.
+ERROR:root:Request 116: Error (APIConnectionError): Connection error.
+ERROR:root:Request 143: Error (APIConnectionError): Connection error.
+ERROR:root:Request 182: Error (APIConnectionError): Connection error.
+ERROR:root:Request 119: Error (APIConnectionError): Connection error.
+ERROR:root:Request 137: Error (APIConnectionError): Connection error.
+ERROR:root:Request 48: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03892111778259277
+INFO:root:Request 191: Starting streaming request to http://localhost:8888
+ERROR:root:Request 167: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.406814 seconds
+ERROR:root:Request 154: Error (APIConnectionError): Connection error.
+ERROR:root:Request 46: Error (APIConnectionError): Connection error.
+ERROR:root:Request 75: Error (APIConnectionError): Connection error.
+ERROR:root:Request 118: Error (APIConnectionError): Connection error.
+ERROR:root:Request 139: Error (APIConnectionError): Connection error.
+ERROR:root:Request 47: Error (APIConnectionError): Connection error.
+ERROR:root:Request 43: Error (APIConnectionError): Connection error.
+ERROR:root:Request 177: Error (APIConnectionError): Connection error.
+ERROR:root:Request 115: Error (APIConnectionError): Connection error.
+ERROR:root:Request 149: Error (APIConnectionError): Connection error.
+ERROR:root:Request 163: Error (APIConnectionError): Connection error.
+ERROR:root:Request 50: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.577488899230957
+INFO:root:Request 192: Starting streaming request to http://localhost:8888
+ERROR:root:Request 127: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.496739 seconds
+ERROR:root:Request 145: Error (APIConnectionError): Connection error.
+ERROR:root:Request 181: Error (APIConnectionError): Connection error.
+ERROR:root:Request 109: Error (APIConnectionError): Connection error.
+ERROR:root:Request 44: Error (APIConnectionError): Connection error.
+ERROR:root:Request 36: Error (APIConnectionError): Connection error.
+ERROR:root:Request 166: Error (APIConnectionError): Connection error.
+ERROR:root:Request 51: Error (APIConnectionError): Connection error.
+ERROR:root:Request 169: Error (APIConnectionError): Connection error.
+ERROR:root:Request 54: Error (APIConnectionError): Connection error.
+ERROR:root:Request 58: Error (APIConnectionError): Connection error.
+ERROR:root:Request 61: Error (APIConnectionError): Connection error.
+ERROR:root:Request 126: Error (APIConnectionError): Connection error.
+ERROR:root:Request 171: Error (APIConnectionError): Connection error.
+ERROR:root:Request 168: Error (APIConnectionError): Connection error.
+ERROR:root:Request 112: Error (APIConnectionError): Connection error.
+ERROR:root:Request 172: Error (APIConnectionError): Connection error.
+ERROR:root:Request 161: Error (APIConnectionError): Connection error.
+ERROR:root:Request 142: Error (APIConnectionError): Connection error.
+ERROR:root:Request 120: Error (APIConnectionError): Connection error.
+ERROR:root:Request 136: Error (APIConnectionError): Connection error.
+ERROR:root:Request 158: Error (APIConnectionError): Connection error.
+ERROR:root:Request 155: Error (APIConnectionError): Connection error.
+ERROR:root:Request 176: Error (APIConnectionError): Connection error.
+ERROR:root:Request 178: Error (APIConnectionError): Connection error.
+ERROR:root:Request 180: Error (APIConnectionError): Connection error.
+ERROR:root:Request 129: Error (APIConnectionError): Connection error.
+ERROR:root:Request 45: Error (APIConnectionError): Connection error.
+ERROR:root:Request 133: Error (APIConnectionError): Connection error.
+ERROR:root:Request 130: Error (APIConnectionError): Connection error.
+ERROR:root:Request 170: Error (APIConnectionError): Connection error.
+ERROR:root:Request 117: Error (APIConnectionError): Connection error.
+ERROR:root:Request 174: Error (APIConnectionError): Connection error.
+ERROR:root:Request 128: Error (APIConnectionError): Connection error.
+ERROR:root:Request 122: Error (APIConnectionError): Connection error.
+ERROR:root:Request 41: Error (APIConnectionError): Connection error.
+ERROR:root:Request 151: Error (APIConnectionError): Connection error.
+ERROR:root:Request 183: Error (APIConnectionError): Connection error.
+ERROR:root:Request 156: Error (APIConnectionError): Connection error.
+ERROR:root:Request 124: Error (APIConnectionError): Connection error.
+ERROR:root:Request 114: Error (APIConnectionError): Connection error.
+ERROR:root:Request 150: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.894695 seconds
+ERROR:root:Request 111: Error (APIConnectionError): Connection error.
+ERROR:root:Request 152: Error (APIConnectionError): Connection error.
+ERROR:root:Request 110: Error (APIConnectionError): Connection error.
+ERROR:root:Request 123: Error (APIConnectionError): Connection error.
+ERROR:root:Request 164: Error (APIConnectionError): Connection error.
+ERROR:root:Request 113: Error (APIConnectionError): Connection error.
+ERROR:root:Request 134: Error (APIConnectionError): Connection error.
+ERROR:root:Request 144: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.919031 seconds
+ERROR:root:Request 184: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.857052 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.976299 seconds
+ERROR:root:Request 185: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.769391 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2688131332397461
+INFO:root:Request 193: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.463005 seconds
+ERROR:root:Request 186: Error (APIConnectionError): Connection error.
+ERROR:root:Request 187: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13424420356750488
+INFO:root:Request 194: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.446968 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04943513870239258
+INFO:root:Request 195: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.411888 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05571293830871582
+INFO:root:Request 196: Starting streaming request to http://localhost:8888
+ERROR:root:Request 188: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.499963 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.995223 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.010540962219238281
+INFO:root:Request 197: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431125 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11323809623718262
+INFO:root:Request 198: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.422883 seconds
+ERROR:root:Request 189: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0747382640838623
+INFO:root:Request 199: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.479526 seconds
+ERROR:root:Request 190: Error (APIConnectionError): Connection error.
+ERROR:root:Request 192: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.23673415184020996
+INFO:root:Request 200: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.431030 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.849970 seconds
+ERROR:root:Request 191: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.888287 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0936131477355957
+INFO:root:Request 201: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.429804 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.948157 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.911876 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.972735 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03841209411621094
+INFO:root:Request 202: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.472135 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0034401416778564453
+INFO:root:Request 203: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.011344194412231445
+INFO:root:Request 204: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.408484 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.451047 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22667527198791504
+INFO:root:Request 205: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.427360 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.948565 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.953619 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.11971712112426758
+INFO:root:Request 206: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.409790 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.804266 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1525881290435791
+INFO:root:Request 207: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.389702 seconds
+ERROR:root:Request 193: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.883595 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.980507 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.787387 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.887056 seconds
+ERROR:root:Request 194: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.45257997512817383
+INFO:root:Request 208: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.427155 seconds
+ERROR:root:Request 195: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.753639 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.820408 seconds
+ERROR:root:Request 197: Error (APIConnectionError): Connection error.
+ERROR:root:Request 198: Error (APIConnectionError): Connection error.
+ERROR:root:Request 196: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.954898 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.9264771938323975
+INFO:root:Request 209: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.380183 seconds
+ERROR:root:Request 199: Error (APIConnectionError): Connection error.
+ERROR:root:Request 200: Error (APIConnectionError): Connection error.
+ERROR:root:Request 201: Error (APIConnectionError): Connection error.
+ERROR:root:Request 205: Error (APIConnectionError): Connection error.
+ERROR:root:Request 203: Error (APIConnectionError): Connection error.
+ERROR:root:Request 204: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.870935 seconds
+ERROR:root:Request 206: Error (APIConnectionError): Connection error.
+ERROR:root:Request 202: Error (APIConnectionError): Connection error.
+ERROR:root:Request 207: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.048072099685668945
+INFO:root:Request 210: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.476386 seconds
+ERROR:root:Request 208: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2166459560394287
+INFO:root:Request 211: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.382291 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06029820442199707
+INFO:root:Request 212: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.422206 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.002546072006225586
+INFO:root:Request 213: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.27845191955566406
+INFO:root:Request 214: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.468098 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.499846 seconds
+ERROR:root:Request 209: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.883851 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.822002 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07569313049316406
+INFO:root:Request 215: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.462171 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09560799598693848
+INFO:root:Request 216: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.416866 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.781991 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1765742301940918
+INFO:root:Request 217: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.456110 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.860565 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.937275 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3544330596923828
+INFO:root:Request 218: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.483208 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.811053 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.869180 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.923566 seconds
+ERROR:root:Request 210: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19696903228759766
+INFO:root:Request 219: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.498006 seconds
+ERROR:root:Request 211: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.896893 seconds
+ERROR:root:Request 212: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.41068220138549805
+INFO:root:Request 220: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.375258 seconds
+ERROR:root:Request 213: Error (APIConnectionError): Connection error.
+ERROR:root:Request 214: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.836898 seconds
+ERROR:root:Request 215: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.758201 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06268811225891113
+INFO:root:Request 221: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.400705 seconds
+ERROR:root:Request 216: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3192441463470459
+INFO:root:Request 222: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.444502 seconds
+ERROR:root:Request 217: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03955793380737305
+INFO:root:Request 223: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.385230 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.926180 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6103670597076416
+INFO:root:Request 224: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.420045 seconds
+ERROR:root:Request 218: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.987855 seconds
+ERROR:root:Request 219: Error (APIConnectionError): Connection error.
+ERROR:root:Request 220: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.988551 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.860743 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2307143211364746
+INFO:root:Request 225: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.396679 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04761004447937012
+INFO:root:Request 226: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.483694 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5875670909881592
+INFO:root:Request 227: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.387384 seconds
+ERROR:root:Request 221: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.825948 seconds
+ERROR:root:Request 222: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.956582 seconds
+ERROR:root:Request 224: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.950868 seconds
+ERROR:root:Request 223: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2606799602508545
+INFO:root:Request 228: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.434791 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05828404426574707
+INFO:root:Request 229: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.466860 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04648613929748535
+INFO:root:Request 230: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.494712 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14535093307495117
+INFO:root:Request 231: Starting streaming request to http://localhost:8888
+ERROR:root:Request 225: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.381321 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.758792 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0035071372985839844
+INFO:root:Request 232: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.04242420196533203
+INFO:root:Request 233: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.447170 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.382829 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10969686508178711
+INFO:root:Request 234: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.475304 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09262394905090332
+INFO:root:Request 235: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.470551 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.932056 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.979175 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12361001968383789
+INFO:root:Request 236: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.429402 seconds
+ERROR:root:Request 227: Error (APIConnectionError): Connection error.
+ERROR:root:Request 226: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.771417 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06366109848022461
+INFO:root:Request 237: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.418777 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.792657 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1755070686340332
+INFO:root:Request 238: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.389529 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.863174 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.770937 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.39748716354370117
+INFO:root:Request 239: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.395227 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.926865 seconds
+ERROR:root:Request 228: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.810661 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.753178 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.816764 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02350616455078125
+INFO:root:Request 240: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.396165 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.952909 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14443016052246094
+INFO:root:Request 241: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.477783 seconds
+ERROR:root:Request 230: Error (APIConnectionError): Connection error.
+ERROR:root:Request 229: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02659010887145996
+INFO:root:Request 242: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.382695 seconds
+ERROR:root:Request 233: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25061511993408203
+INFO:root:Request 243: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.382415 seconds
+ERROR:root:Request 231: Error (APIConnectionError): Connection error.
+ERROR:root:Request 234: Error (APIConnectionError): Connection error.
+ERROR:root:Request 232: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.873205 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.09952807426452637
+INFO:root:Request 244: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.386885 seconds
+ERROR:root:Request 236: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.894031 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16606998443603516
+ERROR:root:Request 237: Error (APIConnectionError): Connection error.
+INFO:root:Request 245: Starting streaming request to http://localhost:8888
+ERROR:root:Request 235: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398117 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.908024 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.818992 seconds
+ERROR:root:Request 238: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03852391242980957
+INFO:root:Request 246: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.415013 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.030490875244140625
+INFO:root:Request 247: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.443724 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1336193084716797
+INFO:root:Request 248: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.403799 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.830035 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0856320858001709
+INFO:root:Request 249: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.401734 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.839272 seconds
+ERROR:root:Request 239: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5634560585021973
+INFO:root:Request 250: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.448509 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.887767 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.844607 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.887711 seconds
+ERROR:root:Request 240: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.871544 seconds
+ERROR:root:Request 241: Error (APIConnectionError): Connection error.
+ERROR:root:Request 243: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.813706 seconds
+ERROR:root:Request 242: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2877330780029297
+INFO:root:Request 251: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.430106 seconds
+ERROR:root:Request 244: Error (APIConnectionError): Connection error.
+ERROR:root:Request 245: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2762629985809326
+INFO:root:Request 252: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.462331 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.949761 seconds
+ERROR:root:Request 246: Error (APIConnectionError): Connection error.
+ERROR:root:Request 248: Error (APIConnectionError): Connection error.
+ERROR:root:Request 247: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.46656274795532227
+INFO:root:Request 253: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.435799 seconds
+ERROR:root:Request 249: Error (APIConnectionError): Connection error.
+ERROR:root:Request 250: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.902370 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.849712 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01553034782409668
+INFO:root:Request 254: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.438200 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.15992093086242676
+INFO:root:Request 255: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.438067 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17450809478759766
+INFO:root:Request 256: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.402069 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6512999534606934
+INFO:root:Request 257: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.493135 seconds
+ERROR:root:Request 251: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.877224 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.876919 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.870024 seconds
+ERROR:root:Request 252: Error (APIConnectionError): Connection error.
+ERROR:root:Request 253: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.787084 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0673527717590332
+INFO:root:Request 258: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.436959 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05448603630065918
+INFO:root:Request 259: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.393126 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.020734071731567383
+INFO:root:Request 260: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.496840 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0018930435180664062
+INFO:root:Request 261: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5298910140991211
+INFO:root:Request 262: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.405331 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.418703 seconds
+ERROR:root:Request 254: Error (APIConnectionError): Connection error.
+ERROR:root:Request 255: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.869056 seconds
+ERROR:root:Request 256: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.947439 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.869758 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.758423 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.840965 seconds
+ERROR:root:Request 257: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22069406509399414
+INFO:root:Request 263: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.452506 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.30647993087768555
+INFO:root:Request 264: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.380333 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.906266 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06448197364807129
+INFO:root:Request 265: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.451788 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.17452216148376465
+INFO:root:Request 266: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.429720 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.793082 seconds
+ERROR:root:Request 258: Error (APIConnectionError): Connection error.
+ERROR:root:Request 262: Error (APIConnectionError): Connection error.
+ERROR:root:Request 259: Error (APIConnectionError): Connection error.
+ERROR:root:Request 261: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.012636184692382812
+INFO:root:Request 267: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.494662 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13258004188537598
+INFO:root:Request 268: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.411556 seconds
+ERROR:root:Request 260: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.7566921710968018
+INFO:root:Request 269: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.422225 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.889183 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.845479 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.871067 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.942882 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.923778 seconds
+ERROR:root:Request 263: Error (APIConnectionError): Connection error.
+ERROR:root:Request 264: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4182610511779785
+INFO:root:Request 270: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.381437 seconds
+ERROR:root:Request 266: Error (APIConnectionError): Connection error.
+ERROR:root:Request 265: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.894241 seconds
+ERROR:root:Request 268: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08041000366210938
+INFO:root:Request 271: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.439350 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.6505439281463623
+INFO:root:Request 272: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.379098 seconds
+ERROR:root:Request 267: Error (APIConnectionError): Connection error.
+ERROR:root:Request 269: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.921362 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.785155 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05160212516784668
+INFO:root:Request 273: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.484399 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5945582389831543
+INFO:root:Request 274: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.476024 seconds
+ERROR:root:Request 270: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.843453 seconds
+ERROR:root:Request 272: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.778557 seconds
+ERROR:root:Request 271: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.5665202140808105
+INFO:root:Request 275: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.446875 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.866049 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.31976318359375
+INFO:root:Request 276: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.384274 seconds
+ERROR:root:Request 274: Error (APIConnectionError): Connection error.
+ERROR:root:Request 273: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.19751310348510742
+INFO:root:Request 277: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.467101 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.957253 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4115440845489502
+INFO:root:Request 278: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.452078 seconds
+ERROR:root:Request 275: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.955182 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.06952095031738281
+INFO:root:Request 279: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.379463 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.848844 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3756899833679199
+INFO:root:Request 280: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.458429 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.793509 seconds
+ERROR:root:Request 276: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.18972110748291016
+INFO:root:Request 281: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.482171 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.992203 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0006840229034423828
+INFO:root:Request 282: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07987499237060547
+INFO:root:Request 283: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.375095 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.441797 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.029675960540771484
+INFO:root:Request 284: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.474025 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.8004279136657715
+INFO:root:Request 285: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.411777 seconds
+ERROR:root:Request 277: Error (APIConnectionError): Connection error.
+ERROR:root:Request 278: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.801962 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.820086 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.918669 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.759137 seconds
+ERROR:root:Request 279: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.937133 seconds
+ERROR:root:Request 280: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.12748384475708008
+INFO:root:Request 286: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.401434 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.13538694381713867
+INFO:root:Request 287: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.444188 seconds
+ERROR:root:Request 281: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2013099193572998
+INFO:root:Request 288: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.487358 seconds
+ERROR:root:Request 282: Error (APIConnectionError): Connection error.
+ERROR:root:Request 285: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.798068 seconds
+ERROR:root:Request 283: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.08965206146240234
+INFO:root:Request 289: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.481685 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.02658700942993164
+INFO:root:Request 290: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.412093 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.34441494941711426
+INFO:root:Request 291: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.926910 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.428723 seconds
+ERROR:root:Request 284: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.847292 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03945422172546387
+INFO:root:Request 292: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.413671 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.850434 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.14342427253723145
+INFO:root:Request 293: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.394319 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.853856 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.814078 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.047582149505615234
+INFO:root:Request 294: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.494677 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.019794940948486328
+INFO:root:Request 295: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.428568 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.39354920387268066
+INFO:root:Request 296: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.375312 seconds
+ERROR:root:Request 286: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.794539 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.986008 seconds
+ERROR:root:Request 287: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.971823 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.720890998840332
+INFO:root:Request 297: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.389381 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.769282 seconds
+ERROR:root:Request 288: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.849321 seconds
+ERROR:root:Request 289: Error (APIConnectionError): Connection error.
+ERROR:root:Request 290: Error (APIConnectionError): Connection error.
+ERROR:root:Request 291: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.932706 seconds
+ERROR:root:Request 292: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.647442102432251
+INFO:root:Request 298: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.446131 seconds
+ERROR:root:Request 293: Error (APIConnectionError): Connection error.
+ERROR:root:Request 295: Error (APIConnectionError): Connection error.
+ERROR:root:Request 294: Error (APIConnectionError): Connection error.
+ERROR:root:Request 296: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.815233 seconds
+ERROR:root:Request 297: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.4726228713989258
+INFO:root:Request 299: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.375937 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.831652 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2964620590209961
+INFO:root:Request 300: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.409585 seconds
+ERROR:root:Request 298: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.07932806015014648
+INFO:root:Request 301: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.398268 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.015554189682006836
+INFO:root:Request 302: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.492181 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.1032099723815918
+INFO:root:Request 303: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.376108 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.775596 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.05152392387390137
+INFO:root:Request 304: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.376475 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.027630090713500977
+INFO:root:Request 305: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.494129 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.009588956832885742
+INFO:root:Request 306: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.455540 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.25759410858154297
+INFO:root:Request 307: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.406588 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.896851 seconds
+ERROR:root:Request 299: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.906183 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.0016300678253173828
+INFO:root:Request 308: Starting streaming request to http://localhost:8888
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2899768352508545
+INFO:root:Request 309: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.474049 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.498128 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.951985 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.835975 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.765423 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.874266 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.920459 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.03050994873046875
+INFO:root:Request 310: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.377264 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.014263153076171875
+INFO:root:Request 311: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.497077 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.01769113540649414
+INFO:root:Request 312: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.489669 seconds
+ERROR:root:Request 300: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.22188520431518555
+INFO:root:Request 313: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.423242 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.927499 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.758497 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.055467844009399414
+INFO:root:Request 314: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.421140 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.10848116874694824
+INFO:root:Request 315: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.390810 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.966965 seconds
+WARNING:root:Prepare to launch 1 streaming tasks after 0.16149497032165527
+INFO:root:Request 316: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.459937 seconds
+ERROR:root:Request 301: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.786134 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.922778 seconds
+ERROR:root:Request 303: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.993444 seconds
+ERROR:root:Request 304: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.3924410343170166
+INFO:root:Request 317: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.467575 seconds
+ERROR:root:Request 307: Error (APIConnectionError): Connection error.
+ERROR:root:Request 302: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.871578 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.857661 seconds
+ERROR:root:Request 306: Error (APIConnectionError): Connection error.
+ERROR:root:Request 305: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.854735 seconds
+ERROR:root:Request 309: Error (APIConnectionError): Connection error.
+WARNING:root:Prepare to launch 1 streaming tasks after 0.2573740482330322
+INFO:root:Request 318: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.486563 seconds
+INFO:openai._base_client:Retrying request to /chat/completions in 0.943947 seconds
+ERROR:root:Request 308: Error (APIConnectionError): Connection error.
+INFO:root:Request 319: Starting streaming request to http://localhost:8888
+INFO:openai._base_client:Retrying request to /chat/completions in 0.460193 seconds
+ERROR:root:Request 313: Error (APIConnectionError): Connection error.
+ERROR:root:Request 310: Error (APIConnectionError): Connection error.
+ERROR:root:Request 311: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.905167 seconds
+ERROR:root:Request 312: Error (APIConnectionError): Connection error.
+ERROR:root:Request 314: Error (APIConnectionError): Connection error.
+ERROR:root:Request 315: Error (APIConnectionError): Connection error.
+INFO:openai._base_client:Retrying request to /chat/completions in 0.991026 seconds
+ERROR:root:Request 316: Error (APIConnectionError): Connection error.
+ERROR:root:Request 317: Error (APIConnectionError): Connection error.
+ERROR:root:Request 318: Error (APIConnectionError): Connection error.
+ERROR:root:Request 319: Error (APIConnectionError): Connection error.
+WARNING:root:All 320 requests completed for deployment.
+INFO:root:Benchmark completed in 65.30 seconds
+Set routing-strategy header to prefix-cache
+header: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'AsyncOpenAI/Python 1.59.7', 'X-Stainless-Lang': 'python', 'X-Stainless-Package-Version': '1.59.7', 'X-Stainless-OS': 'MacOS', 'X-Stainless-Arch': 'arm64', 'X-Stainless-Runtime': 'CPython', 'X-Stainless-Runtime-Version': '3.12.9', 'Authorization': 'Bearer sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi', 'routing-strategy': 'prefix-cache', 'X-Stainless-Async': 'async:false', 'OpenAI-Organization': <openai.Omit object at 0x1114ec5c0>, 'OpenAI-Project': <openai.Omit object at 0x1114ef230>}
+Set routing-strategy header to prefix-cache
+header: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'AsyncOpenAI/Python 1.59.7', 'X-Stainless-Lang': 'python', 'X-Stainless-Package-Version': '1.59.7', 'X-Stainless-OS': 'MacOS', 'X-Stainless-Arch': 'arm64', 'X-Stainless-Runtime': 'CPython', 'X-Stainless-Runtime-Version': '3.12.9', 'Authorization': 'Bearer sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi', 'routing-strategy': 'prefix-cache', 'X-Stainless-Async': 'async:false', 'OpenAI-Organization': <openai.Omit object at 0x1110238c0>, 'OpenAI-Project': <openai.Omit object at 0x1114ef230>}
+routing-strategy header: prefix-cache
+Experiment is done. date: Tue Mar  4 22:44:17 PST 2025
+./run-test.sh: line 125: 17453 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py ${target_deployment} default ${pod_log_dir} none ${exclude}
+./run-test.sh: line 125: 17454 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py aibrix-controller-manager aibrix-system ${pod_log_dir} none none
+./run-test.sh: line 125: 17455 Terminated: 15          python3 ${aibrix_repo}/benchmarks/utils/streaming_pod_log_to_file.py aibrix-gateway-plugins aibrix-system ${pod_log_dir} none none
+No resources found
+Stopping monitoring processes...
+killed count_num_pods.py with PID: 17452
+./run-test.sh: line 136: kill: (15411) - No such process
+killed port-forwarding with PID: 15411
