@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    model.aibrix.ai/name: stability-deepseek-coder-7b-instruct
+    model.aibrix.ai/port: "8000"
+  name: stability-deepseek-coder-7b-instruct
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      model.aibrix.ai/name: stability-deepseek-coder-7b-instruct
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8000"
+        prometheus.io/scrape: "true"
+      labels:
+        model.aibrix.ai/name: stability-deepseek-coder-7b-instruct
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: machine.cluster.vke.volcengine.com/gpu-name
+                operator: In
+                values:
+                - NVIDIA-L20
+      containers:
+      - command:
+        - sh
+        - -c
+        - |
+          /bin/bash << 'EOF'
+          python3 -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port "8000" --model /models/deepseek-coder-6.7b-instruct --served-model-name stability-deepseek-coder-7b-instruct --trust-remote-code --max-model-len "13408" --api-key sk-kFJ12nKsFVfVmGpj3QzX65s4RbN2xJqWzPYCjYu7wT3BlbLi --distributed-executor-backend ray --tensor-parallel-size "1" --enable-chunked-prefill
+          EOF
+        image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/vllm-openai-v6d-dependency:v0.6.1-20241202
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: vllm-openai
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+          requests:
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - mountPath: /models
+          name: model-hostpath
+        - mountPath: /dev/shm
+          name: dshm
+        - name: vineyard-sock
+          mountPath: /var/run
+      - command:
+        - aibrix_runtime
+        - --port
+        - "8080"
+        image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.1.0
+        imagePullPolicy: IfNotPresent
+        name: aibrix-runtime
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /models
+          name: model-hostpath
+      initContainers:
+      - command:
+        - aibrix_download
+        - --model-uri
+        - tos://aibrix-artifact-testing/models/deepseek-ai/deepseek-coder-6.7b-instruct/
+        - --local-dir
+        - /models/
+        env:
+        - name: DOWNLOADER_MODEL_NAME
+          value: deepseek-coder-6.7b-instruct
+        - name: DOWNLOADER_NUM_THREADS
+          value: "16"
+        - name: DOWNLOADER_ALLOW_FILE_SUFFIX
+          value: json, safetensors
+        - name: TOS_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: TOS_ACCESS_KEY
+              name: tos-credential
+        - name: TOS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: TOS_SECRET_KEY
+              name: tos-credential
+        - name: TOS_ENDPOINT
+          value: tos-cn-beijing.ivolces.com
+        - name: TOS_REGION
+          value: cn-beijing
+        image: aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/runtime:v0.1.0
+        imagePullPolicy: IfNotPresent
+        name: init-model
+        volumeMounts:
+        - mountPath: /models
+          name: model-hostpath
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - hostPath:
+          path: /root/models
+          type: DirectoryOrCreate
+        name: model-hostpath
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 4Gi
+        name: dshm
+      - name: vineyard-sock
+        hostPath:
+          path: /var/run/vineyard-kubernetes/vineyard-system/stability-kvintegration
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "8000"
+    prometheus.io/scrape: "true"
+  labels:
+    model.aibrix.ai/name: stability-deepseek-coder-7b-instruct
+    prometheus-discovery: "true"
+  name: stability-deepseek-coder-7b-instruct
+  namespace: default
+spec:
+  ports:
+  - name: serve
+    port: 8000
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    model.aibrix.ai/name: stability-deepseek-coder-7b-instruct
+  type: ClusterIP
