@@ -21,8 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vllm-project/aibrix/pkg/utils"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
@@ -296,13 +294,13 @@ func (c *LPRadixCache) prettyPrintHelper(node *TreeNode, prefix string, isLast b
 		childPrefix = prefix + "│   "
 	}
 	// klog.Infof("%s%s[Key: %v, Value: %v, Load: %d, Depth: %d]", prefix, marker, node.key, node.value, node.load, node.depth)
-	tokensInString, err := utils.DetokenizeText(node.key)
-	if err != nil {
-		klog.Errorf("Failed to detokenize key for node %d: %v", node.id, err)
-		tokensInString = "ERROR"
-	}
+	// tokensInString, err := utils.DetokenizeText(node.key)
+	// if err != nil {
+	// 	klog.Errorf("Failed to detokenize key for node %d: %v", node.id, err)
+	// 	tokensInString = "ERROR"
+	// }
 	allPodsInNode := c.GetAllPodsInNode(node)
-	klog.Infof("%s%s[Node: %d, Tokens: '%s', Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, tokensInString, node.load, allPodsInNode, node.depth)
+	klog.Infof("%s%s[Node: %d, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.load, allPodsInNode, node.depth)
 	// if len(node.ModelToPods) > 0 {
 	// 	klog.Infof("%s    Models:", prefix)
 	// 	for model, pods := range node.ModelToPods {
