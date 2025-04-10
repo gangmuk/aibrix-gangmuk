@@ -60,6 +60,10 @@ const (
 
 	// Envs
 	EnvRoutingAlgorithm = "ROUTING_ALGORITHM"
+
+	// Performance metrics headers
+	HeaderTTFT = "x-timing-ttft-ms" // Time to first token in milliseconds
+	HeaderTPOT = "x-timing-tpot-ms" // Time per output token in milliseconds
 )
 
 var (

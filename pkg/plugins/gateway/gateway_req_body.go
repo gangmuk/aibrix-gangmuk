@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"k8s.io/klog/v2"
 
@@ -32,6 +33,12 @@ import (
 )
 
 func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, routingAlgorithm types.RoutingAlgorithm) (*extProcPb.ProcessingResponse, string, *types.RoutingContext, bool, int64) {
+
+	s.requestTimings.Store(requestID, &RequestTiming{
+		startTime:  time.Now(),
+		tokenCount: 0,
+	})
+
 	var model string
 	var routingCtx *types.RoutingContext
 	var ok, stream bool

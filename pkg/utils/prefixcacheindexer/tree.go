@@ -309,7 +309,7 @@ func (c *LPRadixCache) prettyPrintHelper(node *TreeNode, prefix string, isLast b
 	// 	tokensInString = "ERROR"
 	// }
 	allPodsInNode := c.GetAllPodsInNode(node)
-	klog.Infof("%s%s[Node: %d, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.load, allPodsInNode, node.depth)
+	klog.V(5).Infof("%s%s[Node: %d, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.load, allPodsInNode, node.depth)
 	// if len(node.ModelToPods) > 0 {
 	// 	klog.Infof("%s    Models:", prefix)
 	// 	for model, pods := range node.ModelToPods {
@@ -488,7 +488,7 @@ func (c *LPRadixCache) insertHelper(node *TreeNode, key []int, value []int) (*Tr
 				return child, key, nil // Return the original key for exact match
 			}
 			// Partial match, continue deeper
-			klog.Infof("Partial tokens match child node(%d): %v. Continue deeper", child.id, key)
+			klog.V(5).Infof("Partial tokens match child node(%d). Continue deeper", child.id)
 			childNode, childMatched, childUnmatched := c.insertHelper(child, key[prefixLen:], value[prefixLen:])
 			if len(childMatched) > 0 {
 				return childNode, key[:prefixLen+len(childMatched)], childUnmatched
@@ -601,7 +601,7 @@ func (c *LPRadixCache) evictNode(node *TreeNode) {
 
 	// Remove from allNodes map
 	delete(c.allNodes, node.id)
-	klog.Infof("Evict node(%d)!, Key: %v", node.id, node.key)
+	klog.Infof("Evict node(%d)", node.id)
 
 	// Clean up the node's references
 	node.parent = nil
@@ -615,7 +615,7 @@ func (c *LPRadixCache) evictNode(node *TreeNode) {
 }
 
 func (c *LPRadixCache) splitNode(key []int, child *TreeNode, splitLen int) *TreeNode {
-	klog.Infof("Splitting node(%d): %v, into %v and %v", child.id, child.key, child.key[:splitLen], child.key[splitLen:])
+	klog.Infof("Splitting node(%d)", child.id)
 
 	// Create new node with split portions
 	newNode := c.NewTreeNode(c.numPods, child.parent, child.key[:splitLen], child.value[:splitLen])
@@ -661,10 +661,8 @@ func (c *LPRadixCache) splitNode(key []int, child *TreeNode, splitLen int) *Tree
 		}
 	}
 
-	klog.Infof("Split complete - New node(%d) key: %v, modelToPods: %v",
-		newNode.id, newNode.key, newNode.modelToPods)
-	klog.Infof("Split complete - Child node(%d) key: %v, modelToPods: %v",
-		child.id, child.key, child.modelToPods)
+	klog.V(5).Infof("Split complete - New node(%d)", newNode.id)
+	klog.V(5).Infof("Split complete - Child node(%d)", child.id)
 
 	c.allNodes[newNode.id] = newNode
 	return newNode

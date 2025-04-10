@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	configPb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	envoyTypePb "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/vllm-project/aibrix/pkg/cache"
@@ -40,12 +42,80 @@ import (
 	healthPb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
+type RequestTiming struct {
+	startTime      time.Time // When the request began processing
+	firstTokenTime time.Time // When the first token was received
+	tokenCount     int       // Count of tokens received so far
+}
+
 type Server struct {
 	redisClient         *redis.Client
 	ratelimiter         ratelimiter.RateLimiter
 	client              kubernetes.Interface
 	requestCountTracker map[string]int
 	cache               cache.Cache
+
+	requestTimings      sync.Map // Map to track request timing information: requestID -> *RequestTiming
+	requestBuffers      sync.Map // Thread-safe map to track buffers per request
+	streamingUsageCache sync.Map // Map to store usage information from streaming responses
+}
+
+func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, routingCtx *types.RoutingContext, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) []*configPb.HeaderValueOption {
+	// Calculate TTFT (Time To First Token)
+	ttftMs := int64(0)
+	if !timing.firstTokenTime.IsZero() {
+		ttftMs = timing.firstTokenTime.Sub(timing.startTime).Milliseconds()
+	}
+
+	// Calculate TPOT (Time Per Output Token)
+	tpotMs := int64(0)
+	if !timing.firstTokenTime.IsZero() {
+		totalGenerationTimeMs := currentTime.Sub(timing.firstTokenTime).Milliseconds()
+
+		// Use the correct token count
+		effectiveTokenCount := int64(0)
+		if stream && timing.tokenCount > 1 {
+			// For streaming, use our counted tokens
+			effectiveTokenCount = int64(timing.tokenCount - 1) // Exclude first token
+		} else if numOutputTokens > 1 {
+			// Use the actual output tokens from usage
+			effectiveTokenCount = numOutputTokens - 1
+		}
+
+		if effectiveTokenCount > 0 {
+			tpotMs = totalGenerationTimeMs / effectiveTokenCount
+		}
+	}
+
+	// Add timing headers
+	headers := []*configPb.HeaderValueOption{
+		{
+			Header: &configPb.HeaderValue{
+				Key:      HeaderTTFT,
+				RawValue: []byte(fmt.Sprintf("%d", ttftMs)),
+			},
+		},
+		{
+			Header: &configPb.HeaderValue{
+				Key:      HeaderTPOT,
+				RawValue: []byte(fmt.Sprintf("%d", tpotMs)),
+			},
+		},
+	}
+
+	// Log timing metrics with correct token counts
+	end_to_end := time.Since(timing.startTime).Milliseconds()
+
+	// Get target pod IP directly from routing context
+	selectedPodIP := "unknown"
+	if routingCtx != nil {
+		selectedPodIP = routingCtx.TargetAddress()
+	}
+
+	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d",
+		requestID, selectedPodIP, ttftMs, tpotMs, end_to_end, numInputTokens, numOutputTokens, numTotalTokens)
+
+	return headers
 }
 
 func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
