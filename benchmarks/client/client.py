@@ -27,7 +27,7 @@ def worker(thread_idx, client, model, send_request_func, output_file):
     while True:
         task = task_queue.get()
         if task is None:  # Stop signal
-            logging.warn(f"Worker {thread_idx} exit.")
+            logging.warning(f"Worker {thread_idx} exit.")
             break
         else:
             loop.run_until_complete(send_request_func(client, model, *task))
@@ -159,8 +159,7 @@ async def benchmark_streaming(api_key: str,
                               routing_strategy: str,
                               load_struct: List,
                               output_file: io.TextIOWrapper,
-                              model: str,
-                              ):
+                              model: str):
     request_id = 0
     base_time = time.time()
     num_requests = 0
@@ -180,18 +179,138 @@ async def benchmark_streaming(api_key: str,
         num_requests += len(requests)
     task_queue.join()
     # Stop all worker threads
-    logging.warn("Producer completed ...")
+    logging.warning("Producer completed ...")
     for _ in threads:
         task_queue.put(None)
 
     for thread in threads:
         thread.join()
-        logging.warn(f"Worker thread {thread} completed ...")
+        logging.warning(f"Worker thread {thread} completed ...")
     logging.warning(f"All {num_requests} requests completed for deployment.")
+
+
+
+async def send_request_batch_for_mock_app_format(client: openai.AsyncOpenAI,
+                             model: str,
+                             endpoint: str,
+                             prompt: str,
+                             output_file: io.TextIOWrapper,
+                             request_id: int,
+                             max_tokens: int,
+                             routing_strategy: str,
+                             target_time: int = None):
+    import aiohttp
+    start_time = asyncio.get_event_loop().time()
+    target_pod = ""
+    try:
+        if target_time is not None:
+            cur_time = time.time()
+            if target_time > cur_time:
+                await asyncio.sleep(target_time - cur_time)
+                
+        logging.info(f"Request {request_id}: Starting sending request to {endpoint}")
+        
+        # Extract the content from the message format
+        prompt_content = prompt[0]["content"] if isinstance(prompt, list) and len(prompt) > 0 and "content" in prompt[0] else prompt
+        
+        # Use aiohttp for direct HTTP request to match curl format
+        headers = {
+            "Content-Type": "application/json",
+            "model": model,
+            "routing-strategy": routing_strategy
+        }
+        
+        # Add Authorization if API key is provided
+        if hasattr(client, "api_key") and client.api_key:
+            headers["Authorization"] = f"Bearer {client.api_key}"
+            
+        # Construct payload in the exact format expected by the server
+        max_tokens = 2048 if max_tokens is None else max_tokens
+        payload = {
+            "model": model,  # Include model in the body too
+            "prompt": prompt_content,
+            "temperature": 0,
+            "max_tokens": max_tokens
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{endpoint}/v1/chat/completions", 
+                                headers=headers, 
+                                json=payload) as response:
+                if response.status != 200:
+                    raise Exception(f"Request failed with status {response.status}: {await response.text()}")
+                
+                
+                response_data = await response.json()
+                target_pod = response.headers.get('target-pod', '')
+                if target_pod == "":
+                    print(f"Warning: target-pod header not found in response.")
+                    print(f"Response headers: {response.headers}")
+                response_time = asyncio.get_event_loop().time()
+                latency = response_time - start_time
+                
+                # Extract tokens from response - adjust this based on your API's response format
+                prompt_tokens = response_data.get("usage", {}).get("prompt_tokens", 0)
+                output_tokens = response_data.get("usage", {}).get("completion_tokens", 0)
+                total_tokens = response_data.get("usage", {}).get("total_tokens", 0)
+                
+                throughput = output_tokens / latency if output_tokens > 0 else 0
+                
+                # Extract output text based on response format
+                if "choices" in response_data and len(response_data["choices"]) > 0:
+                    if "message" in response_data["choices"][0]:
+                        output_text = response_data["choices"][0]["message"].get("content", "")
+                    elif "text" in response_data["choices"][0]:
+                        output_text = response_data["choices"][0]["text"]
+                    else:
+                        output_text = str(response_data["choices"][0])
+                else:
+                    output_text = str(response_data)
+
+        result = {
+            "request_id": request_id,
+            "status": "success",
+            "prompt_tokens": prompt_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "latency": f"{latency:.4f}",
+            "throughput(tps)": f"{throughput:.2f}",
+            "start_time": f"{start_time:.2f}",
+            "end_time": f"{response_time:.2f}",
+            "ttft": "Unknown",
+            "tpot": "Unknown",
+            "target_pod": target_pod,
+        }
+        logging.info(f"Request {request_id}: Completed successfully. Input tokens: {prompt_tokens}, Output tokens: {output_tokens}, Total tokens: {total_tokens}, Latency: {latency:.2f}s")
+        # Write result to JSONL file
+        output_file.write(json.dumps(result) + "\n")
+        output_file.flush()  # Ensure data is written immediately to the file
+        return result
+
+    except Exception as e:
+        error_time = asyncio.get_event_loop().time()
+        error_type = type(e).__name__
+        error_result = {
+            "request_id": request_id,
+            "status": "error",
+            "error_type": error_type,
+            "error_message": str(e),
+            "error_traceback": traceback.format_exc(),
+            "input": prompt,
+            "latency": error_time - start_time,
+            "start_time": start_time,
+            "end_time": error_time,
+            "target_pod": target_pod
+        }
+        logging.error(f"Request {request_id}: Error ({error_type}): {str(e)}")
+        output_file.write(json.dumps(error_result) + "\n")
+        output_file.flush()
+        return error_result
 
 # Asynchronous request handler
 async def send_request_batch(client: openai.AsyncOpenAI,
                              model: str,
+                             endpoint: str,
                              prompt: str,
                              output_file: str,
                              request_id: int,
@@ -227,21 +346,21 @@ async def send_request_batch(client: openai.AsyncOpenAI,
         result = {
             "request_id": request_id,
             "status": "success",
-            "input": prompt,
-            "output": output_text,
+            # "input": prompt,
+            # "output": output_text,
             "prompt_tokens": prompt_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
-            "latency": latency,
-            "throughput": throughput,
-            "start_time": start_time,
-            "end_time": response_time,
+            "latency": f"{latency:.4f}",
+            "throughput(tps)": f"{throughput:.2f}",
+            "start_time": f"{start_time:.2f}",
+            "end_time": f"{response_time:.2f}",
             "ttft": "Unknown",
             "tpot": "Unknown",
             "target_pod": target_pod,
             "session_id": session_id,
         }
-        logging.info(result)
+        logging.info(f"Request {request_id}: Completed successfully. Tokens: {total_tokens}, Latency: {latency:.2f}s")
         # Write result to JSONL file
         output_file.write(json.dumps(result) + "\n")
         output_file.flush()  # Ensure data is written immediately to the file
@@ -277,7 +396,7 @@ async def benchmark_batch(api_key: str,
                           load_struct: List,
                           output_file: io.TextIOWrapper,
                           model: str,
-                          ):
+                          max_tokens: int = None):
     request_id = 0
     base_time = time.time()
     num_requests = 0
@@ -285,17 +404,21 @@ async def benchmark_batch(api_key: str,
     
     for thread_idx in range(0, thread_pool_size):
         client = create_client(api_key, endpoint, max_retries, timeout, routing_strategy)
-        threads.append(start_worker_threads(thread_idx, client, model, send_request_batch, output_file))
+        threads.append(start_worker_threads(thread_idx, client, model, send_request_batch_for_mock_app_format, output_file))
+    
     for requests_dict in load_struct:
         ts = int(requests_dict["timestamp"])
         requests = requests_dict["requests"]
         target_time = base_time + ts / 1000.0
         formatted_prompts = [prepare_prompt(prompt = request["prompt"], lock = lock, session_id = request.get("session_id", None), history = session_history) for request in requests]
+        
         for i in range(len(requests)):
             session_id = requests[i].get("session_id", None)
-            task_queue.put((formatted_prompts[i], output_file, request_id, session_id, target_time))
+            task_queue.put((endpoint, formatted_prompts[i], output_file, request_id, max_tokens, routing_strategy, target_time))
             request_id += 1
+        
         num_requests += len(requests)
+    
     task_queue.join()
     # Stop all worker threads
     for _ in threads:
@@ -303,8 +426,9 @@ async def benchmark_batch(api_key: str,
 
     for thread in threads:
         thread.join()
-        logging.warn(f"Worker thread {thread} completed ...")
+        logging.warning(f"Worker thread {thread} completed ...")
     logging.warning(f"All {num_requests} requests completed for deployment.")
+
 
 def create_client(api_key: str,
                   endpoint: str,
@@ -312,16 +436,16 @@ def create_client(api_key: str,
                   timeout: float,
                   routing_strategy: str,
                   ):
-    if args.api_key is None:
+    if api_key is None:
         client = openai.AsyncOpenAI(
-            base_url=args.endpoint + "/v1",
+            base_url=endpoint + "/v1",
             max_retries=max_retries,
             timeout=timeout,
         )
     else:
         client = openai.AsyncOpenAI(
-            api_key=args.api_key,
-            base_url=args.endpoint + "/v1",
+            api_key=api_key,
+            base_url=endpoint + "/v1",
             max_retries=max_retries,
             timeout=timeout,
         )
@@ -347,6 +471,7 @@ def main(args):
                 load_struct=load_struct,
                 output_file=output_file,
                 model=args.model,
+                max_tokens = args.max_tokens,
             ))
             end_time = time.time()
             logging.info(f"Benchmark completed in {end_time - start_time:.2f} seconds")
@@ -362,6 +487,7 @@ def main(args):
                 load_struct=load_struct,
                 output_file=output_file,
                 model=args.model,
+                max_tokens = args.max_tokens
             ))
             end_time = time.time()
             logging.info(f"Benchmark completed in {end_time - start_time:.2f} seconds")
@@ -370,12 +496,13 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Workload Generator')
     parser.add_argument("--workload-path", type=str, default=None, help="File path to the workload file.")
-    parser.add_argument("--model", type=str, default=None, help="Default target model (if workload does not contains target model).")
+    parser.add_argument("--model", type=str, required=True, default=None, help="Default target model (if workload does not contains target model).")
     parser.add_argument('--endpoint', type=str, required=True)
     parser.add_argument("--api-key", type=str, default=None, help="API key to the service. ")
     parser.add_argument('--output-file-path', type=str, default="output.jsonl")
     parser.add_argument("--streaming", action="store_true", help="Use streaming client.")
     parser.add_argument("--routing-strategy", type=str, required=False, default="random", help="Routing strategy to use.")
+    parser.add_argument("--max-tokens", type=int, default=2048, help="Max tokens for the request.")
 
     args = parser.parse_args()
     main(args)

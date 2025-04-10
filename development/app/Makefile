@@ -12,11 +12,11 @@ docker-build-all: docker-build-mock docker-build-simulator docker-build-simulato
 docker-build-mock:
 	$(CONTAINER_TOOL) build -t ${AIBRIX_CONTAINER_REGISTRY_NAMESPACE}/vllm-mock:nightly -f Dockerfile .
 
-docker-build-simulator: 
-	$(CONTAINER_TOOL) build -t ${AIBRIX_CONTAINER_REGISTRY_NAMESPACE}/vllm-simulator:nightly --build-arg SIMULATION=a100 -f Dockerfile .
+docker-build-simulator-a100: 
+	$(CONTAINER_TOOL) build --cpu-period=100000 --cpu-quota=600000 -t ${AIBRIX_CONTAINER_REGISTRY_NAMESPACE}/vllm-simulator-a100:nightly --build-arg SIMULATION=a100 -f Dockerfile .
 
 docker-build-simulator-a40:
-	$(CONTAINER_TOOL) build -t ${AIBRIX_CONTAINER_REGISTRY_NAMESPACE}/vllm-simulator-a40:nightly --build-arg SIMULATION=a40 -f Dockerfile .
+	$(CONTAINER_TOOL) build --cpu-period=100000 --cpu-quota=600000 -t ${AIBRIX_CONTAINER_REGISTRY_NAMESPACE}/vllm-simulator-a40:nightly --build-arg SIMULATION=a40 -f Dockerfile .
 
 docker-build: docker-build-mock
 

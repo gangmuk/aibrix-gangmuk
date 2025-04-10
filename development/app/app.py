@@ -22,6 +22,16 @@ from simulator import Simulator
 from vidur.config import SimulationConfig
 from vidur.entities import Request
 
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+print(f"LOG_LEVEL: {LOG_LEVEL}")
+
+logger = logging.getLogger(__name__)
+if LOG_LEVEL == 'DEBUG':
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.INFO)
+logging.getLogger("kubernetes.client.rest").setLevel(logging.ERROR)  # Suppress kubenetes logs
+
 # Global storage for overridden values
 overrides = {}
 
@@ -30,6 +40,8 @@ DEPLOYMENT_NAME = os.getenv('DEPLOYMENT_NAME', 'llama2-7b')
 NAMESPACE = os.getenv('POD_NAMESPACE', 'default')
 DEFAULT_REPLICAS = int(os.getenv('DEFAULT_REPLICAS', '1'))
 SIMULATION = os.getenv('SIMULATION', 'disabled')
+HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN', 'huggingface token')
+# API_KEY = os.getenv('API_KEY', 'your api key')
 
 modelMaps = {
     "llama2-7b": "meta-llama/Llama-2-7b-hf",
@@ -44,26 +56,20 @@ if "--replica_config_model_name" not in sys.argv:
     sys.argv.append("--replica_config_model_name")
     sys.argv.append(modelMaps.get(MODEL_NAME, MODEL_NAME))
 
+global tokenizer
 tokenizer = None
 simulator: Optional[Simulator] = None
 
-# Extract the api_key argument and prepare for authentication
-api_key = None
-try:
-    index = sys.argv.index("--api_key")
-    if index + 1 < len(sys.argv):
-        api_key = sys.argv[index + 1]
-except ValueError:
-    pass
 
 auth = HTTPTokenAuth(scheme='Bearer')
 
 
 @auth.verify_token
-def verify_token(token):
-    if api_key is None:
-        return True
-    return token == api_key
+# def verify_token(token):
+#     if API_KEY is None:
+#         logging.error("API key is not set.")
+#         return True
+#     return token == API_KEY
 
 
 @auth.error_handler
@@ -71,7 +77,6 @@ def auth_error(status):
     return jsonify({"error": "Unauthorized"}), 401
 
 
-logger = logging.getLogger(__name__)
 
 
 def read_configs(file_path):
@@ -89,20 +94,14 @@ def read_configs(file_path):
         return {}
 
 
-configs = read_configs("config.json")
-HUGGINGFACE_TOKEN = configs.get("huggingface_token", "your huggingface token")
-
-
 def get_token_count(text):
+    global tokenizer
     try:
-        # Encode the text
+        logging.info(f"type(tokenizer): {type(tokenizer)}")
         encoded_input = tokenizer(text)
-
-        # Get the number of tokens
         return len(encoded_input['input_ids'])
     except Exception as e:
         logger.error(f"Failed to get number of tokens: {e}")
-
     return 1
 
 
@@ -215,7 +214,7 @@ def unload_model():
     return jsonify({"status": "success", "message": "Model unloaded successfully"}), 200
 
 
-@app.route('/v1/completions', methods=['POST'])
+@app.route('/v1/chat/completions', methods=['POST'])
 @auth.login_required
 def completion():
     try:
@@ -237,7 +236,17 @@ def completion():
         start = datetime.now().timestamp()
         latency = 0.0
         if simulator is not None:
+            logging.info(f"Starting simulator execution, arrived_at: {arrived_at}, input_tokens: {input_tokens}, output_tokens: {output_tokens}, arrived_next: {arrived_next}")
             latency = simulator.execute(Request(arrived_at, input_tokens, output_tokens, arrived_next=arrived_next))
+            logging.info(f"Simulator is enabled, sleep: {latency} seconds as simulated latency")
+        else:
+            logging.info(f"Simulator is not enabled, sleep: {latency}")
+
+        overhead = datetime.now().timestamp() - start
+        if latency > overhead:
+            time.sleep(latency - overhead)
+        elif latency > 0.0:
+            logger.warning(f"Latency is less than overhead: Latency:{latency} - Overhead:{overhead}")
 
         # Simulated response
         response = {
@@ -261,11 +270,7 @@ def completion():
                 "time": latency
             }
         }
-        overhead = datetime.now().timestamp() - start
-        if latency > overhead:
-            time.sleep(latency - overhead)
-        elif latency > 0.0:
-            logger.warning(f"Latency is less than overhead: L{latency} - O{overhead}")
+        logging.debug(f"Returning simulated response")
 
         return jsonify(response), 200
     except Exception as e:
@@ -676,19 +681,27 @@ vllm:lora_requests_info{max_lora="1",running_lora_adapters="text2sql-lora-2",wai
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger("kubernetes.client.rest").setLevel(logging.ERROR)  # Suppress kubenetes logs
+    # logging.basicConfig(level=logging.DEBUG)
+    # logging.getLogger("kubernetes.client.rest").setLevel(logging.ERROR)  # Suppress kubenetes logs
 
     print(f"Starting app. DEPLOYMENT_NAME: {DEPLOYMENT_NAME}, NAMESPACE: {NAMESPACE}, MODEL: {MODEL_NAME}")
 
     # Extract gpu_device without call argparse
-    gpu_device = "disabled"
+    # gpu_device = "disabled"
+
+    gpu_device = None
+    logging.info(f"gpu_device: {gpu_device}")
     try:
         index = sys.argv.index("--replica_config_device")
+        logging.info(f"sys.argv.index('--replica_config_device') (==index): {index}")
         if index + 1 < len(sys.argv):
             gpu_device = sys.argv[index + 1]
-    except ValueError:
-        pass
+            logging.info(f"gpu_device = sys.argv[{index + 1}]: {gpu_device}")
+            logging.info(f"sys.argv: {sys.argv}")
+    except Exception as e:
+        logging.error(f"Failed to extract gpu_device: {e}")
+
+    
 
     # Restore -h functionality
     if '-h' in sys.argv:
@@ -698,17 +711,20 @@ if __name__ == '__main__':
     if gpu_device != "disabled":
         # Load the tokenizer for your model
         from transformers import AutoTokenizer
-
+        logging.info(f"Loading tokenizer for model: {MODEL_NAME}")
         default_model = 'bert-base-uncased'
         try:
             # can we make this as an application argument.
             # no need to use such map, we can use huggingface id directly.
+            logging.info(f"huggingface token: {HUGGINGFACE_TOKEN}")
+            logging.info(f"MODEL_NAME: {MODEL_NAME}")
             token_model = modelMaps.get(MODEL_NAME, default_model)
             tokenizer = AutoTokenizer.from_pretrained(
                 token_model,
                 token=HUGGINGFACE_TOKEN,
                 model_max_length=16384,  # Suppress warning
                 clean_up_tokenization_spaces=True)
+            logging.info(f"Initialized tokenizer for model: {tokenizer}, {token_model}")
         except Exception as e:
             logger.error(f"Failed to initialize tokenizer, will use default tokenizer model: {e}")
             tokenizer = AutoTokenizer.from_pretrained(
@@ -724,7 +740,7 @@ if __name__ == '__main__':
             "waiting": 0,
             "swapped": 0
         }
-
+    logging.info(f"simulator: {simulator}")
     thread = None
     if simulator is not None:
         # TODO: Move simulation to a separate workflow, independent of the main web service
