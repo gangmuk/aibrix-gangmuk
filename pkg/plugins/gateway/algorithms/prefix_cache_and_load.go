@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	// "github.com/vllm-project/aibrix/pkg/utils/kvcache"
+
 	"github.com/vllm-project/aibrix/pkg/types"
 	"github.com/vllm-project/aibrix/pkg/utils"
 	"github.com/vllm-project/aibrix/pkg/utils/prefixcacheindexer"
@@ -569,6 +571,20 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		return "", fmt.Errorf("no suitable pod found")
 	}
 
+	// iterate all pods and get their hit ratios
+	targetPodHitRatio := -1.0
+	allPodsRatios := map[string]float64{}
+	for _, pod := range readyPods {
+		podHitRatio := p.cache.GetPodAwareCacheHitRatio(tokens, ctx.Model, pod.Name)
+		if pod.Name == targetPod.Name {
+			targetPodHitRatio = podHitRatio
+		}
+		allPodsRatios[pod.Name] = podHitRatio
+	}
+
+	// Store the hit ratios for later retrieval
+	utils.StoreKVCacheHitRatio(ctx.RequestID, targetPod.Name, targetPodHitRatio, allPodsRatios)
+
 	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
 	for currentNode != nil {
@@ -579,7 +595,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	p.histogram.update(time.Now(), node, node, targetPod.Name, defaultDecodingLength)
 
 	klog.Infof("target_pod_name: %s, target_pod_ip: %s", targetPod.Name, targetPod.Status.PodIP)
-	p.cache.PrettyPrint()
+	// p.cache.PrettyPrint()
 
 	ctx.SetTargetPod(targetPod)
 	return ctx.TargetAddress(), nil

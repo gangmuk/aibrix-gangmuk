@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	// "github.com/vllm-project/aibrix/pkg/utils/kvcache"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/client-go/kubernetes"
@@ -88,6 +91,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	}
 
 	// Add timing headers
+	end_to_end := time.Since(timing.startTime).Milliseconds()
 	headers := []*configPb.HeaderValueOption{
 		{
 			Header: &configPb.HeaderValue{
@@ -101,10 +105,37 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 				RawValue: []byte(fmt.Sprintf("%d", tpotMs)),
 			},
 		},
+		{
+			Header: &configPb.HeaderValue{
+				Key:      "x-timing-e2e-ms",
+				RawValue: []byte(fmt.Sprintf("%d", end_to_end)),
+			},
+		},
 	}
 
-	// Log timing metrics with correct token counts
-	end_to_end := time.Since(timing.startTime).Milliseconds()
+	/////////////////////////////////////
+	// Get KV cache hit ratio from our global store
+	kvCacheHitRatio := utils.GetKVCacheHitRatio(requestID)
+	headers = append(headers, &configPb.HeaderValueOption{
+		Header: &configPb.HeaderValue{
+			Key:      HeaderKVCacheHitRatio,
+			RawValue: []byte(fmt.Sprintf("%.4f", kvCacheHitRatio)),
+		},
+	})
+
+	// // Get KV cache hit ratios for all pods
+	allPodsRatios := utils.GetAllPodsKVCacheHitRatios(requestID)
+	allPodsJSON, err := json.Marshal(allPodsRatios)
+	if err == nil {
+		headers = append(headers, &configPb.HeaderValueOption{
+			Header: &configPb.HeaderValue{
+				Key:      HeaderKVCacheHitRatioAllPods,
+				RawValue: allPodsJSON,
+			},
+		})
+	}
+
+	/////////////////////////////////////
 
 	// Get target pod IP directly from routing context
 	selectedPodIP := "unknown"
@@ -112,8 +143,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		selectedPodIP = routingCtx.TargetAddress()
 	}
 
-	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d",
-		requestID, selectedPodIP, ttftMs, tpotMs, end_to_end, numInputTokens, numOutputTokens, numTotalTokens)
+	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f",
+		requestID, selectedPodIP, ttftMs, tpotMs, end_to_end, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio)
 
 	return headers
 }
