@@ -570,6 +570,9 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	if targetPod == nil {
 		return "", fmt.Errorf("no suitable pod found")
 	}
+	utils.StoreRequestToPod(ctx.RequestID, targetPod.Name)
+	utils.IncrementNumInflightForPod(ctx.RequestID)
+	utils.StoreInflightRequestsForTheRequest(ctx.RequestID)
 
 	// iterate all pods and get their hit ratios
 	targetPodHitRatio := -1.0

@@ -62,10 +62,13 @@ const (
 	EnvRoutingAlgorithm = "ROUTING_ALGORITHM"
 
 	// Performance metrics headers
-	HeaderTTFT                   = "x-timing-ttft-ms" // Time to first token in milliseconds
-	HeaderTPOT                   = "x-timing-tpot-ms" // Time per output token in milliseconds
-	HeaderKVCacheHitRatio        = "x-kvcache-hit-ratio"
-	HeaderKVCacheHitRatioAllPods = "x-kvcache-hit-ratio-all"
+	HeaderTTFT                       = "x-timing-ttft-ms"
+	HeaderTPOT                       = "x-timing-tpot-ms"
+	HeaderE2ELatency                 = "x-timing-e2e-ms"
+	HeaderKVCacheHitRatio            = "x-kvcache-hit-ratio"
+	HeaderKVCacheHitRatioAllPods     = "x-kvcache-hit-ratio-all"
+	HeaderNumInflightRequestsAllPods = "x-num-inflight-requests-all"
+	// HeaderThroughput                 = "x-throughput"
 )
 
 var (

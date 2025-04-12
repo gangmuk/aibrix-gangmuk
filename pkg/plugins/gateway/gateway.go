@@ -91,7 +91,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	}
 
 	// Add timing headers
-	end_to_end := time.Since(timing.startTime).Milliseconds()
+	end_to_end_latency_in_ms := time.Since(timing.startTime).Milliseconds()
 	headers := []*configPb.HeaderValueOption{
 		{
 			Header: &configPb.HeaderValue{
@@ -107,8 +107,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		},
 		{
 			Header: &configPb.HeaderValue{
-				Key:      "x-timing-e2e-ms",
-				RawValue: []byte(fmt.Sprintf("%d", end_to_end)),
+				Key:      HeaderE2ELatency,
+				RawValue: []byte(fmt.Sprintf("%d", end_to_end_latency_in_ms)),
 			},
 		},
 	}
@@ -123,7 +123,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		},
 	})
 
-	// // Get KV cache hit ratios for all pods
+	// Get KV cache hit ratios for all pods
 	allPodsRatios := utils.GetAllPodsKVCacheHitRatios(requestID)
 	allPodsJSON, err := json.Marshal(allPodsRatios)
 	if err == nil {
@@ -134,18 +134,32 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 			},
 		})
 	}
+	utils.CleanupKVCacheHitRatio(requestID)
 
 	/////////////////////////////////////
+	// Get inflight requests for all pods
+	numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(requestID)
+	numInflightRequestsAllPodsJSON, err := json.Marshal(numInflightRequestsAllPods)
+	if err == nil {
+		headers = append(headers, &configPb.HeaderValueOption{
+			Header: &configPb.HeaderValue{
+				Key:      HeaderNumInflightRequestsAllPods,
+				RawValue: numInflightRequestsAllPodsJSON,
+			},
+		})
+	}
+	utils.DecrementNumInflightForPod(requestID)
+	utils.CleanupInflightRequests(requestID)
 
+	/////////////////////////////////////
 	// Get target pod IP directly from routing context
 	selectedPodIP := "unknown"
 	if routingCtx != nil {
 		selectedPodIP = routingCtx.TargetAddress()
 	}
 
-	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f",
-		requestID, selectedPodIP, ttftMs, tpotMs, end_to_end, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio)
-
+	// klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio)
+	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f, numInflightRequestsAllPods: %v", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio, numInflightRequestsAllPods)
 	return headers
 }
 
