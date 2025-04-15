@@ -421,6 +421,8 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 		complete = true
 	}
 
+	// klog.Infof("SetHeaders: %s", headers)
+
 	return &extProcPb.ProcessingResponse{
 		Response: &extProcPb.ProcessingResponse_ResponseBody{
 			ResponseBody: &extProcPb.BodyResponse{

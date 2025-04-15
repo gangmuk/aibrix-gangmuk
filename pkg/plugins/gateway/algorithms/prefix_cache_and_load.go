@@ -641,7 +641,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	// store them for the request
 	for _, pod := range readyPods {
 		for _, targe_metric_name := range targetMetrics {
-			metric_value := -1.0
+			// metric_value := -1.0
 			if targe_metric_name == utils.MetricGPUCacheUsagePerc {
 				err = utils.ReadAndStorevLLMGPUKVCacheUsage(ctx.RequestID, pod)
 			} else if targe_metric_name == utils.MetricCPUCacheUsagePerc {
@@ -658,8 +658,8 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 				klog.Errorf("Failed to read metrics from pod %s: %v", pod.Name, err)
 				continue
 			}
-			Key := fmt.Sprintf("%s_%s", targe_metric_name, ctx.Model)
-			klog.Infof("vllm metrics, Pod %s, %s, Value: %f", pod.Name, Key, metric_value)
+			// Key := fmt.Sprintf("%s_%s", targe_metric_name, ctx.Model)
+			// klog.Infof("vllm metrics, Pod %s, %s, Value: %f", pod.Name, Key, metric_value)
 		}
 	}
 

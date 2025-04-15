@@ -63,6 +63,7 @@ type Server struct {
 	streamingUsageCache sync.Map // Map to store usage information from streaming responses
 }
 
+// This function is called in HandleResponseBody in gateway_rsp_body.go
 func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, routingCtx *types.RoutingContext, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) []*configPb.HeaderValueOption {
 	// Calculate TTFT (Time To First Token)
 	ttftMs := int64(0)
@@ -162,7 +163,6 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 					RawValue: vllmGPUKVCacheUsageJSON,
 				},
 			})
-			klog.Infof("vllmGPUKVCacheUsageJSON: %s", string(vllmGPUKVCacheUsageJSON))
 		} else {
 			klog.Infof("Error marshalling vllmGPUKVCacheUsageJSON: %s", err)
 		}
@@ -179,7 +179,6 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 					RawValue: vllmCPUKVCacheUsageJSON,
 				},
 			})
-			klog.Infof("vllmCPUKVCacheUsageJSON: %s", string(vllmCPUKVCacheUsageJSON))
 		} else {
 			klog.Infof("Error marshalling vllmCPUKVCacheUsageJSON: %s", err)
 		}
@@ -196,7 +195,6 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 					RawValue: vllmNumRequestsRunningJSON,
 				},
 			})
-			klog.Infof("vllmNumRequestsRunningJSON: %s", string(vllmNumRequestsRunningJSON))
 		} else {
 			klog.Infof("Error marshalling vllmNumRequestsRunningJSON: %s", err)
 		}
@@ -213,7 +211,6 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 					RawValue: vllmNumRequestWaitingJSON,
 				},
 			})
-			klog.Infof("vllmNumRequestWaitingJSON: %s", string(vllmNumRequestWaitingJSON))
 		} else {
 			klog.Infof("Error marshalling vllmNumRequestWaitingJSON: %s", err)
 		}
@@ -229,8 +226,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		selectedPodIP = routingCtx.TargetAddress()
 	}
 
-	// klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio)
 	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f, numInflightRequestsAllPods: %v", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio, numInflightRequestsAllPods)
+	// klog.V(5).Infof("** headers, %v", headers)
 	return headers
 }
 

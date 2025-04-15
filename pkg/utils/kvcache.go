@@ -17,10 +17,10 @@ var (
 	requestAllPodsKVCache  map[string]map[string]float64 // requestID -> (podName -> hit ratio)
 
 	PodInflightMutex    sync.RWMutex
-	podInflightRequests map[string]float64 // podName -> num inflight requests
+	podInflightRequests map[string]int // podName -> num inflight requests
 
 	requestInflightMutex sync.RWMutex
-	requestInflight      map[string]map[string]float64 // requestID -> (podName -> num inflight requests
+	requestInflight      map[string]map[string]int // requestID -> (podName -> num inflight requests
 
 	requestToPodMutex sync.RWMutex
 	requestToPod      map[string]string // requestID -> podName
@@ -48,8 +48,8 @@ const (
 func init() {
 	requestKVCacheHitRatio = make(map[string]float64)
 	requestAllPodsKVCache = make(map[string]map[string]float64)
-	requestInflight = make(map[string]map[string]float64)
-	podInflightRequests = make(map[string]float64)
+	requestInflight = make(map[string]map[string]int)
+	podInflightRequests = make(map[string]int)
 	requestToPod = make(map[string]string)
 
 	vllmGPUKVCacheUsage = make(map[string]map[string]float64)
@@ -164,14 +164,13 @@ func DecrementNumInflightForPod(requestID string) {
 	}
 
 	podInflightRequests[podName]--
-	klog.Infof("Decremented inflight requests for pod %s: %d", podName, podInflightRequests[podName])
 	if podInflightRequests[podName] <= 0 {
-		klog.Errorf("podInflightRequests[%s] is negative!", podName)
+		klog.Errorf("podInflightRequests[%s]: %d is negative!", podName, podInflightRequests[podName])
 	}
+	klog.Infof("Decremented inflight requests for pod %s: %d", podName, podInflightRequests[podName])
 }
 
-// GetNumInflightRequestsForPod retrieves the number of inflight requests for a specific pod
-func GetNumInflightRequestsForPod(podName string) float64 {
+func GetNumInflightRequestsForPod(podName string) int {
 	PodInflightMutex.RLock()
 	defer PodInflightMutex.RUnlock()
 	if _, ok := podInflightRequests[podName]; !ok {
@@ -189,7 +188,7 @@ func StoreInflightRequestsForTheRequest(requestID string) {
 		klog.Errorf("requestID already exists in requestInflight: %s", requestID)
 		return
 	}
-	requestInflight[requestID] = make(map[string]float64)
+	requestInflight[requestID] = make(map[string]int)
 	PodInflightMutex.RLock()
 	defer PodInflightMutex.RUnlock()
 	for podName, numinflightrequests := range podInflightRequests {
@@ -197,12 +196,12 @@ func StoreInflightRequestsForTheRequest(requestID string) {
 	}
 }
 
-func GetInflightRequestsForAllPods(requestID string) map[string]float64 {
+func GetInflightRequestsForAllPods(requestID string) map[string]int {
 	requestInflightMutex.RLock()
 	defer requestInflightMutex.RUnlock()
 	if _, ok := requestInflight[requestID]; !ok {
 		klog.Errorf("requestID not found in requestInflight: %s. Return empty slice", requestID)
-		return make(map[string]float64)
+		return make(map[string]int)
 	}
 	return requestInflight[requestID]
 }
@@ -218,13 +217,11 @@ func CleanupInflightRequests(requestID string) {
 func ReadAndStorevLLMGPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
 	allMetrics, err := metrics.ParseMetricsURL(url)
-	klog.Infof("Parsing metrics from pod %s: %s", pod.Name, url)
 	if err != nil {
 		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
 		return err
 	}
 	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricGPUCacheUsagePerc)]
-	klog.Infof("Metric family %s exists: %v", MetricGPUCacheUsagePerc, exists)
 	if !exists {
 		klog.Errorf("Metric %s not found for pod %s", MetricGPUCacheUsagePerc, pod.Name)
 		vllmGPUKVCacheUsageMutex.Lock()
@@ -233,22 +230,18 @@ func ReadAndStorevLLMGPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 	}
 	for _, familyMetric := range metricFamily.Metric {
 		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
-		klog.Infof("Model name: %s from GetLabelValueForKey", modelName)
 		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
-		klog.Infof("Metric value: %f from GetCounterGaugeValue", metricValue)
 		if err != nil {
 			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricGPUCacheUsagePerc, pod.Name, err)
 			continue
 		}
 		vllmGPUKVCacheUsageMutex.Lock()
 		if _, ok := vllmGPUKVCacheUsage[requestID]; !ok {
-			klog.Infof("vllmGPUKVCacheUsageMutex.Lock()")
 			vllmGPUKVCacheUsage[requestID] = make(map[string]float64)
-			klog.Infof("vllmGPUKVCacheUsageMutex.Unlock()")
 		}
 		vllmGPUKVCacheUsage[requestID][pod.Name] = metricValue
 		vllmGPUKVCacheUsageMutex.Unlock()
-		klog.Infof("Read metric %s for model %s from pod %s: %f", MetricGPUCacheUsagePerc, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricGPUCacheUsagePerc, modelName, pod.Name, metricValue)
 	}
 	return nil
 }
@@ -280,7 +273,7 @@ func ReadAndStorevLLMCPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 		}
 		vllmCPUKVCacheUsage[requestID][pod.Name] = metricValue
 		vllmCPUKVCacheUsageMutex.Unlock()
-		klog.Infof("Read metric %s for model %s from pod %s: %f", MetricCPUCacheUsagePerc, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricCPUCacheUsagePerc, modelName, pod.Name, metricValue)
 	}
 	return nil
 }
@@ -355,7 +348,7 @@ func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 	result := make(map[string]float64)
 	if _, ok := vllmGPUKVCacheUsage[requestID]; ok {
 		for podName, usage := range vllmGPUKVCacheUsage[requestID] {
-			klog.Infof("vLLM GPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
+			// klog.Infof("vLLM GPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
 			result[podName] = usage
 		}
 		return result, nil
@@ -369,7 +362,7 @@ func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 	result := make(map[string]float64)
 	if _, ok := vllmCPUKVCacheUsage[requestID]; ok {
 		for podName, usage := range vllmCPUKVCacheUsage[requestID] {
-			klog.Infof("vLLM CPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
+			// klog.Infof("vLLM CPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
 			result[podName] = usage
 		}
 		return result, nil
@@ -383,7 +376,7 @@ func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[str
 	result := make(map[string]float64)
 	if _, ok := vllmNumRequestsRunning[requestID]; ok {
 		for podName, usage := range vllmNumRequestsRunning[requestID] {
-			klog.Infof("vLLM Num requests running for request ID %s and pod %s: %f", requestID, podName, usage)
+			// klog.Infof("vLLM Num requests running for request ID %s and pod %s: %f", requestID, podName, usage)
 			result[podName] = usage
 		}
 		return result, nil
@@ -397,7 +390,7 @@ func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[str
 	result := make(map[string]float64)
 	if _, ok := vllmNumRequestsWaiting[requestID]; ok {
 		for podName, usage := range vllmNumRequestsWaiting[requestID] {
-			klog.Infof("vLLM Num requests waiting for request ID %s and pod %s: %f", requestID, podName, usage)
+			// klog.Infof("vLLM Num requests waiting for request ID %s and pod %s: %f", requestID, podName, usage)
 			result[podName] = usage
 		}
 		return result, nil
@@ -410,6 +403,8 @@ func CleanupvLLMGPUKVCacheUsage(requestID string) {
 	defer vllmGPUKVCacheUsageMutex.Unlock()
 	if _, ok := vllmGPUKVCacheUsage[requestID]; ok {
 		delete(vllmGPUKVCacheUsage, requestID)
+	} else {
+		klog.Errorf("vLLM GPU KV cache usage not found for request ID %s", requestID)
 	}
 }
 
@@ -418,6 +413,8 @@ func CleanupvLLMCPUKVCacheUsage(requestID string) {
 	defer vllmCPUKVCacheUsageMutex.Unlock()
 	if _, ok := vllmCPUKVCacheUsage[requestID]; ok {
 		delete(vllmCPUKVCacheUsage, requestID)
+	} else {
+		klog.Errorf("vLLM CPU KV cache usage not found for request ID %s", requestID)
 	}
 }
 
@@ -426,6 +423,8 @@ func CleanupvLLMNumRequestsRunning(requestID string) {
 	defer vllmNumRequestsRunningMutex.Unlock()
 	if _, ok := vllmNumRequestsRunning[requestID]; ok {
 		delete(vllmNumRequestsRunning, requestID)
+	} else {
+		klog.Errorf("vLLM Num requests running not found for request ID %s", requestID)
 	}
 }
 
@@ -434,5 +433,7 @@ func CleanupvLLMNumRequestsWaiting(requestID string) {
 	defer vllmNumRequestsWaitingMutex.Unlock()
 	if _, ok := vllmNumRequestsWaiting[requestID]; ok {
 		delete(vllmNumRequestsWaiting, requestID)
+	} else {
+		klog.Errorf("vLLM Num requests waiting not found for request ID %s", requestID)
 	}
 }

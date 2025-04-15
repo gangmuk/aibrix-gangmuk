@@ -310,7 +310,7 @@ func (c *LPRadixCache) prettyPrintHelper(node *TreeNode, prefix string, isLast b
 	// 	tokensInString = "ERROR"
 	// }
 	allPodsInNode := c.GetAllPodsInNode(node)
-	klog.Infof("%s%s[Node: %d, Key: %v, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.key, node.load, allPodsInNode, node.depth)
+	klog.Infof("%s%s[Node: %d, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.load, allPodsInNode, node.depth)
 	// if len(node.ModelToPods) > 0 {
 	// 	klog.Infof("%s    Models:", prefix)
 	// 	for model, pods := range node.ModelToPods {
@@ -838,12 +838,13 @@ func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, 
 	defer c.mu.RUnlock()
 	matchedNode, matchedTokens := c.matchPrefixWithPodHelper(c.rootNode, tokens, model, podName)
 	if matchedNode == nil || len(matchedTokens) == 0 {
-		klog.Infof("Pod-aware matching - podName: %s, model: %s, Input tokens: %v, Matched tokens: [], matched: 0/%d (0.00%%)",
-			podName, model, tokens, len(tokens))
+		klog.V(5).Infof("Pod-aware matching - podName: %s, model: %s, Matched tokens: [], matched: 0/%d (0.00%%)",
+			podName, model, len(tokens))
 		return 0.0 // No match found
 	}
-	klog.Infof("Pod-aware matching - podName: %s, model: %s, Input tokens: %v, Matched tokens: %v, matched: %d/%d (%.2f%%)",
-		podName, model, tokens, matchedTokens, len(matchedTokens), len(tokens),
+	klog.V(5).Infof("Input tokens: %v, Matched tokens: %v", tokens, matchedTokens)
+	klog.Infof("Pod-aware matching - podName: %s, model: %s, matched: %d/%d (%.2f%%)",
+		podName, model, len(matchedTokens), len(tokens),
 		100.0*float64(len(matchedTokens))/float64(len(tokens)))
 
 	// c.PrettyPrint()
