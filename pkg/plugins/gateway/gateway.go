@@ -151,6 +151,77 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	utils.DecrementNumInflightForPod(requestID)
 	utils.CleanupInflightRequests(requestID)
 
+	// #################################################
+	vllmGPUKVCacheUsage, err := utils.GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID)
+	if err == nil {
+		vllmGPUKVCacheUsageJSON, err := json.Marshal(vllmGPUKVCacheUsage)
+		if err == nil {
+			headers = append(headers, &configPb.HeaderValueOption{
+				Header: &configPb.HeaderValue{
+					Key:      HeadervLLMGPUKVCacheUsage,
+					RawValue: vllmGPUKVCacheUsageJSON,
+				},
+			})
+			klog.Infof("vllmGPUKVCacheUsageJSON: %s", string(vllmGPUKVCacheUsageJSON))
+		} else {
+			klog.Infof("Error marshalling vllmGPUKVCacheUsageJSON: %s", err)
+		}
+	}
+	utils.CleanupvLLMGPUKVCacheUsage(requestID)
+
+	vllmCPUKVCacheUsage, err := utils.GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID)
+	if err == nil {
+		vllmCPUKVCacheUsageJSON, err := json.Marshal(vllmCPUKVCacheUsage)
+		if err == nil {
+			headers = append(headers, &configPb.HeaderValueOption{
+				Header: &configPb.HeaderValue{
+					Key:      HeadervLLMCPUKVCacheUsage,
+					RawValue: vllmCPUKVCacheUsageJSON,
+				},
+			})
+			klog.Infof("vllmCPUKVCacheUsageJSON: %s", string(vllmCPUKVCacheUsageJSON))
+		} else {
+			klog.Infof("Error marshalling vllmCPUKVCacheUsageJSON: %s", err)
+		}
+	}
+	utils.CleanupvLLMCPUKVCacheUsage(requestID)
+
+	vllmNumRequestsRunning, err := utils.GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID)
+	if err == nil {
+		vllmNumRequestsRunningJSON, err := json.Marshal(vllmNumRequestsRunning)
+		if err == nil {
+			headers = append(headers, &configPb.HeaderValueOption{
+				Header: &configPb.HeaderValue{
+					Key:      HeadervLLMNumRunningRequests,
+					RawValue: vllmNumRequestsRunningJSON,
+				},
+			})
+			klog.Infof("vllmNumRequestsRunningJSON: %s", string(vllmNumRequestsRunningJSON))
+		} else {
+			klog.Infof("Error marshalling vllmNumRequestsRunningJSON: %s", err)
+		}
+	}
+	utils.CleanupvLLMNumRequestsRunning(requestID)
+
+	vllmNumRequestWaiting, err := utils.GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID)
+	if err == nil {
+		vllmNumRequestWaitingJSON, err := json.Marshal(vllmNumRequestWaiting)
+		if err == nil {
+			headers = append(headers, &configPb.HeaderValueOption{
+				Header: &configPb.HeaderValue{
+					Key:      HeadervLLMNumwWaitingRequests,
+					RawValue: vllmNumRequestWaitingJSON,
+				},
+			})
+			klog.Infof("vllmNumRequestWaitingJSON: %s", string(vllmNumRequestWaitingJSON))
+		} else {
+			klog.Infof("Error marshalling vllmNumRequestWaitingJSON: %s", err)
+		}
+	}
+	utils.CleanupvLLMNumRequestsWaiting(requestID)
+
+	// #################################################
+
 	/////////////////////////////////////
 	// Get target pod IP directly from routing context
 	selectedPodIP := "unknown"

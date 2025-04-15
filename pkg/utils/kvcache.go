@@ -2,8 +2,11 @@
 package utils
 
 import (
+	"fmt"
 	"sync"
 
+	"github.com/vllm-project/aibrix/pkg/metrics"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -21,6 +24,25 @@ var (
 
 	requestToPodMutex sync.RWMutex
 	requestToPod      map[string]string // requestID -> podName
+
+	vllmGPUKVCacheUsageMutex sync.RWMutex
+	vllmGPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podName -> gpu kv cache usage)
+	vllmCPUKVCacheUsageMutex sync.RWMutex
+	vllmCPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podName -> cpu kv cache usage)
+
+	vllmNumRequestsRunningMutex sync.RWMutex
+	vllmNumRequestsRunning      map[string]map[string]float64 // requestID -> (podName -> num requests running)
+	vllmNumRequestsWaitingMutex sync.RWMutex
+	vllmNumRequestsWaiting      map[string]map[string]float64 // requestID -> (podName -> num requests waiting
+
+)
+
+const (
+	MetricGPUCacheUsagePerc  = "gpu_cache_usage_perc"
+	MetricCPUCacheUsagePerc  = "cpu_cache_usage_perc"
+	MetricNumRequestsRunning = "num_requests_running"
+	MetricNumRequestsWaiting = "num_requests_waiting"
+	PodPort                  = 8000 // Same as in the metrics code
 )
 
 func init() {
@@ -29,6 +51,11 @@ func init() {
 	requestInflight = make(map[string]map[string]float64)
 	podInflightRequests = make(map[string]float64)
 	requestToPod = make(map[string]string)
+
+	vllmGPUKVCacheUsage = make(map[string]map[string]float64)
+	vllmCPUKVCacheUsage = make(map[string]map[string]float64)
+	vllmNumRequestsRunning = make(map[string]map[string]float64)
+	vllmNumRequestsWaiting = make(map[string]map[string]float64)
 }
 
 func CleanupRequestToPod(requestID string) {
@@ -38,7 +65,6 @@ func CleanupRequestToPod(requestID string) {
 	delete(requestToPod, requestID)
 }
 
-// StoreKVCacheHitRatio stores the KV cache hit ratio for a request
 func StoreKVCacheHitRatio(requestID string, podName string, ratio float64, allPodsRatios map[string]float64) {
 	requestKVCacheMutex.Lock()
 	defer requestKVCacheMutex.Unlock()
@@ -85,7 +111,6 @@ func CleanupKVCacheHitRatio(requestID string) {
 
 // /////////////////////////////////////////////////////////
 
-// StoreRequestToPod stores the mapping of requestID to podName
 func StoreRequestToPod(requestID string, podName string) {
 	requestToPodMutex.Lock()
 	defer requestToPodMutex.Unlock()
@@ -156,8 +181,7 @@ func GetNumInflightRequestsForPod(podName string) float64 {
 }
 
 // /////////////////////////////////////////////////////
-// Store number of inflight requests for all pods
-// Read from the podInflightRequests map and store the values in the requestInflight map
+
 func StoreInflightRequestsForTheRequest(requestID string) {
 	requestInflightMutex.Lock()
 	defer requestInflightMutex.Unlock()
@@ -187,4 +211,228 @@ func CleanupInflightRequests(requestID string) {
 	requestInflightMutex.Lock()
 	defer requestInflightMutex.Unlock()
 	delete(requestInflight, requestID)
+}
+
+// /////////////////////////////////////////////////////
+
+func ReadAndStorevLLMGPUKVCacheUsage(requestID string, pod *v1.Pod) error {
+	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
+	allMetrics, err := metrics.ParseMetricsURL(url)
+	klog.Infof("Parsing metrics from pod %s: %s", pod.Name, url)
+	if err != nil {
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		return err
+	}
+	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricGPUCacheUsagePerc)]
+	klog.Infof("Metric family %s exists: %v", MetricGPUCacheUsagePerc, exists)
+	if !exists {
+		klog.Errorf("Metric %s not found for pod %s", MetricGPUCacheUsagePerc, pod.Name)
+		vllmGPUKVCacheUsageMutex.Lock()
+		vllmGPUKVCacheUsage[requestID][pod.Name] = -1
+		vllmGPUKVCacheUsageMutex.Unlock()
+	}
+	for _, familyMetric := range metricFamily.Metric {
+		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
+		klog.Infof("Model name: %s from GetLabelValueForKey", modelName)
+		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
+		klog.Infof("Metric value: %f from GetCounterGaugeValue", metricValue)
+		if err != nil {
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricGPUCacheUsagePerc, pod.Name, err)
+			continue
+		}
+		vllmGPUKVCacheUsageMutex.Lock()
+		if _, ok := vllmGPUKVCacheUsage[requestID]; !ok {
+			klog.Infof("vllmGPUKVCacheUsageMutex.Lock()")
+			vllmGPUKVCacheUsage[requestID] = make(map[string]float64)
+			klog.Infof("vllmGPUKVCacheUsageMutex.Unlock()")
+		}
+		vllmGPUKVCacheUsage[requestID][pod.Name] = metricValue
+		vllmGPUKVCacheUsageMutex.Unlock()
+		klog.Infof("Read metric %s for model %s from pod %s: %f", MetricGPUCacheUsagePerc, modelName, pod.Name, metricValue)
+	}
+	return nil
+}
+
+func ReadAndStorevLLMCPUKVCacheUsage(requestID string, pod *v1.Pod) error {
+	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
+	allMetrics, err := metrics.ParseMetricsURL(url)
+	if err != nil {
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		return err
+	}
+	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricCPUCacheUsagePerc)]
+	if !exists {
+		klog.Errorf("Metric %s not found for pod %s", MetricCPUCacheUsagePerc, pod.Name)
+		vllmCPUKVCacheUsageMutex.Lock()
+		vllmCPUKVCacheUsage[requestID][pod.Name] = -1
+		vllmCPUKVCacheUsageMutex.Unlock()
+	}
+	for _, familyMetric := range metricFamily.Metric {
+		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
+		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
+		if err != nil {
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricCPUCacheUsagePerc, pod.Name, err)
+			continue
+		}
+		vllmCPUKVCacheUsageMutex.Lock()
+		if _, ok := vllmCPUKVCacheUsage[requestID]; !ok {
+			vllmCPUKVCacheUsage[requestID] = make(map[string]float64)
+		}
+		vllmCPUKVCacheUsage[requestID][pod.Name] = metricValue
+		vllmCPUKVCacheUsageMutex.Unlock()
+		klog.Infof("Read metric %s for model %s from pod %s: %f", MetricCPUCacheUsagePerc, modelName, pod.Name, metricValue)
+	}
+	return nil
+}
+
+func ReadAndStorevLLMNumRequestsRunning(requestID string, pod *v1.Pod) error {
+	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
+	allMetrics, err := metrics.ParseMetricsURL(url)
+	if err != nil {
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		return err
+	}
+	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricNumRequestsRunning)]
+	if !exists {
+		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsRunning, pod.Name)
+		vllmNumRequestsRunningMutex.Lock()
+		vllmNumRequestsRunning[requestID][pod.Name] = -1
+		vllmNumRequestsRunningMutex.Unlock()
+	}
+	for _, familyMetric := range metricFamily.Metric {
+		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
+		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
+		if err != nil {
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsRunning, pod.Name, err)
+			continue
+		}
+		vllmNumRequestsRunningMutex.Lock()
+		if _, ok := vllmNumRequestsRunning[requestID]; !ok {
+			vllmNumRequestsRunning[requestID] = make(map[string]float64)
+		}
+		vllmNumRequestsRunning[requestID][pod.Name] = metricValue
+		vllmNumRequestsRunningMutex.Unlock()
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsRunning, modelName, pod.Name, metricValue)
+	}
+	return nil
+}
+
+func ReadAndStorevLLMNumRequestsWaiting(requestID string, pod *v1.Pod) error {
+	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
+	allMetrics, err := metrics.ParseMetricsURL(url)
+	if err != nil {
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		return err
+	}
+	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricNumRequestsWaiting)]
+	if !exists {
+		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsWaiting, pod.Name)
+		vllmNumRequestsWaitingMutex.Lock()
+		vllmNumRequestsWaiting[requestID][pod.Name] = -1
+		vllmNumRequestsWaitingMutex.Unlock()
+	}
+	for _, familyMetric := range metricFamily.Metric {
+		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
+		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
+		if err != nil {
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsWaiting, pod.Name, err)
+			continue
+		}
+		vllmNumRequestsWaitingMutex.Lock()
+		if _, ok := vllmNumRequestsWaiting[requestID]; !ok {
+			vllmNumRequestsWaiting[requestID] = make(map[string]float64)
+		}
+		vllmNumRequestsWaiting[requestID][pod.Name] = metricValue
+		vllmNumRequestsWaitingMutex.Unlock()
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsWaiting, modelName, pod.Name, metricValue)
+	}
+	return nil
+}
+
+func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+	vllmGPUKVCacheUsageMutex.RLock()
+	defer vllmGPUKVCacheUsageMutex.RUnlock()
+	result := make(map[string]float64)
+	if _, ok := vllmGPUKVCacheUsage[requestID]; ok {
+		for podName, usage := range vllmGPUKVCacheUsage[requestID] {
+			klog.Infof("vLLM GPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
+			result[podName] = usage
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("vLLM GPU KV cache usage not found for request ID %s", requestID)
+}
+
+func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+	vllmCPUKVCacheUsageMutex.RLock()
+	defer vllmCPUKVCacheUsageMutex.RUnlock()
+	result := make(map[string]float64)
+	if _, ok := vllmCPUKVCacheUsage[requestID]; ok {
+		for podName, usage := range vllmCPUKVCacheUsage[requestID] {
+			klog.Infof("vLLM CPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
+			result[podName] = usage
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("vLLM CPU KV cache usage not found for request ID %s", requestID)
+}
+
+func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+	vllmNumRequestsRunningMutex.RLock()
+	defer vllmNumRequestsRunningMutex.RUnlock()
+	result := make(map[string]float64)
+	if _, ok := vllmNumRequestsRunning[requestID]; ok {
+		for podName, usage := range vllmNumRequestsRunning[requestID] {
+			klog.Infof("vLLM Num requests running for request ID %s and pod %s: %f", requestID, podName, usage)
+			result[podName] = usage
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("vLLM Num requests running not found for request ID %s", requestID)
+}
+
+func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+	vllmNumRequestsWaitingMutex.RLock()
+	defer vllmNumRequestsWaitingMutex.RUnlock()
+	result := make(map[string]float64)
+	if _, ok := vllmNumRequestsWaiting[requestID]; ok {
+		for podName, usage := range vllmNumRequestsWaiting[requestID] {
+			klog.Infof("vLLM Num requests waiting for request ID %s and pod %s: %f", requestID, podName, usage)
+			result[podName] = usage
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("vLLM Num requests waiting not found for request ID %s", requestID)
+}
+
+func CleanupvLLMGPUKVCacheUsage(requestID string) {
+	vllmGPUKVCacheUsageMutex.Lock()
+	defer vllmGPUKVCacheUsageMutex.Unlock()
+	if _, ok := vllmGPUKVCacheUsage[requestID]; ok {
+		delete(vllmGPUKVCacheUsage, requestID)
+	}
+}
+
+func CleanupvLLMCPUKVCacheUsage(requestID string) {
+	vllmCPUKVCacheUsageMutex.Lock()
+	defer vllmCPUKVCacheUsageMutex.Unlock()
+	if _, ok := vllmCPUKVCacheUsage[requestID]; ok {
+		delete(vllmCPUKVCacheUsage, requestID)
+	}
+}
+
+func CleanupvLLMNumRequestsRunning(requestID string) {
+	vllmNumRequestsRunningMutex.Lock()
+	defer vllmNumRequestsRunningMutex.Unlock()
+	if _, ok := vllmNumRequestsRunning[requestID]; ok {
+		delete(vllmNumRequestsRunning, requestID)
+	}
+}
+
+func CleanupvLLMNumRequestsWaiting(requestID string) {
+	vllmNumRequestsWaitingMutex.Lock()
+	defer vllmNumRequestsWaitingMutex.Unlock()
+	if _, ok := vllmNumRequestsWaiting[requestID]; ok {
+		delete(vllmNumRequestsWaiting, requestID)
+	}
 }

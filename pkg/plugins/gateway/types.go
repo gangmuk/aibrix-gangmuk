@@ -43,6 +43,7 @@ const (
 	// Request & Target Headers
 	HeaderWentIntoReqHeaders = "x-went-into-req-headers"
 	HeaderTargetPod          = "target-pod"
+	HeaderTargetPodName      = "target-pod-name"
 	HeaderRoutingStrategy    = "routing-strategy"
 	HeaderRequestID          = "request-id"
 
@@ -69,6 +70,11 @@ const (
 	HeaderKVCacheHitRatioAllPods     = "x-kvcache-hit-ratio-all"
 	HeaderNumInflightRequestsAllPods = "x-num-inflight-requests-all"
 	// HeaderThroughput                 = "x-throughput"
+
+	HeadervLLMGPUKVCacheUsage     = "x-vllm-gpu-kvcache-usage"
+	HeadervLLMCPUKVCacheUsage     = "x-vllm-cpu-kvcache-usage"
+	HeadervLLMNumRunningRequests  = "x-vllm-num-running-requests"
+	HeadervLLMNumwWaitingRequests = "x-vllm-num-waiting-requests"
 )
 
 var (

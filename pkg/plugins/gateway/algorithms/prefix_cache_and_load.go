@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	// "github.com/vllm-project/aibrix/pkg/utils/kvcache"
-
+	// "github.com/vllm-project/aibrix/pkg/cache" // Make sure this is already imported
+	// Make sure this is already imported
 	"github.com/vllm-project/aibrix/pkg/types"
 	"github.com/vllm-project/aibrix/pkg/utils"
 	"github.com/vllm-project/aibrix/pkg/utils/prefixcacheindexer"
@@ -444,6 +444,51 @@ func (p *prefixCacheAndLoadRouter) updatePodSet(readyPods []*v1.Pod) {
 	}
 }
 
+// Compute the load in a pod fo a specific model based on the sliding window histogram
+func (h *SlidingWindowHistogram) getPodLoad(pod *v1.Pod) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	load := 0
+	for node, count := range h.nodeToCount {
+		for _, podMap := range node.GetModelToPods() {
+			if _, exists := podMap[pod.Name]; exists {
+				load += count
+				break // Found this pod in this node, no need to check other models
+			}
+		}
+	}
+	return load
+}
+
+// Update histogram to use pod name instead of pod ID
+func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *prefixcacheindexer.TreeNode, podName string, decodingLength int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.timestamps = append(h.timestamps, histogramEntry{
+		timestamp: timestamp,
+		node:      node,
+		leafNode:  leafNode,
+	})
+
+	h.histogram[node] += leafNode.ContextLength()
+	h.nodeToCount[node]++
+	h.decodingSize[node] = decodingLength
+	h.hitTokens[node] += leafNode.ContextLength() - leafNode.NumTokens()
+	h.promptTokens[node] += leafNode.ContextLength()
+
+	// // Update costs
+	// oldCost := h.perNodePrefillCost[node]
+	// newCost := h.getPrefillCost(node)
+	// h.currentPrefillCostPerPod[podName] -= oldCost
+	// h.currentPrefillCostPerPod[podName] += newCost
+	// h.perNodePrefillCost[node] = newCost
+
+	h.currentDecodeLengthsPerPod[podName] += decodingLength
+	h.perNodeTotalDecodeLengths[node] += decodingLength
+}
+
+// Modified Route function that preserves original routing logic but adds metrics logging
 func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.PodList) (string, error) {
 	readyPods := utils.FilterRoutablePods(pods.All())
 	if len(readyPods) == 0 {
@@ -466,9 +511,8 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	klog.Infof("current actual ready pods: %d", len(readyPods))
 	p.updatePodSet(readyPods)
 	klog.V(5).Infof("num pods in data structure after updatePodSet: %d", p.numPods)
-	// trimmedMessage := utils.TrimMessage(ctx.Message)
-	// klog.Infof("Trimmed message: '%s'", trimmedMessage)
-	// tokens, err := utils.TokenizeInputText(trimmedMessage)
+
+	// Original routing logic starts here
 	tokens, err := utils.TokenizeInputText(ctx.Message)
 	if err != nil {
 		return "", err
@@ -574,19 +618,50 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	utils.IncrementNumInflightForPod(ctx.RequestID)
 	utils.StoreInflightRequestsForTheRequest(ctx.RequestID)
 
-	// iterate all pods and get their hit ratios
+	// KV cache hit ratios
 	targetPodHitRatio := -1.0
 	allPodsRatios := map[string]float64{}
 	for _, pod := range readyPods {
-		podHitRatio := p.cache.GetPodAwareCacheHitRatio(tokens, ctx.Model, pod.Name)
+		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(tokens, ctx.Model, pod.Name) // tree.go
 		if pod.Name == targetPod.Name {
 			targetPodHitRatio = podHitRatio
 		}
 		allPodsRatios[pod.Name] = podHitRatio
 	}
-
-	// Store the hit ratios for later retrieval
 	utils.StoreKVCacheHitRatio(ctx.RequestID, targetPod.Name, targetPodHitRatio, allPodsRatios)
+
+	// vllm metrics
+	targetMetrics := [...]string{
+		utils.MetricGPUCacheUsagePerc,
+		utils.MetricCPUCacheUsagePerc,
+		utils.MetricNumRequestsRunning,
+		utils.MetricNumRequestsWaiting,
+	} // defined in utils.kvcache.go
+
+	// store them for the request
+	for _, pod := range readyPods {
+		for _, targe_metric_name := range targetMetrics {
+			metric_value := -1.0
+			if targe_metric_name == utils.MetricGPUCacheUsagePerc {
+				err = utils.ReadAndStorevLLMGPUKVCacheUsage(ctx.RequestID, pod)
+			} else if targe_metric_name == utils.MetricCPUCacheUsagePerc {
+				err = utils.ReadAndStorevLLMCPUKVCacheUsage(ctx.RequestID, pod)
+			} else if targe_metric_name == utils.MetricNumRequestsRunning {
+				err = utils.ReadAndStorevLLMNumRequestsRunning(ctx.RequestID, pod)
+			} else if targe_metric_name == utils.MetricNumRequestsWaiting {
+				err = utils.ReadAndStorevLLMNumRequestsWaiting(ctx.RequestID, pod)
+			} else {
+				klog.Errorf("Unknown metric: %s", targe_metric_name)
+				continue
+			}
+			if err != nil {
+				klog.Errorf("Failed to read metrics from pod %s: %v", pod.Name, err)
+				continue
+			}
+			Key := fmt.Sprintf("%s_%s", targe_metric_name, ctx.Model)
+			klog.Infof("vllm metrics, Pod %s, %s, Value: %f", pod.Name, Key, metric_value)
+		}
+	}
 
 	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
@@ -604,46 +679,4 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	return ctx.TargetAddress(), nil
 }
 
-// Compute the load in a pod fo a specific model based on the sliding window histogram
-func (h *SlidingWindowHistogram) getPodLoad(pod *v1.Pod) int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	load := 0
-	for node, count := range h.nodeToCount {
-		for _, podMap := range node.GetModelToPods() {
-			if _, exists := podMap[pod.Name]; exists {
-				load += count
-				break // Found this pod in this node, no need to check other models
-			}
-		}
-	}
-	return load
-}
-
-// Update histogram to use pod name instead of pod ID
-func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *prefixcacheindexer.TreeNode, podName string, decodingLength int) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.timestamps = append(h.timestamps, histogramEntry{
-		timestamp: timestamp,
-		node:      node,
-		leafNode:  leafNode,
-	})
-
-	h.histogram[node] += leafNode.ContextLength()
-	h.nodeToCount[node]++
-	h.decodingSize[node] = decodingLength
-	h.hitTokens[node] += leafNode.ContextLength() - leafNode.NumTokens()
-	h.promptTokens[node] += leafNode.ContextLength()
-
-	// // Update costs
-	// oldCost := h.perNodePrefillCost[node]
-	// newCost := h.getPrefillCost(node)
-	// h.currentPrefillCostPerPod[podName] -= oldCost
-	// h.currentPrefillCostPerPod[podName] += newCost
-	// h.perNodePrefillCost[node] = newCost
-
-	h.currentDecodeLengthsPerPod[podName] += decodingLength
-	h.perNodeTotalDecodeLengths[node] += decodingLength
-}
+///////////////////////////////////////////////////////////////////////////////////////////////////

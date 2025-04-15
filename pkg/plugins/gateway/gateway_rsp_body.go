@@ -390,8 +390,8 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			)
 			requestEnd = fmt.Sprintf(requestEnd+"rpm: %s, tpm: %s, ", rpm, tpm)
 		}
-
 		if routerCtx != nil {
+			targetPodName := routerCtx.TargetName()
 			targetPodIP := routerCtx.TargetAddress()
 			headers = append(headers,
 				&configPb.HeaderValueOption{
@@ -404,6 +404,12 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 					Header: &configPb.HeaderValue{
 						Key:      HeaderRequestID,
 						RawValue: []byte(requestID),
+					},
+				},
+				&configPb.HeaderValueOption{
+					Header: &configPb.HeaderValue{
+						Key:      HeaderTargetPodName,
+						RawValue: []byte(targetPodName),
 					},
 				},
 			)

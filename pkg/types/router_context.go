@@ -24,6 +24,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 )
 
 const podMetricPort = "8000"
@@ -87,6 +88,15 @@ func (r *RoutingContext) TargetPod() *v1.Pod {
 
 func (r *RoutingContext) TargetAddress() string {
 	return r.targetAddress(r.TargetPod())
+}
+
+func (r *RoutingContext) TargetName() string {
+	targetPod := r.TargetPod()
+	if targetPod == nilPod {
+		klog.Errorf("TargetPod is nil")
+		return ""
+	}
+	return targetPod.Name
 }
 
 func (r *RoutingContext) HasRouted() bool {

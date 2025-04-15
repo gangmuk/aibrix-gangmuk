@@ -833,7 +833,7 @@ func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, mo
 	return nil, nil
 }
 
-func (c *LPRadixCache) GetPodAwareCacheHitRatio(tokens []int, model string, podName string) float64 {
+func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, podName string) float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	matchedNode, matchedTokens := c.matchPrefixWithPodHelper(c.rootNode, tokens, model, podName)
