@@ -247,7 +247,8 @@ async def send_request_batch_for_mock_app_format(client: openai.AsyncOpenAI,
                              routing_strategy: str,
                              target_time: int = None):
     start_time = asyncio.get_event_loop().time()
-    selected_pod = ""
+    selected_pod_ip = ""
+    selected_pod_name = ""
     csv_file_name = 'output.csv'
     if request_id == 0:
         csv_file = open(csv_file_name, 'w', encoding='utf-8')
