@@ -1,7 +1,7 @@
 #!/bin/bash
 
 build=$1
-tag=gangmuk-test
+tag=gangmuk-20250415-gatewaylog-00572df
 
 if [ -z "$build" ]; then
     echo "build argument is empty"
@@ -19,7 +19,10 @@ else
     ##############################
     ## Remote push
     # build
-    make docker-build-gateway-plugins
+    # make docker-build-gateway-plugins-amd64 # Use it when you build it on a mac but for intel server (vke).
+
+    docker buildx build --platform linux/amd64 -t aibrix/gateway-plugins:nightly -f build/container/Dockerfile.gateway .
+
     # tag
     docker tag aibrix/gateway-plugins:nightly aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gateway-plugins:$tag
     # push
