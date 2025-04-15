@@ -236,7 +236,230 @@ def write_result_to_files(result_data, jsonl_file, csv_file=None):
         if close_csv_file and csv_file_obj:
             csv_file_obj.close()
 
+# Helper functions for parsing headers
+def parse_json_header(headers, header_name):
+    """Parse a JSON header safely, returning None if parsing fails."""
+    if header_name in headers:
+        try:
+            return json.loads(headers.get(header_name))
+        except json.JSONDecodeError:
+            logging.warning(f"Could not parse {header_name} header")
+    return None
 
+def extract_headers_data(response_headers):
+    """Extract and parse all relevant headers from the response."""
+    headers = dict(response_headers)
+    
+    # Basic headers
+    selected_pod_ip = headers.get('target-pod', '')
+    selected_pod_name = headers.get('target-pod-name', '')
+    
+    # Log missing important headers
+    if not selected_pod_name:
+        logging.error("target-pod-name header not found in response.")
+    if not selected_pod_ip:
+        logging.error("target-pod header not found in response.")
+    
+    # Timing headers
+    gateway_side_ttft = float(headers.get('x-timing-ttft-ms', 0))
+    gateway_side_tpot = float(headers.get('x-timing-tpot-ms', 0))
+    gateway_side_e2e_latency = float(headers.get('x-timing-e2e-ms', 0))
+    kv_cache_hit_ratio = float(headers.get('x-kvcache-hit-ratio', 0))
+    
+    # Complex JSON headers
+    all_pods_kv_cache = parse_json_header(headers, 'x-kvcache-hit-ratio-all')
+    all_pods_inflight = parse_json_header(headers, 'x-num-inflight-requests-all')
+    vllm_gpu_kv_cache_usage = parse_json_header(headers, 'x-vllm-gpu-kvcache-usage')
+    vllm_cpu_kv_cache_usage = parse_json_header(headers, 'x-vllm-cpu-kvcache-usage')
+    vllm_num_running_requests = parse_json_header(headers, 'x-vllm-num-running-requests')
+    vllm_num_waiting_requests = parse_json_header(headers, 'x-vllm-num-waiting-requests')
+    
+    return {
+        "selected_pod_ip": selected_pod_ip,
+        "selected_pod_name": selected_pod_name,
+        "gateway_side_ttft": gateway_side_ttft,
+        "gateway_side_tpot": gateway_side_tpot,
+        "gateway_side_e2e_latency": gateway_side_e2e_latency,
+        "kv_cache_hit_ratio": kv_cache_hit_ratio,
+        "all_pods_kv_cache": all_pods_kv_cache,
+        "all_pods_inflight": all_pods_inflight,
+        "vllm_gpu_kv_cache_usage": vllm_gpu_kv_cache_usage,
+        "vllm_cpu_kv_cache_usage": vllm_cpu_kv_cache_usage,
+        "vllm_num_running_requests": vllm_num_running_requests,
+        "vllm_num_waiting_requests": vllm_num_waiting_requests
+    }
+
+# Calculate SLO metrics
+def calculate_slo_metrics(prompt_tokens, output_tokens, gateway_side_ttft, gateway_side_tpot, gateway_side_e2e_latency):
+    """Calculate SLO metrics based on token counts and latencies."""
+    per_token_ttft_slo_in_ms = 1
+    per_token_tpot_slo_in_ms = 10
+    
+    ttft_slo_in_ms = per_token_ttft_slo_in_ms * prompt_tokens
+    tpot_slo_in_ms = per_token_tpot_slo_in_ms * output_tokens
+    e2e_slo_in_ms = ttft_slo_in_ms + tpot_slo_in_ms
+    
+    e2e_slo_satisfied = gateway_side_e2e_latency <= e2e_slo_in_ms
+    ttft_slo_satisfied = gateway_side_ttft <= ttft_slo_in_ms
+    tpot_slo_satisfied = gateway_side_tpot <= tpot_slo_in_ms
+    
+    return {
+        "e2e_slo_in_ms": e2e_slo_in_ms,
+        "ttft_slo_in_ms": ttft_slo_in_ms,
+        "tpot_slo_in_ms": tpot_slo_in_ms,
+        "e2e_slo_satisfied": e2e_slo_satisfied,
+        "ttft_slo_satisfied": ttft_slo_satisfied,
+        "tpot_slo_satisfied": tpot_slo_satisfied
+    }
+
+# Extract output text from response
+def extract_output_text(response_data):
+    """Extract output text based on response format."""
+    if "choices" in response_data and len(response_data["choices"]) > 0:
+        if "message" in response_data["choices"][0]:
+            return response_data["choices"][0]["message"].get("content", "")
+        elif "text" in response_data["choices"][0]:
+            return response_data["choices"][0]["text"]
+        else:
+            return str(response_data["choices"][0])
+    else:
+        return str(response_data)
+
+# Prepare request payload and headers
+def prepare_request(client, model, prompt, max_tokens, routing_strategy):
+    """Prepare request headers and payload."""
+    # Extract the content from the message format
+    prompt_content = prompt[0]["content"] if isinstance(prompt, list) and len(prompt) > 0 and "content" in prompt[0] else prompt
+    
+    # Setup headers
+    headers = {
+        "Content-Type": "application/json",
+        "model": model,
+        "routing-strategy": routing_strategy
+    }
+    
+    # Add Authorization if API key is provided
+    if hasattr(client, "api_key") and client.api_key:
+        headers["Authorization"] = f"Bearer {client.api_key}"
+    
+    # Construct payload
+    max_tokens = 2048 if max_tokens is None else max_tokens
+    payload = {
+        "model": model,
+        "prompt": prompt_content,
+        "temperature": 0,
+        "max_tokens": max_tokens
+    }
+    
+    return headers, payload
+
+# Create success result
+def create_success_result(request_id, response_data, headers_data, start_time, response_time, prompt):
+    """Create a result dictionary for successful requests."""
+    # Extract token counts from response
+    prompt_tokens = int(response_data.get("usage", {}).get("prompt_tokens", 0))
+    output_tokens = int(response_data.get("usage", {}).get("completion_tokens", 0))
+    total_tokens = int(response_data.get("usage", {}).get("total_tokens", 0))
+    
+    # Calculate client-side latency
+    client_side_e2e_latency_in_ms = (response_time - start_time) * 1000
+    throughput = output_tokens / client_side_e2e_latency_in_ms if output_tokens > 0 else 0
+    
+    # Calculate SLO metrics
+    slo_metrics = calculate_slo_metrics(
+        prompt_tokens, 
+        output_tokens, 
+        headers_data["gateway_side_ttft"], 
+        headers_data["gateway_side_tpot"], 
+        headers_data["gateway_side_e2e_latency"]
+    )
+    
+    # Combine all data into a result dictionary
+    result = {
+        "request_id": request_id,
+        "status": "success",
+        "prompt_tokens": prompt_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "client_side_token_per_second": f"{throughput:.2f}",
+        "client_side_start_time": f"{start_time:.2f}",
+        "client_side_end_time": f"{response_time:.2f}",
+        "client_side_e2e_latency_in_ms": f"{client_side_e2e_latency_in_ms:.4f}",
+        "client_side_ttft": "Unknown",
+        "client_side_tpot": "Unknown",
+        "gateway_side_ttft": headers_data["gateway_side_ttft"],
+        "gateway_side_tpot": headers_data["gateway_side_tpot"],
+        "gateway_side_e2e_latency": headers_data["gateway_side_e2e_latency"],
+        "selected_pod_ip": headers_data["selected_pod_ip"],
+        "selected_pod_name": headers_data["selected_pod_name"],
+        "gpu_model": "NVIDIA-L20",
+        "kv_cache_hit_ratio": headers_data["all_pods_kv_cache"],
+        "num_inflight_requests": headers_data["all_pods_inflight"],
+        "vllm_gpu_kv_cache_usage": headers_data["vllm_gpu_kv_cache_usage"],
+        "vllm_cpu_kv_cache_usage": headers_data["vllm_cpu_kv_cache_usage"],
+        "vllm_num_running_requests": headers_data["vllm_num_running_requests"],
+        "vllm_num_waiting_requests": headers_data["vllm_num_waiting_requests"],
+        "input": prompt,
+        "error_type": None,
+        "error_message": None,
+        "error_traceback": None,
+    }
+    
+    # Add SLO metrics
+    result.update(slo_metrics)
+    
+    return result
+
+# Create error result
+def create_error_result(request_id, start_time, error_time, e, prompt, selected_pod_ip="", selected_pod_name=""):
+    """Create a result dictionary for failed requests."""
+    error_type = type(e).__name__
+    
+    return {
+        "request_id": request_id,
+        "status": "error",
+        "prompt_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "client_side_token_per_second": None,
+        "client_side_start_time": f"{start_time:.2f}",
+        "client_side_end_time": f"{error_time:.2f}",
+        "client_side_e2e_latency_in_ms": f"{(error_time - start_time) * 1000:.4f}",
+        "client_side_ttft": None,
+        "client_side_tpot": None,
+        "gateway_side_ttft": None,
+        "gateway_side_tpot": None,
+        "gateway_side_e2e_latency": None,
+        "selected_pod_ip": selected_pod_ip,
+        "selected_pod_name": selected_pod_name,
+        "gpu_model": None,
+        "kv_cache_hit_ratio": None,
+        "num_inflight_requests": None,
+        "vllm_gpu_kv_cache_usage": None,
+        "vllm_cpu_kv_cache_usage": None,
+        "vllm_num_running_requests": None,
+        "vllm_num_waiting_requests": None,
+        "e2e_slo_in_ms": None,
+        "ttft_slo_in_ms": None,
+        "tpot_slo_in_ms": None,
+        "e2e_slo_satisfied": None,
+        "ttft_slo_satisfied": None,
+        "tpot_slo_satisfied": None,
+        # Add error-specific fields
+        "error_type": error_type,
+        "error_message": str(e),
+        "error_traceback": traceback.format_exc(),
+        "input": prompt
+    }
+
+# Handle CSV file initialization
+def initialize_csv_file(request_id, csv_file_name):
+    """Initialize CSV file if this is the first request."""
+    if request_id == 0:
+        return open(csv_file_name, 'w', encoding='utf-8')
+    return None
+
+# Main function - now much shorter and focused on coordination
 async def send_request_batch_for_mock_app_format(client: openai.AsyncOpenAI,
                              model: str,
                              endpoint: str,
@@ -246,179 +469,56 @@ async def send_request_batch_for_mock_app_format(client: openai.AsyncOpenAI,
                              max_tokens: int,
                              routing_strategy: str,
                              target_time: int = None):
+    
     start_time = asyncio.get_event_loop().time()
     selected_pod_ip = ""
     selected_pod_name = ""
     csv_file_name = 'output.csv'
-    if request_id == 0:
-        csv_file = open(csv_file_name, 'w', encoding='utf-8')
+    
+    # Initialize CSV file if needed
+    csv_file = initialize_csv_file(request_id, csv_file_name)
+    
     try:
+        # Handle target time if specified
         if target_time is not None:
             cur_time = time.time()
             if target_time > cur_time:
                 await asyncio.sleep(target_time - cur_time)
-                
+        
         logging.info(f"Request {request_id}: Starting sending request to {endpoint}")
         
-        # Extract the content from the message format
-        prompt_content = prompt[0]["content"] if isinstance(prompt, list) and len(prompt) > 0 and "content" in prompt[0] else prompt
+        # Prepare request
+        headers, payload = prepare_request(client, model, prompt, max_tokens, routing_strategy)
         
-        # Use aiohttp for direct HTTP request to match curl format
-        headers = {
-            "Content-Type": "application/json",
-            "model": model,
-            "routing-strategy": routing_strategy
-        }
-        
-        # Add Authorization if API key is provided
-        if hasattr(client, "api_key") and client.api_key:
-            headers["Authorization"] = f"Bearer {client.api_key}"
-            
-        # Construct payload in the exact format expected by the server
-        max_tokens = 2048 if max_tokens is None else max_tokens
-        payload = {
-            "model": model,  # Include model in the body too
-            "prompt": prompt_content,
-            "temperature": 0,
-            "max_tokens": max_tokens
-        }
-        
+        # Send request
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{endpoint}/v1/chat/completions", 
-                                headers=headers, 
-                                json=payload) as response:
+                                  headers=headers, 
+                                  json=payload) as response:
+                
                 if response.status != 200:
                     raise Exception(f"Request failed with status {response.status}: {await response.text()}")
                 
-                headers = response.headers
-                all_headers = dict(headers)  # Convert to regular dictionary
+                # Log response headers
+                all_headers = dict(response.headers)
                 logging.info(f"Request {request_id}: Response headers:")
                 for header_name, header_value in all_headers.items():
                     logging.info(f"  {header_name}: {header_value}")
                 
+                # Parse response
                 response_data = await response.json()
-                selected_pod_ip = response.headers.get('target-pod', '')
-                selected_pod_name = response.headers.get('target-pod-name', '')
-                if selected_pod_name == "":
-                    logging.error(f"target-pod-name header not found in response.")
-                if selected_pod_ip == "":
-                    logging.error(f"target-pod header not found in response.")
+                headers_data = extract_headers_data(response.headers)
                 
+                # Calculate response time
                 response_time = asyncio.get_event_loop().time()
-                client_side_e2e_latency_in_ms = (response_time - start_time) * 1000
                 
-                # Extract tokens from response - adjust this based on your API's response format
-                prompt_tokens = int(response_data.get("usage", {}).get("prompt_tokens", None))
-                output_tokens = int(response_data.get("usage", {}).get("completion_tokens", None))
-                total_tokens = int(response_data.get("usage", {}).get("total_tokens", None))
-
-                gateway_side_ttft = float(response.headers.get('x-timing-ttft-ms', None))
-                gateway_side_tpot = float(response.headers.get('x-timing-tpot-ms', None))
-                gateway_side_e2e_latency = float(response.headers.get('x-timing-e2e-ms', None)) 
-                kv_cache_hit_ratio = float(response.headers.get('x-kvcache-hit-ratio', None))
-                all_pods_kv_cache = {}
-                if 'x-kvcache-hit-ratio-all' in headers:
-                    try:
-                        all_pods_kv_cache = json.loads(headers.get('x-kvcache-hit-ratio-all'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-kvcache-hit-ratio-all header")
-                else:
-                    all_pods_kv_cache = None
-                if 'x-num-inflight-requests-all' in headers:
-                    try:
-                        all_pods_inflight = json.loads(headers.get('x-num-inflight-requests-all'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-num-inflight-requests-all header")
-                else:
-                    all_pods_inflight = None
-
-                if 'x-vllm-gpu-kvcache-usage' in headers:
-                    try:
-                        vllm_gpu_kv_cache_usage = json.loads(headers.get('x-vllm-gpu-kvcache-usage'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-vllm-gpu-kvcache-usage header")
-                else:
-                    vllm_gpu_kv_cache_usage = None
-                if 'x-vllm-cpu-kvcache-usage' in headers:
-                    try:
-                        vllm_cpu_kv_cache_usage = json.loads(headers.get('x-vllm-cpu-kvcache-usage'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-vllm-cpu-kvcache-usage header")
-                else:
-                    vllm_cpu_kv_cache_usage = None
-                if 'x-vllm-num-running-requests' in headers:
-                    try:
-                        vllm_num_running_requests = json.loads(headers.get('x-vllm-num-running-requests'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-vllm-num-running-requests header")
-                else:
-                    vllm_num_running_requests = None
-                if 'x-vllm-num-waiting-requests' in headers:
-                    try:
-                        vllm_num_waiting_requests = json.loads(headers.get('x-vllm-num-waiting-requests'))
-                    except json.JSONDecodeError:
-                        logging.warning(f"Could not parse x-vllm-num-waiting-requests header")
-                else:
-                    vllm_num_waiting_requests = None
-
-                per_token_ttft_slo_in_ms = 1
-                per_token_tpot_slo_in_ms = 10
-                ttft_slo_in_ms = per_token_ttft_slo_in_ms * prompt_tokens
-                tpot_slo_in_ms = per_token_tpot_slo_in_ms * output_tokens
-                e2e_slo_in_ms = ttft_slo_in_ms + tpot_slo_in_ms
-                e2e_slo_satisfied = gateway_side_e2e_latency <= e2e_slo_in_ms
-                ttft_slo_satisfied = gateway_side_ttft <= ttft_slo_in_ms
-                tpot_slo_satisfied = gateway_side_tpot <= tpot_slo_in_ms
-                throughput = output_tokens / client_side_e2e_latency_in_ms if output_tokens > 0 else 0
-                
-                # Extract output text based on response format
-                if "choices" in response_data and len(response_data["choices"]) > 0:
-                    if "message" in response_data["choices"][0]:
-                        output_text = response_data["choices"][0]["message"].get("content", "")
-                    elif "text" in response_data["choices"][0]:
-                        output_text = response_data["choices"][0]["text"]
-                    else:
-                        output_text = str(response_data["choices"][0])
-                else:
-                    output_text = str(response_data)
-
-        result = {
-            "request_id": request_id,
-            "status": "success",
-            "prompt_tokens": prompt_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": total_tokens,
-            "client_side_token_per_second": f"{throughput:.2f}",
-            "client_side_start_time": f"{start_time:.2f}",
-            "client_side_end_time": f"{response_time:.2f}",
-            "client_side_e2e_latency_in_ms": f"{client_side_e2e_latency_in_ms:.4f}",
-            "client_side_ttft": "Unknown",
-            "client_side_tpot": "Unknown",
-            "gateway_side_ttft": gateway_side_ttft,
-            "gateway_side_tpot": gateway_side_tpot,
-            "gateway_side_e2e_latency": gateway_side_e2e_latency,
-            "selected_pod_ip": selected_pod_ip,
-            "selected_pod_name": selected_pod_name,
-            "gpu_model": "NVIDIA-L20",
-            "kv_cache_hit_ratio": all_pods_kv_cache,
-            "num_inflight_requests": all_pods_inflight,
-            'vllm_gpu_kv_cache_usage': vllm_gpu_kv_cache_usage,
-            'vllm_cpu_kv_cache_usage': vllm_cpu_kv_cache_usage,
-            'vllm_num_running_requests': vllm_num_running_requests,
-            'vllm_num_waiting_requests': vllm_num_waiting_requests,
-            "e2e_slo_in_ms": e2e_slo_in_ms,
-            "ttft_slo_in_ms": ttft_slo_in_ms,
-            "tpot_slo_in_ms": tpot_slo_in_ms,
-            "e2e_slo_satisfied": e2e_slo_satisfied,
-            "ttft_slo_satisfied": ttft_slo_satisfied,
-            "tpot_slo_satisfied": tpot_slo_satisfied,
-            "error_type": None,
-            "error_message": None,
-            "error_traceback": None,
-            "input": prompt
-        }
+                # Create success result
+                result = create_success_result(request_id, response_data, headers_data, start_time, response_time, prompt)
         
-        logging.info(f"Request {request_id}: Completed successfully. Input tokens: {prompt_tokens}, Output tokens: {output_tokens}, Total tokens: {total_tokens}, client_side_e2e_latency_in_ms: {client_side_e2e_latency_in_ms:.2f}s")
+        # Log success
+        logging.info(f"Request {request_id}: Completed successfully. Input tokens: {result['prompt_tokens']}, "
+                     f"Output tokens: {result['output_tokens']}, Total tokens: {result['total_tokens']}, "
+                     f"client_side_e2e_latency_in_ms: {float(result['client_side_e2e_latency_in_ms']):.2f}s")
         
         # Write results to files
         write_result_to_files(result, output_file, csv_file_name)
@@ -427,51 +527,16 @@ async def send_request_batch_for_mock_app_format(client: openai.AsyncOpenAI,
 
     except Exception as e:
         error_time = asyncio.get_event_loop().time()
-        error_type = type(e).__name__
         
-        # Create error result with the same structure as success result
-        # Set all fields that would be in a success result to None for consistency
-        error_result = {
-            "request_id": request_id,
-            "status": "error",
-            "prompt_tokens": None,
-            "output_tokens": None,
-            "total_tokens": None,
-            "client_side_token_per_second": None,
-            "client_side_start_time": f"{start_time:.2f}",
-            "client_side_end_time": f"{error_time:.2f}",
-            "client_side_e2e_latency_in_ms": f"{error_time - start_time:.4f}",
-            "client_side_ttft": None,
-            "client_side_tpot": None,
-            "gateway_side_ttft": None,
-            "gateway_side_tpot": None,
-            "gateway_side_e2e_latency": None,
-            "selected_pod_ip": selected_pod_ip,
-            "selected_pod_name": selected_pod_name,
-            "gpu_model": None,
-            "kv_cache_hit_ratio": None,
-            "num_inflight_requests": None,
-            "vllm_gpu_kv_cache_usage": None,
-            "vllm_cpu_kv_cache_usage": None,
-            "vllm_num_running_requests": None,
-            "vllm_num_waiting_requests": None,
-            "e2e_slo_in_ms": None,
-            "ttft_slo_in_ms": None,
-            "tpot_slo_in_ms": None,
-            "e2e_slo_satisfied": None,
-            "ttft_slo_satisfied": None,
-            "tpot_slo_satisfied": None,
-            # Add error-specific fields
-            "error_type": error_type,
-            "error_message": str(e),
-            "error_traceback": traceback.format_exc(),
-            "input": prompt
-        }
+        # Create error result
+        error_result = create_error_result(request_id, start_time, error_time, e, prompt, 
+                                          selected_pod_ip, selected_pod_name)
         
-        logging.error(f"Request {request_id}: Error ({error_type}): {str(e)}")
-        logging.error(f"traceback.format_exc(): {traceback.format_exc()}")
+        # Log error
+        logging.error(f"Request {request_id}: Error ({error_result['error_type']}): {error_result['error_message']}")
+        logging.error(f"traceback.format_exc(): {error_result['error_traceback']}")
         
-        # Write error results to files using the same helper function
+        # Write error results to files
         write_result_to_files(error_result, output_file, csv_file_name)
         
         return error_result
