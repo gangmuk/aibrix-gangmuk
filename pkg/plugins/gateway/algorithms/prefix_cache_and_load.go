@@ -75,8 +75,10 @@ type prefixCacheAndLoadRouter struct {
 	cache          *prefixcacheindexer.LPRadixCache
 	histogram      *SlidingWindowHistogram
 	numPods        int
-	mu             sync.RWMutex
 	podAllocations map[*prefixcacheindexer.TreeNode]map[int]bool
+	cacheMu        sync.RWMutex // Protects cache operations
+	histogramMu    sync.RWMutex // Protects histogram operations
+	podsMu         sync.RWMutex // Protects pod-related data
 }
 
 // Find all prefix matches with their depths
@@ -326,13 +328,11 @@ func (h *SlidingWindowHistogram) removeOldEntries(currentTime time.Time) {
 func (p *prefixCacheAndLoadRouter) evictionLoop() {
 	ticker := time.NewTicker(evictionLoopInterval)
 	for range ticker.C {
-		p.mu.Lock()
 		evictedNodes := p.cache.Evict(time.Now())
 		if len(evictedNodes) > 0 {
 			p.histogram.removeEvictedNodes(evictedNodes)
 		}
 		p.histogram.removeOldEntries(time.Now())
-		p.mu.Unlock()
 	}
 }
 
@@ -490,10 +490,6 @@ func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *pre
 
 // Modified Route function that preserves original routing logic but adds metrics logging
 func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.PodList) (string, error) {
-	if deadline, ok := ctx.Context.Deadline(); ok {
-		klog.Infof("requestID: %s, Context has deadline set: %v, time remaining: %v",
-			ctx.RequestID, deadline, time.Until(deadline))
-	}
 	klog.InfoS("Entering Route", "requestID", ctx.RequestID, "ctxDone", ctx.Err() != nil)
 	defer func() {
 		if ctx.Err() != nil {
@@ -503,11 +499,9 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 			klog.Infof("Route before successful return, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 		}
 	}()
-
 	ts := time.Now()
 	readyPods := utils.FilterRoutablePods(pods.All())
 	klog.Infof("requestID: %s, FilterRoutablePods overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-
 	if len(readyPods) == 0 {
 		klog.Errorf("no pods ready to forward request, requestID: %s", ctx.RequestID)
 		return "", fmt.Errorf("no pods to forward request")
@@ -520,19 +514,22 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		}
 	}
 
-	ts = time.Now()
-	p.mu.Lock()
-	klog.Infof("requestID: %s, Lock() overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-	klog.Infof("Route after mutex lock, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
-	defer p.mu.Unlock()
+	var podUpdateNeeded bool
+	func() {
+		p.podsMu.RLock()
+		defer p.podsMu.RUnlock()
+		podUpdateNeeded = len(readyPods) != p.numPods
+	}()
 
-	// First, update pod set
-	klog.Infof("requestID: %s, num pods in data structure: %d", ctx.RequestID, p.numPods)
-	klog.Infof("requestID: %s, current actual ready pods: %d", ctx.RequestID, len(readyPods))
-	p.updatePodSet(readyPods)
-	klog.Infof("requestID: %s, num pods in data structure after updatePodSet: %d", ctx.RequestID, p.numPods)
+	if podUpdateNeeded {
+		klog.Infof("requestID: %s, num pods in data structure: %d", ctx.RequestID, p.numPods)
+		klog.Infof("requestID: %s, current actual ready pods: %d", ctx.RequestID, len(readyPods))
+		p.podsMu.Lock()
+		p.updatePodSet(readyPods) // Move update pod logic to separate function
+		p.podsMu.Unlock()
+		klog.Infof("requestID: %s, num pods in data structure after updatePodSet: %d", ctx.RequestID, p.numPods)
+	}
 
-	// Original routing logic starts here
 	ts = time.Now()
 	tokens, err := utils.TokenizeInputText(ctx.Message)
 	klog.Infof("requestID: %s, Tokenization overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
@@ -540,6 +537,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		klog.Errorf("requestID: %s, Tokenization failed: %v", ctx.RequestID, err)
 		return "", err
 	}
+
 	ts = time.Now()
 	node, matchedTokens, _ := p.cache.AddPrefix(tokens, ctx.Model, "")
 	klog.Infof("requestID: %s, AddPrefix overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
@@ -668,27 +666,32 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		utils.MetricNumRequestsRunning,
 		utils.MetricNumRequestsWaiting,
 	}
-	// store them for the request
+
+	// Collect metrics concurrently
+	var wg sync.WaitGroup
 	for _, pod := range readyPods {
-		for _, targe_metric_name := range targetMetrics {
-			if targe_metric_name == utils.MetricGPUCacheUsagePerc {
-				err = utils.ReadAndStorevLLMGPUKVCacheUsage(ctx.RequestID, pod)
-			} else if targe_metric_name == utils.MetricCPUCacheUsagePerc {
-				err = utils.ReadAndStorevLLMCPUKVCacheUsage(ctx.RequestID, pod)
-			} else if targe_metric_name == utils.MetricNumRequestsRunning {
-				err = utils.ReadAndStorevLLMNumRequestsRunning(ctx.RequestID, pod)
-			} else if targe_metric_name == utils.MetricNumRequestsWaiting {
-				err = utils.ReadAndStorevLLMNumRequestsWaiting(ctx.RequestID, pod)
-			} else {
-				klog.Errorf("Unknown metric: %s", targe_metric_name)
-				continue
+		wg.Add(1)
+		go func(pod *v1.Pod) {
+			defer wg.Done()
+			for _, metricName := range targetMetrics {
+				switch metricName {
+				case utils.MetricGPUCacheUsagePerc:
+					utils.ReadAndStorevLLMGPUKVCacheUsage(ctx.RequestID, pod)
+				case utils.MetricCPUCacheUsagePerc:
+					utils.ReadAndStorevLLMCPUKVCacheUsage(ctx.RequestID, pod)
+				case utils.MetricNumRequestsRunning:
+					utils.ReadAndStorevLLMNumRequestsRunning(ctx.RequestID, pod)
+				case utils.MetricNumRequestsWaiting:
+					utils.ReadAndStorevLLMNumRequestsWaiting(ctx.RequestID, pod)
+				default:
+					klog.Errorf("Unknown metric: %s", metricName)
+					return
+				}
 			}
-			if err != nil {
-				klog.Errorf("Failed to read metrics from pod %s: %v", pod.Name, err)
-				continue
-			}
-		}
+		}(pod)
 	}
+	wg.Wait()
+
 	klog.Infof("requestID: %s, Request metric update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
 	// Update pod mapping in ALL nodes from matched node to root
@@ -698,13 +701,13 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		currentNode = currentNode.GetParent()
 	}
 
+	ts = time.Now()
 	p.histogram.update(time.Now(), node, node, targetPod.Name, defaultDecodingLength)
+	klog.Infof("requestID: %s, Histogram update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
-	klog.Infof("target_pod_name: %s, target_pod_ip: %s", targetPod.Name, targetPod.Status.PodIP)
 	// p.cache.PrettyPrint()
-
 	ctx.SetTargetPod(targetPod)
-	klog.Infof("Routing complete for request %s, target pod: %s", ctx.RequestID, targetPod.Name)
+	klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Name)
 	return ctx.TargetAddress(), nil
 }
 
