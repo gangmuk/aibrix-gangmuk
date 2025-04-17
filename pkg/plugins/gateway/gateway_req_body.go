@@ -33,7 +33,13 @@ import (
 )
 
 func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, routingAlgorithm types.RoutingAlgorithm) (*extProcPb.ProcessingResponse, string, *types.RoutingContext, bool, int64) {
+	klog.Infof("HandleRequestBody context state, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 
+	if deadline, ok := ctx.Deadline(); ok {
+		klog.Infof("Context has deadline set: %v, time remaining: %v", deadline, time.Until(deadline))
+	} else {
+		klog.Info("Context does not have a deadline set")
+	}
 	s.requestTimings.Store(requestID, &RequestTiming{
 		startTime:  time.Now(),
 		tokenCount: 0,
@@ -100,11 +106,15 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 	} else {
 		message, extErr := getRequestMessage(jsonMap)
 		if extErr != nil {
+			klog.Errorf("error to get request message: %v, requestID: %s", extErr, requestID)
 			return extErr, model, routingCtx, stream, term
 		}
-
+		klog.InfoS("Context state before pod selection", "requestID", requestID, "isDone", ctx.Err() != nil)
 		routingCtx = routingAlgorithm.NewContext(ctx, model, message, requestID)
+		klog.InfoS("New routing context created", "requestID", requestID, "isDone", routingCtx.Err() != nil)
+
 		targetPodIP, err := s.selectTargetPod(routingCtx, podsArr)
+		s.selectedPodIP.Store(requestID, targetPodIP)
 		if targetPodIP == "" || err != nil {
 			klog.ErrorS(err, "failed to select target pod", "requestID", requestID, "routingAlgorithm", routingAlgorithm, "model", model)
 			return generateErrorResponse(

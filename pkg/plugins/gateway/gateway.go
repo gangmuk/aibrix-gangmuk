@@ -61,6 +61,8 @@ type Server struct {
 	requestTimings      sync.Map // Map to track request timing information: requestID -> *RequestTiming
 	requestBuffers      sync.Map // Thread-safe map to track buffers per request
 	streamingUsageCache sync.Map // Map to store usage information from streaming responses
+	statusCode          sync.Map // Map to track status codes per request: requestID -> statusCode
+	selectedPodIP       sync.Map // Map to track target pod per request: requestID -> podIP
 }
 
 // This function is called in HandleResponseBody in gateway_rsp_body.go
@@ -134,11 +136,14 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 				RawValue: allPodsJSON,
 			},
 		})
+	} else {
+		klog.Errorf("Error marshalling allPodsRatios: %s, requestId: %s", err, requestID)
 	}
 	utils.CleanupKVCacheHitRatio(requestID)
 
-	/////////////////////////////////////
-	// Get inflight requests for all pods
+	////////////////////////////////////////
+	// Get inflight requests for all pods //
+	////////////////////////////////////////
 	numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(requestID)
 	numInflightRequestsAllPodsJSON, err := json.Marshal(numInflightRequestsAllPods)
 	if err == nil {
@@ -152,7 +157,9 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	utils.DecrementNumInflightForPod(requestID)
 	utils.CleanupInflightRequests(requestID)
 
-	// #################################################
+	//////////////////////
+	// Get vLLM metrics //
+	//////////////////////
 	vllmGPUKVCacheUsage, err := utils.GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID)
 	if err == nil {
 		vllmGPUKVCacheUsageJSON, err := json.Marshal(vllmGPUKVCacheUsage)
@@ -166,8 +173,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		} else {
 			klog.Infof("Error marshalling vllmGPUKVCacheUsageJSON: %s", err)
 		}
+		utils.CleanupvLLMGPUKVCacheUsage(requestID)
 	}
-	utils.CleanupvLLMGPUKVCacheUsage(requestID)
 
 	vllmCPUKVCacheUsage, err := utils.GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID)
 	if err == nil {
@@ -182,8 +189,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		} else {
 			klog.Infof("Error marshalling vllmCPUKVCacheUsageJSON: %s", err)
 		}
+		utils.CleanupvLLMCPUKVCacheUsage(requestID)
 	}
-	utils.CleanupvLLMCPUKVCacheUsage(requestID)
 
 	vllmNumRequestsRunning, err := utils.GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID)
 	if err == nil {
@@ -198,8 +205,8 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		} else {
 			klog.Infof("Error marshalling vllmNumRequestsRunningJSON: %s", err)
 		}
+		utils.CleanupvLLMNumRequestsRunning(requestID)
 	}
-	utils.CleanupvLLMNumRequestsRunning(requestID)
 
 	vllmNumRequestWaiting, err := utils.GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID)
 	if err == nil {
@@ -214,20 +221,15 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		} else {
 			klog.Infof("Error marshalling vllmNumRequestWaitingJSON: %s", err)
 		}
+		utils.CleanupvLLMNumRequestsWaiting(requestID)
 	}
-	utils.CleanupvLLMNumRequestsWaiting(requestID)
 
-	// #################################################
-
-	/////////////////////////////////////
-	// Get target pod IP directly from routing context
 	selectedPodIP := "unknown"
 	if routingCtx != nil {
 		selectedPodIP = routingCtx.TargetAddress()
 	}
 
 	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f, numInflightRequestsAllPods: %v", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio, numInflightRequestsAllPods)
-	// klog.V(5).Infof("** headers, %v", headers)
 	return headers
 }
 
@@ -286,14 +288,21 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			resp, user, rpm, routingAlgorithm = s.HandleRequestHeaders(ctx, requestID, req)
 
 		case *extProcPb.ProcessingRequest_RequestBody:
+			klog.InfoS("Before HandleRequestBody", "requestID", requestID)
 			resp, model, routerCtx, stream, traceTerm = s.HandleRequestBody(ctx, requestID, req, user, routingAlgorithm)
 			if routerCtx != nil {
+				if routerCtx.Err() != nil {
+					klog.ErrorS(routerCtx.Err(), "Routing context already canceled, using original",
+						"requestID", requestID)
+				}
 				ctx = routerCtx
 			}
 
 		case *extProcPb.ProcessingRequest_ResponseHeaders:
 			resp, isRespError, respErrorCode = s.HandleResponseHeaders(ctx, requestID, model, req)
-
+			if isRespError {
+				klog.Errorf("Response headers processing error %d, requestID: %s, selectedPod: %s, model: %s", respErrorCode, requestID, routerCtx.TargetAddress(), model)
+			}
 		case *extProcPb.ProcessingRequest_ResponseBody:
 			respBody := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
 			if isRespError {
@@ -317,8 +326,12 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 }
 
 func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) (string, error) {
+	defer func() {
+		klog.InfoS("Exiting selectTargetPod", "requestID", ctx.RequestID, "ctxDone", ctx.Err() != nil)
+	}()
 	router, err := routing.Select(ctx.Algorithm)(ctx)
 	if err != nil {
+		klog.ErrorS(err, "Router selection failed", "requestID", ctx.RequestID)
 		return "", err
 	}
 

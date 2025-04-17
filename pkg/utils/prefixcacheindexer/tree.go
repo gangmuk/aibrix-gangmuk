@@ -536,8 +536,8 @@ func (c *LPRadixCache) Evict(now time.Time) []*TreeNode {
 		c.evictNode(node)
 	}
 	if len(nodesToEvict) > 0 {
-		klog.Infof("Evicted %d nodes", len(nodesToEvict))
-		c.PrettyPrint()
+		klog.V(5).Infof("Evicted %d nodes", len(nodesToEvict))
+		// c.PrettyPrint()
 	}
 	return nodesToEvict
 }

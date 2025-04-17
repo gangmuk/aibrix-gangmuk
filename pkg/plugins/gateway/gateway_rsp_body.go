@@ -90,6 +90,15 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 
 func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, rpm int64, model string, stream bool, traceTerm int64, hasCompleted bool) (*extProcPb.ProcessingResponse, bool) {
 	b := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
+	statusCode := 0
+	selectedPodIP, ok := s.selectedPodIP.Load(requestID)
+	if !ok {
+		selectedPodIP = "unknown"
+	}
+	if storedCode, ok := s.statusCode.Load(requestID); ok { // stored in gateway_rsp_headers.go
+		statusCode = storedCode.(int)
+	}
+	klog.Errorf("Response status code: %d, requestID: %s, selectedPodIP: %s", statusCode, requestID, selectedPodIP)
 
 	var res openai.ChatCompletion
 	var usage openai.CompletionUsage
@@ -105,37 +114,25 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 	if exists {
 		timing = timingObj.(*RequestTiming)
 	}
-
-	// Process response body
 	currentTime := time.Now()
 	if timing != nil {
-		// Extract usage for streaming responses
 		if stream {
 			usage = s.handleStreamingResponse(requestID, b.ResponseBody.GetBody())
-
-			// Process streaming chunks for token counting
 			t := &http.Response{
 				Body: io.NopCloser(bytes.NewReader(b.ResponseBody.GetBody())),
 			}
 			streaming := ssestream.NewStream[openai.ChatCompletionChunk](ssestream.NewDecoder(t), nil)
-
 			for streaming.Next() {
 				evt := streaming.Current()
-
-				// Check if this is the first token for TTFT
 				if timing.firstTokenTime.IsZero() && len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
 					timing.firstTokenTime = currentTime
 					klog.InfoS("First token received", "requestID", requestID,
 						"ttft_ms", currentTime.Sub(timing.startTime).Milliseconds())
 				}
-
-				// Count tokens for TPOT calculation
 				if len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
 					timing.tokenCount++
 				}
 			}
-
-			// Check for errors in streaming
 			if err := streaming.Err(); err != nil {
 				klog.ErrorS(err, "error processing streaming response", "requestID", requestID)
 				complete = true
@@ -147,20 +144,13 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 					err.Error()), complete
 			}
 		} else {
-			// For non-streaming, process the response
-			// Use request ID as a key to store per-request buffer
 			buf, _ := s.requestBuffers.LoadOrStore(requestID, &bytes.Buffer{})
 			buffer := buf.(*bytes.Buffer)
-			// Append data to per-request buffer
 			buffer.Write(b.ResponseBody.Body)
-
-			// Record first token time when we get the first data
 			if timing.firstTokenTime.IsZero() && b.ResponseBody.EndOfStream {
 				timing.firstTokenTime = currentTime
 			}
-
 			if !b.ResponseBody.EndOfStream {
-				// Partial data received, wait for more chunks
 				return &extProcPb.ProcessingResponse{
 					Response: &extProcPb.ProcessingResponse_ResponseBody{
 						ResponseBody: &extProcPb.BodyResponse{
@@ -169,12 +159,8 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 					},
 				}, complete
 			}
-
-			// Last part received, process the full response
 			finalBody := buffer.Bytes()
-			// Clean up the buffer after final processing
 			s.requestBuffers.Delete(requestID)
-
 			if err := json.Unmarshal(finalBody, &res); err != nil {
 				klog.ErrorS(err, "error to unmarshal response", "requestID", requestID)
 				complete = true
@@ -199,29 +185,20 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 					}}},
 					msg), complete
 			}
-
-			// Extract usage from complete response
 			usage = res.Usage
 		}
-
-		// Only calculate and add timing metrics at the end of the stream
 		if b.ResponseBody.EndOfStream {
-			// Calculate timing metrics and add headers
-			timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
-			headers = append(headers, timingHeaders...)
-
-			// Clean up timing data when we're done
+			if routerCtx.Algorithm == "prefix-cache-and-load" {
+				timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+				headers = append(headers, timingHeaders...)
+			}
 			s.requestTimings.Delete(requestID)
 		}
 	}
-
-	// Handle token usage and complete flag
 	if usage.TotalTokens > 0 {
 		complete = true
 		promptTokens = usage.PromptTokens
 		completionTokens = usage.CompletionTokens
-
-		// Count token per user if needed
 		if user.Name != "" {
 			tpm, err := s.ratelimiter.Incr(ctx, fmt.Sprintf("%v_TPM_CURRENT", user), usage.TotalTokens)
 			if err != nil {
@@ -232,7 +209,6 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 					}}},
 					err.Error()), complete
 			}
-
 			headers = append(headers,
 				&configPb.HeaderValueOption{
 					Header: &configPb.HeaderValue{
@@ -248,8 +224,6 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 				},
 			)
 		}
-
-		// Add target pod information
 		if routerCtx != nil {
 			headers = append(headers,
 				&configPb.HeaderValueOption{
@@ -270,7 +244,6 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 	////////////////////////////////////////////////////////////////////////////
 
 	defer func() {
-		// Wrapped in a function to delay the evaluation of parameters. Using complete to make sure DoneRequestTrace only call once for a request.
 		if !hasCompleted && complete {
 			s.cache.DoneRequestTrace(routerCtx, requestID, model, promptTokens, completionTokens, traceTerm)
 			if routerCtx != nil {
@@ -305,15 +278,10 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 				err.Error()), complete
 		}
 	} else {
-		// Use request ID as a key to store per-request buffer
-		// Retrieve or create buffer
 		buf, _ := requestBuffers.LoadOrStore(requestID, &bytes.Buffer{})
 		buffer := buf.(*bytes.Buffer)
-		// Append data to per-request buffer
 		buffer.Write(b.ResponseBody.Body)
-
 		if !b.ResponseBody.EndOfStream {
-			// Partial data received, wait for more chunks, we just return a common response here.
 			return &extProcPb.ProcessingResponse{
 				Response: &extProcPb.ProcessingResponse_ResponseBody{
 					ResponseBody: &extProcPb.BodyResponse{
@@ -322,12 +290,8 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 				},
 			}, complete
 		}
-
-		// Last part received, process the full response
 		finalBody := buffer.Bytes()
-		// Clean up the buffer after final processing
 		requestBuffers.Delete(requestID)
-
 		if err := json.Unmarshal(finalBody, &res); err != nil {
 			klog.ErrorS(err, "error to unmarshal response", "requestID", requestID, "responseBody", string(b.ResponseBody.GetBody()))
 			complete = true
