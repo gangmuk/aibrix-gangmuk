@@ -15,7 +15,7 @@ elif [ "${workload}" == "5s" ]; then
 elif [ "${workload}" == "5min" ]; then
     input_workload_path="./workload/5min-later-part-init.jsonl"
 elif [ "${workload}" == "prefix-sharing" ]; then
-    input_workload_path="./workload/prefix-sharing-workload/realistic-prefix-share-workload.jsonl"
+    input_workload_path="./workload/prefix-sharing-workload-generator/prefixsharingworkload-p1024_s128_rps5-p2048_s128_rps5-p4096_s128_rps5.jsonl"
 else
     # input_workload_path="./workload/one_request.jsonl"
     input_workload_path="./workload/simple_ten_requests.jsonl"
