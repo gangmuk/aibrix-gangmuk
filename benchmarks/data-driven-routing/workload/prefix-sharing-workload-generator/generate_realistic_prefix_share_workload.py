@@ -515,22 +515,22 @@ if __name__ == "__main__":
             "rps": 5,
             "randomize_order": True  # Add the randomization parameter
         },
-        {
-            "prefix_length": 2048,
-            "suffix_length": 128,
-            "num_samples_per_prefix": 32,
-            "num_prefix": 5,
-            "rps": 5,
-            "randomize_order": False  # Can be set differently per config
-        },
-        {
-            "prefix_length": 4096,
-            "suffix_length": 128,
-            "num_samples_per_prefix": 32,
-            "num_prefix": 10,
-            "rps": 5,
-            "randomize_order": True  # Add the randomization parameter
-        },
+        # {
+        #     "prefix_length": 2048,
+        #     "suffix_length": 128,
+        #     "num_samples_per_prefix": 32,
+        #     "num_prefix": 5,
+        #     "rps": 5,
+        #     "randomize_order": False  # Can be set differently per config
+        # },
+        # {
+        #     "prefix_length": 4096,
+        #     "suffix_length": 128,
+        #     "num_samples_per_prefix": 32,
+        #     "num_prefix": 10,
+        #     "rps": 5,
+        #     "randomize_order": True  # Add the randomization parameter
+        # },
     ]
     
     # Initialize tokenizer
