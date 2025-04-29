@@ -35,6 +35,8 @@ var (
 	vllmNumRequestsWaitingMutex sync.RWMutex
 	vllmNumRequestsWaiting      map[string]map[string]float64 // requestID -> (podName -> num requests waiting
 
+	podNameToIPMutex sync.RWMutex
+	podNameToIP      map[string]string // podName -> podIP:port
 )
 
 const (
@@ -56,6 +58,49 @@ func init() {
 	vllmCPUKVCacheUsage = make(map[string]map[string]float64)
 	vllmNumRequestsRunning = make(map[string]map[string]float64)
 	vllmNumRequestsWaiting = make(map[string]map[string]float64)
+
+	podNameToIP = make(map[string]string)
+}
+
+// StorePodIPMapping stores the mapping between pod name and IP
+func StorePodIPMapping(podName string, podIP string) {
+	podNameToIPMutex.Lock()
+	defer podNameToIPMutex.Unlock()
+	podNameToIP[podName] = podIP
+}
+
+// mapPodNamesToIPs converts a map with pod names as keys to a map with pod IPs as keys
+func mapPodNamesToIPs(podNameMetrics map[string]float64) map[string]float64 {
+	podNameToIPMutex.RLock()
+	defer podNameToIPMutex.RUnlock()
+
+	podIPMetrics := make(map[string]float64)
+	for podName, value := range podNameMetrics {
+		if podIP, exists := podNameToIP[podName]; exists {
+			podIPMetrics[podIP] = value
+		} else {
+			// Keep the original key if no mapping exists
+			podIPMetrics[podName] = value
+		}
+	}
+	return podIPMetrics
+}
+
+// mapPodNamesToIPsInt converts a map with pod names as keys to a map with pod IPs as keys for int values
+func mapPodNamesToIPsInt(podNameMetrics map[string]int) map[string]int {
+	podNameToIPMutex.RLock()
+	defer podNameToIPMutex.RUnlock()
+
+	podIPMetrics := make(map[string]int)
+	for podName, value := range podNameMetrics {
+		if podIP, exists := podNameToIP[podName]; exists {
+			podIPMetrics[podIP] = value
+		} else {
+			// Keep the original key if no mapping exists
+			podIPMetrics[podName] = value
+		}
+	}
+	return podIPMetrics
 }
 
 func CleanupRequestToPod(requestID string) {
@@ -73,7 +118,6 @@ func StoreKVCacheHitRatio(requestID string, podName string, ratio float64, allPo
 	requestAllPodsKVCache[requestID] = allPodsRatios
 }
 
-// GetKVCacheHitRatio retrieves the KV cache hit ratio for a request
 func GetKVCacheHitRatio(requestID string) float64 {
 	requestKVCacheMutex.RLock()
 	defer requestKVCacheMutex.RUnlock()
@@ -84,23 +128,16 @@ func GetKVCacheHitRatio(requestID string) float64 {
 	return -1
 }
 
-// GetAllPodsKVCacheHitRatios retrieves KV cache hit ratios for all pods for a request
 func GetAllPodsKVCacheHitRatios(requestID string) map[string]float64 {
 	requestKVCacheMutex.RLock()
 	defer requestKVCacheMutex.RUnlock()
 
 	if ratios, ok := requestAllPodsKVCache[requestID]; ok {
-		// Make a copy to avoid concurrency issues
-		result := make(map[string]float64, len(ratios))
-		for pod, ratio := range ratios {
-			result[pod] = ratio
-		}
-		return result
+		return mapPodNamesToIPs(ratios)
 	}
 	return make(map[string]float64)
 }
 
-// CleanupKVCacheHitRatio removes the KV cache hit ratio for a request
 func CleanupKVCacheHitRatio(requestID string) {
 	requestKVCacheMutex.Lock()
 	defer requestKVCacheMutex.Unlock()
@@ -199,11 +236,12 @@ func StoreInflightRequestsForTheRequest(requestID string) {
 func GetInflightRequestsForAllPods(requestID string) map[string]int {
 	requestInflightMutex.RLock()
 	defer requestInflightMutex.RUnlock()
-	if _, ok := requestInflight[requestID]; !ok {
-		klog.Errorf("requestID not found in requestInflight: %s. Return empty slice", requestID)
+	if inflightRequests, ok := requestInflight[requestID]; !ok {
 		return make(map[string]int)
+	} else {
+		// Convert pod names to pod IPs before returning
+		return mapPodNamesToIPsInt(inflightRequests)
 	}
-	return requestInflight[requestID]
 }
 
 func CleanupInflightRequests(requestID string) {
@@ -216,6 +254,9 @@ func CleanupInflightRequests(requestID string) {
 
 func ReadAndStorevLLMGPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
+
+	StorePodIPMapping(pod.Name, pod.Status.PodIP)
+
 	allMetrics, err := metrics.ParseMetricsURL(url)
 	if err != nil {
 		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
@@ -345,13 +386,10 @@ func ReadAndStorevLLMNumRequestsWaiting(requestID string, pod *v1.Pod) error {
 func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
 	vllmGPUKVCacheUsageMutex.RLock()
 	defer vllmGPUKVCacheUsageMutex.RUnlock()
-	result := make(map[string]float64)
-	if _, ok := vllmGPUKVCacheUsage[requestID]; ok {
-		for podName, usage := range vllmGPUKVCacheUsage[requestID] {
-			// klog.Infof("vLLM GPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
-			result[podName] = usage
-		}
-		return result, nil
+
+	if usage, ok := vllmGPUKVCacheUsage[requestID]; ok {
+		// Convert pod names to pod IPs before returning
+		return mapPodNamesToIPs(usage), nil
 	}
 	return nil, fmt.Errorf("vLLM GPU KV cache usage not found for request ID %s", requestID)
 }
@@ -359,13 +397,9 @@ func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
 	vllmCPUKVCacheUsageMutex.RLock()
 	defer vllmCPUKVCacheUsageMutex.RUnlock()
-	result := make(map[string]float64)
-	if _, ok := vllmCPUKVCacheUsage[requestID]; ok {
-		for podName, usage := range vllmCPUKVCacheUsage[requestID] {
-			// klog.Infof("vLLM CPU KV cache usage for request ID %s and pod %s: %f", requestID, podName, usage)
-			result[podName] = usage
-		}
-		return result, nil
+
+	if usage, ok := vllmCPUKVCacheUsage[requestID]; ok {
+		return mapPodNamesToIPs(usage), nil
 	}
 	return nil, fmt.Errorf("vLLM CPU KV cache usage not found for request ID %s", requestID)
 }
@@ -373,13 +407,9 @@ func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[string]float64, error) {
 	vllmNumRequestsRunningMutex.RLock()
 	defer vllmNumRequestsRunningMutex.RUnlock()
-	result := make(map[string]float64)
-	if _, ok := vllmNumRequestsRunning[requestID]; ok {
-		for podName, usage := range vllmNumRequestsRunning[requestID] {
-			// klog.Infof("vLLM Num requests running for request ID %s and pod %s: %f", requestID, podName, usage)
-			result[podName] = usage
-		}
-		return result, nil
+
+	if requests, ok := vllmNumRequestsRunning[requestID]; ok {
+		return mapPodNamesToIPs(requests), nil
 	}
 	return nil, fmt.Errorf("vLLM Num requests running not found for request ID %s", requestID)
 }
@@ -387,13 +417,9 @@ func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[str
 func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[string]float64, error) {
 	vllmNumRequestsWaitingMutex.RLock()
 	defer vllmNumRequestsWaitingMutex.RUnlock()
-	result := make(map[string]float64)
-	if _, ok := vllmNumRequestsWaiting[requestID]; ok {
-		for podName, usage := range vllmNumRequestsWaiting[requestID] {
-			// klog.Infof("vLLM Num requests waiting for request ID %s and pod %s: %f", requestID, podName, usage)
-			result[podName] = usage
-		}
-		return result, nil
+
+	if requests, ok := vllmNumRequestsWaiting[requestID]; ok {
+		return mapPodNamesToIPs(requests), nil
 	}
 	return nil, fmt.Errorf("vLLM Num requests waiting not found for request ID %s", requestID)
 }

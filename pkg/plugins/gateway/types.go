@@ -75,6 +75,8 @@ const (
 	HeadervLLMCPUKVCacheUsage     = "x-vllm-cpu-kvcache-usage"
 	HeadervLLMNumRunningRequests  = "x-vllm-num-running-requests"
 	HeadervLLMNumwWaitingRequests = "x-vllm-num-waiting-requests"
+
+	HeaderPodDetailedMetrics = "x-pod-detailed-metrics"
 )
 
 var (

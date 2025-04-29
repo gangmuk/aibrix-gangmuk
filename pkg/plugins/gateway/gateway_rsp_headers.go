@@ -23,6 +23,8 @@ import (
 	configPb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"github.com/vllm-project/aibrix/pkg/types"
+
+	"k8s.io/klog/v2"
 )
 
 func (s *Server) HandleResponseHeaders(ctx context.Context, requestID string, model string, req *extProcPb.ProcessingRequest) (*extProcPb.ProcessingResponse, bool, int) {
@@ -66,9 +68,11 @@ func (s *Server) HandleResponseHeaders(ctx context.Context, requestID string, mo
 	for _, headerValue := range b.ResponseHeaders.Headers.Headers {
 		if headerValue.Key == ":status" {
 			code, _ := strconv.Atoi(string(headerValue.RawValue))
+			s.statusCode.Store(requestID, code)
 			if code != 200 {
 				isProcessingError = true
 				processingErrorCode = code
+				klog.Errorf("Response status code is not 200: %d, requestID: %s, model: %s", code, requestID, model)
 			}
 		}
 		headers = append(headers, &configPb.HeaderValueOption{

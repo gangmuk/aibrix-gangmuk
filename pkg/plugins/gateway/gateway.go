@@ -18,11 +18,11 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	configPb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	envoyTypePb "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/vllm-project/aibrix/pkg/cache"
@@ -48,7 +47,37 @@ import (
 type RequestTiming struct {
 	startTime      time.Time // When the request began processing
 	firstTokenTime time.Time // When the first token was received
+	lastTokenTime  time.Time // When the last token was received
 	tokenCount     int       // Count of tokens received so far
+
+}
+
+type PodMetric struct {
+	Timestamp time.Time
+	TTFT      int64 // Time to first token
+	TPOT      int64 // Time per output token (for single token)
+	TokenNum  int   // Which token in the sequence (1 = first token)
+}
+
+type PodMetricsTracker struct {
+	mutex      sync.RWMutex
+	podMetrics map[string][]PodMetric // Map of pod IP -> slice of metrics
+	windowSize time.Duration          // How long to keep metrics
+}
+
+// cleanupOldMetrics removes metrics that are older than the window size
+func (t *PodMetricsTracker) cleanupOldMetrics(podIP string, now time.Time) {
+	cutoff := now.Add(-t.windowSize)
+	metrics := t.podMetrics[podIP]
+
+	var newMetrics []PodMetric
+	for _, m := range metrics {
+		if m.Timestamp.After(cutoff) {
+			newMetrics = append(newMetrics, m)
+		}
+	}
+
+	t.podMetrics[podIP] = newMetrics
 }
 
 type Server struct {
@@ -63,174 +92,99 @@ type Server struct {
 	streamingUsageCache sync.Map // Map to store usage information from streaming responses
 	statusCode          sync.Map // Map to track status codes per request: requestID -> statusCode
 	selectedPodIP       sync.Map // Map to track target pod per request: requestID -> podIP
+
+	routingContexts sync.Map // Map to store routing contexts for each request: requestID -> *types.RoutingContext
+
+	// New fields for metrics tracking
+	metricsTracker   *PodMetricsTracker // Track timing metrics for pods
+	metricsEnabled   atomic.Bool        // Flag to enable/disable metrics collection
+	metricsLogTicker *time.Ticker       // Ticker for periodic metrics logging
 }
 
-// This function is called in HandleResponseBody in gateway_rsp_body.go
-func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, routingCtx *types.RoutingContext, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) []*configPb.HeaderValueOption {
-	// Calculate TTFT (Time To First Token)
-	ttftMs := int64(0)
-	if !timing.firstTokenTime.IsZero() {
-		ttftMs = timing.firstTokenTime.Sub(timing.startTime).Milliseconds()
+func (t *PodMetricsTracker) InitPodKey(podIP string) {
+	// Trim port from podIP if present
+	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
+		podIP = podIP[:colonIndex]
 	}
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	if _, exists := t.podMetrics[podIP]; !exists {
+		podmetric := PodMetric{
+			Timestamp: time.Now(),
+			TTFT:      0,
+			TPOT:      0,
+			TokenNum:  0,
+		}
+		t.podMetrics[podIP] = []PodMetric{podmetric}
+		klog.Infof("Initialized pod metrics for pod %s", podIP)
+	}
+}
 
-	// Calculate TPOT (Time Per Output Token)
-	tpotMs := int64(0)
-	if !timing.firstTokenTime.IsZero() {
-		totalGenerationTimeMs := currentTime.Sub(timing.firstTokenTime).Milliseconds()
+// AddMetric adds a new metric reading for a specific pod
+func (t *PodMetricsTracker) AddMetric(podIP string, metric PodMetric) {
+	// Trim port from podIP if present
+	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
+		podIP = podIP[:colonIndex]
+	}
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 
-		// Use the correct token count
-		effectiveTokenCount := int64(0)
-		if stream && timing.tokenCount > 1 {
-			// For streaming, use our counted tokens
-			effectiveTokenCount = int64(timing.tokenCount - 1) // Exclude first token
-		} else if numOutputTokens > 1 {
-			// Use the actual output tokens from usage
-			effectiveTokenCount = numOutputTokens - 1
+	// Add the new metric
+	t.podMetrics[podIP] = append(t.podMetrics[podIP], metric)
+
+	// Clean up old metrics outside our window
+	t.cleanupOldMetrics(podIP, time.Now())
+}
+
+// GetAverages calculates the average TTFT and TPOT for all pods over the window
+func (t *PodMetricsTracker) GetAverages() map[string]map[string]float64 {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
+	now := time.Now()
+	cutoff := now.Add(-t.windowSize)
+	result := make(map[string]map[string]float64)
+
+	for podIP, metrics := range t.podMetrics {
+		var ttftSum, tpotSum int64
+		var ttftCount, tpotCount int
+
+		// Calculate sums of valid metrics
+		for _, m := range metrics {
+			if m.Timestamp.After(cutoff) {
+				if m.TTFT > 0 {
+					ttftSum += m.TTFT
+					ttftCount++
+				}
+				if m.TPOT > 0 {
+					tpotSum += m.TPOT
+					tpotCount++
+				}
+			}
 		}
 
-		if effectiveTokenCount > 0 {
-			tpotMs = totalGenerationTimeMs / effectiveTokenCount
+		// Calculate averages
+		podAvg := make(map[string]float64)
+		if ttftCount > 0 {
+			podAvg["avg_ttft"] = float64(ttftSum) / float64(ttftCount)
 		}
-	}
-
-	// Add timing headers
-	end_to_end_latency_in_ms := time.Since(timing.startTime).Milliseconds()
-	headers := []*configPb.HeaderValueOption{
-		{
-			Header: &configPb.HeaderValue{
-				Key:      HeaderTTFT,
-				RawValue: []byte(fmt.Sprintf("%d", ttftMs)),
-			},
-		},
-		{
-			Header: &configPb.HeaderValue{
-				Key:      HeaderTPOT,
-				RawValue: []byte(fmt.Sprintf("%d", tpotMs)),
-			},
-		},
-		{
-			Header: &configPb.HeaderValue{
-				Key:      HeaderE2ELatency,
-				RawValue: []byte(fmt.Sprintf("%d", end_to_end_latency_in_ms)),
-			},
-		},
-	}
-
-	/////////////////////////////////////
-	// Get KV cache hit ratio from our global store
-	kvCacheHitRatio := utils.GetKVCacheHitRatio(requestID)
-	headers = append(headers, &configPb.HeaderValueOption{
-		Header: &configPb.HeaderValue{
-			Key:      HeaderKVCacheHitRatio,
-			RawValue: []byte(fmt.Sprintf("%.4f", kvCacheHitRatio)),
-		},
-	})
-
-	// Get KV cache hit ratios for all pods
-	allPodsRatios := utils.GetAllPodsKVCacheHitRatios(requestID)
-	allPodsJSON, err := json.Marshal(allPodsRatios)
-	if err == nil {
-		headers = append(headers, &configPb.HeaderValueOption{
-			Header: &configPb.HeaderValue{
-				Key:      HeaderKVCacheHitRatioAllPods,
-				RawValue: allPodsJSON,
-			},
-		})
-	} else {
-		klog.Errorf("Error marshalling allPodsRatios: %s, requestId: %s", err, requestID)
-	}
-	utils.CleanupKVCacheHitRatio(requestID)
-
-	////////////////////////////////////////
-	// Get inflight requests for all pods //
-	////////////////////////////////////////
-	numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(requestID)
-	numInflightRequestsAllPodsJSON, err := json.Marshal(numInflightRequestsAllPods)
-	if err == nil {
-		headers = append(headers, &configPb.HeaderValueOption{
-			Header: &configPb.HeaderValue{
-				Key:      HeaderNumInflightRequestsAllPods,
-				RawValue: numInflightRequestsAllPodsJSON,
-			},
-		})
-	}
-	utils.DecrementNumInflightForPod(requestID)
-	utils.CleanupInflightRequests(requestID)
-
-	//////////////////////
-	// Get vLLM metrics //
-	//////////////////////
-	vllmGPUKVCacheUsage, err := utils.GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID)
-	if err == nil {
-		vllmGPUKVCacheUsageJSON, err := json.Marshal(vllmGPUKVCacheUsage)
-		if err == nil {
-			headers = append(headers, &configPb.HeaderValueOption{
-				Header: &configPb.HeaderValue{
-					Key:      HeadervLLMGPUKVCacheUsage,
-					RawValue: vllmGPUKVCacheUsageJSON,
-				},
-			})
-		} else {
-			klog.Infof("Error marshalling vllmGPUKVCacheUsageJSON: %s", err)
+		if tpotCount > 0 {
+			podAvg["avg_tpot"] = float64(tpotSum) / float64(tpotCount)
 		}
-		utils.CleanupvLLMGPUKVCacheUsage(requestID)
+		podAvg["sample_count"] = float64(len(metrics))
+
+		result[podIP] = podAvg
 	}
 
-	vllmCPUKVCacheUsage, err := utils.GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID)
-	if err == nil {
-		vllmCPUKVCacheUsageJSON, err := json.Marshal(vllmCPUKVCacheUsage)
-		if err == nil {
-			headers = append(headers, &configPb.HeaderValueOption{
-				Header: &configPb.HeaderValue{
-					Key:      HeadervLLMCPUKVCacheUsage,
-					RawValue: vllmCPUKVCacheUsageJSON,
-				},
-			})
-		} else {
-			klog.Infof("Error marshalling vllmCPUKVCacheUsageJSON: %s", err)
-		}
-		utils.CleanupvLLMCPUKVCacheUsage(requestID)
-	}
+	return result
+}
 
-	vllmNumRequestsRunning, err := utils.GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID)
-	if err == nil {
-		vllmNumRequestsRunningJSON, err := json.Marshal(vllmNumRequestsRunning)
-		if err == nil {
-			headers = append(headers, &configPb.HeaderValueOption{
-				Header: &configPb.HeaderValue{
-					Key:      HeadervLLMNumRunningRequests,
-					RawValue: vllmNumRequestsRunningJSON,
-				},
-			})
-		} else {
-			klog.Infof("Error marshalling vllmNumRequestsRunningJSON: %s", err)
-		}
-		utils.CleanupvLLMNumRequestsRunning(requestID)
+// NewPodMetricsTracker creates a new metrics tracker with the specified window size
+func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
+	return &PodMetricsTracker{
+		podMetrics: make(map[string][]PodMetric),
+		windowSize: windowSize,
 	}
-
-	vllmNumRequestWaiting, err := utils.GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID)
-	if err == nil {
-		vllmNumRequestWaitingJSON, err := json.Marshal(vllmNumRequestWaiting)
-		if err == nil {
-			headers = append(headers, &configPb.HeaderValueOption{
-				Header: &configPb.HeaderValue{
-					Key:      HeadervLLMNumwWaitingRequests,
-					RawValue: vllmNumRequestWaitingJSON,
-				},
-			})
-		} else {
-			klog.Infof("Error marshalling vllmNumRequestWaitingJSON: %s", err)
-		}
-		utils.CleanupvLLMNumRequestsWaiting(requestID)
-	}
-
-	selectedPodIP := "unknown"
-	if routingCtx != nil {
-		selectedPodIP = routingCtx.TargetAddress()
-	}
-
-	klog.Infof("** latency metrics, requestID: %s, selectedpod: %s, ttft: %d, tpot: %d, e2e: %d, numInputTokens: %d, numOutputTokens: %d, numTotalTokens: %d, kvCacheHitRatio: %.4f, numInflightRequestsAllPods: %v", requestID, selectedPodIP, ttftMs, tpotMs, end_to_end_latency_in_ms, numInputTokens, numOutputTokens, numTotalTokens, kvCacheHitRatio, numInflightRequestsAllPods)
-	return headers
 }
 
 func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
@@ -243,12 +197,180 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 	// Initialize the routers
 	routing.Init()
 
-	return &Server{
+	server := &Server{
 		redisClient:         redisClient,
 		ratelimiter:         r,
 		client:              client,
 		requestCountTracker: map[string]int{},
 		cache:               c,
+		metricsTracker:      NewPodMetricsTracker(1 * time.Second),
+	}
+	// Enable metrics collection by default
+	server.metricsEnabled.Store(true)
+
+	// Start metrics cleanup goroutine
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if server.metricsEnabled.Load() {
+					klog.V(4).Info("Running periodic metrics cleanup")
+					server.metricsTracker.CleanupAllMetrics()
+				}
+			}
+		}
+	}()
+
+	// Start periodic metrics logging
+	server.metricsLogTicker = time.NewTicker(10 * time.Second)
+	go server.logPeriodicMetrics()
+
+	// Start CSV export if needed (commented out by default)
+	/*
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					if server.metricsEnabled.Load() {
+						if err := server.ExportMetricsToCSV("/var/log/aibrix/metrics"); err != nil {
+							klog.Errorf("Failed to export metrics: %v", err)
+						}
+					}
+				}
+			}
+		}()
+	*/
+
+	return server
+}
+
+// // CleanupAllMetrics removes all metrics outside the window for all pods
+// func (t *PodMetricsTracker) CleanupAllMetrics() {
+// 	t.mutex.Lock()
+// 	defer t.mutex.Unlock()
+
+// 	now := time.Now()
+// 	cutoff := now.Add(-t.windowSize)
+
+// 	for podIP, metrics := range t.podMetrics {
+// 		var newMetrics []PodMetric
+// 		for _, m := range metrics {
+// 			if m.Timestamp.After(cutoff) {
+// 				newMetrics = append(newMetrics, m)
+// 			}
+// 		}
+
+// 		if len(newMetrics) > 0 {
+// 			t.podMetrics[podIP] = newMetrics
+// 		} else {
+// 			// If no metrics are left in the window, remove the pod entry
+// 			delete(t.podMetrics, podIP)
+// 		}
+// 	}
+// }
+
+func (t *PodMetricsTracker) CleanupAllMetrics() {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-t.windowSize)
+
+	for podIP, metrics := range t.podMetrics {
+		var newMetrics []PodMetric
+		for _, m := range metrics {
+			if m.Timestamp.After(cutoff) {
+				newMetrics = append(newMetrics, m)
+			}
+		}
+
+		// Always keep the pod entry, even if it has no valid metrics
+		t.podMetrics[podIP] = newMetrics
+
+		// Optionally, if you want to maintain at least one entry
+		// to mark that the pod exists, you could add a placeholder:
+		if len(newMetrics) == 0 {
+			// Add a placeholder metric with zero values
+			t.podMetrics[podIP] = []PodMetric{{
+				Timestamp: now,
+				TTFT:      0,
+				TPOT:      0,
+				TokenNum:  0,
+			}}
+		}
+	}
+}
+
+// logPeriodicMetrics logs detailed metrics periodically for monitoring
+func (s *Server) logPeriodicMetrics() {
+	for {
+		select {
+		case <-s.metricsLogTicker.C:
+			if s.metricsEnabled.Load() {
+				metrics := s.metricsTracker.GetDetailedMetrics(time.Now().Add(-s.metricsTracker.windowSize))
+
+				// Skip logging if no metrics available
+				if len(metrics) == 0 {
+					continue
+				}
+
+				// System-wide averages
+				var ttftSum, tpotSum float64
+				var ttftCount, tpotCount int
+				totalRequests := 0
+				totalTokens := 0
+
+				for podIP, podMetrics := range metrics {
+					totalRequests += podMetrics.TotalRequests
+					totalTokens += podMetrics.TotalTokens
+
+					if podMetrics.AvgTTFT > 0 && podMetrics.TTFTSamples > 0 {
+						ttftSum += podMetrics.AvgTTFT * float64(podMetrics.TTFTSamples)
+						ttftCount += podMetrics.TTFTSamples
+					}
+
+					if podMetrics.AvgTPOT > 0 && podMetrics.TPOTSamples > 0 {
+						tpotSum += podMetrics.AvgTPOT * float64(podMetrics.TPOTSamples)
+						tpotCount += podMetrics.TPOTSamples
+					}
+
+					// Log individual pod metrics
+					klog.Infof("**,periodic_pod_metrics,pod,%s,avg_ttft,%.2f,avg_tpot,%.2f,token_count,%d,request_count,%d",
+						podIP,
+						podMetrics.AvgTTFT,
+						podMetrics.AvgTPOT,
+						podMetrics.TotalTokens,
+						podMetrics.TotalRequests)
+				}
+
+				// Calculate system-wide averages
+				systemAvgTTFT := 0.0
+				systemAvgTPOT := 0.0
+
+				if ttftCount > 0 {
+					systemAvgTTFT = ttftSum / float64(ttftCount)
+				}
+
+				if tpotCount > 0 {
+					systemAvgTPOT = tpotSum / float64(tpotCount)
+				}
+
+				// Log the system-wide summary
+				klog.Infof("**,periodic_system_metrics,timestamp,%d,pod_count,%d,total_requests,%d,total_tokens,%d,system_avg_ttft,%.2f,system_avg_tpot,%.2f",
+					time.Now().Unix(),
+					len(metrics),
+					totalRequests,
+					totalTokens,
+					systemAvgTTFT,
+					systemAvgTPOT)
+			}
+		}
 	}
 }
 
@@ -348,7 +470,9 @@ func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) 
 			return ctx.TargetAddress(), nil
 		}
 	}
-
+	for _, pod := range readyPods {
+		s.metricsTracker.InitPodKey(pod.Status.PodIP)
+	}
 	return router.Route(ctx, &utils.PodArray{Pods: readyPods})
 }
 

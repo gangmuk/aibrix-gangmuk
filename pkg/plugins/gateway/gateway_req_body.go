@@ -113,6 +113,10 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 		routingCtx = routingAlgorithm.NewContext(ctx, model, message, requestID)
 		klog.InfoS("New routing context created", "requestID", requestID, "isDone", routingCtx.Err() != nil)
 
+		if routingCtx != nil {
+			s.routingContexts.Store(requestID, routingCtx)
+		}
+
 		targetPodIP, err := s.selectTargetPod(routingCtx, podsArr)
 		s.selectedPodIP.Store(requestID, targetPodIP)
 		if targetPodIP == "" || err != nil {

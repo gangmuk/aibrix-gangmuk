@@ -499,9 +499,9 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 			klog.Infof("Route before successful return, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 		}
 	}()
-	ts := time.Now()
+	// ts := time.Now()
 	readyPods := utils.FilterRoutablePods(pods.All())
-	klog.Infof("requestID: %s, FilterRoutablePods overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, FilterRoutablePods overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 	if len(readyPods) == 0 {
 		klog.Errorf("no pods ready to forward request, requestID: %s", ctx.RequestID)
 		return "", fmt.Errorf("no pods to forward request")
@@ -530,17 +530,17 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		klog.Infof("requestID: %s, num pods in data structure after updatePodSet: %d", ctx.RequestID, p.numPods)
 	}
 
-	ts = time.Now()
+	// ts = time.Now()
 	tokens, err := utils.TokenizeInputText(ctx.Message)
-	klog.Infof("requestID: %s, Tokenization overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, Tokenization overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 	if err != nil {
 		klog.Errorf("requestID: %s, Tokenization failed: %v", ctx.RequestID, err)
 		return "", err
 	}
 
-	ts = time.Now()
+	// ts = time.Now()
 	node, matchedTokens, _ := p.cache.AddPrefix(tokens, ctx.Model, "")
-	klog.Infof("requestID: %s, AddPrefix overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, AddPrefix overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
 	var matchedPods []*v1.Pod
 	var matchedPodsNames []string
@@ -621,7 +621,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 
 	if targetPod == nil {
 		klog.Infof("requestID: %s, Do cost model based routing! (matching ratio: %.2f%%, len(matchedPods): %d)", ctx.RequestID, matchRatio*100, len(matchedPods))
-		ts = time.Now()
+		// ts = time.Now()
 		podCosts := p.histogram.getCurrentAllocationCostPerPod()
 		minCost := math.MaxFloat64
 		for _, pod := range readyPods {
@@ -632,7 +632,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 				targetPod = pod
 			}
 		}
-		klog.Infof("requestID: %s, Cost model based routing overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+		// klog.Infof("requestID: %s, Cost model based routing overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 		klog.Infof("requestID: %s, Lowest cost pod: %s", ctx.RequestID, targetPod.Name)
 	}
 
@@ -642,7 +642,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		return "", fmt.Errorf("no suitable pod found")
 	}
 
-	ts = time.Now()
+	// ts = time.Now()
 	utils.StoreRequestToPod(ctx.RequestID, targetPod.Name)
 	utils.IncrementNumInflightForPod(ctx.RequestID)
 	utils.StoreInflightRequestsForTheRequest(ctx.RequestID)
@@ -692,7 +692,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	}
 	wg.Wait()
 
-	klog.Infof("requestID: %s, Request metric update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, Request metric update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
 	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
@@ -701,13 +701,13 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		currentNode = currentNode.GetParent()
 	}
 
-	ts = time.Now()
+	// ts = time.Now()
 	p.histogram.update(time.Now(), node, node, targetPod.Name, defaultDecodingLength)
-	klog.Infof("requestID: %s, Histogram update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, Histogram update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
 	// p.cache.PrettyPrint()
 	ctx.SetTargetPod(targetPod)
-	klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Name)
+	// klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Name)
 	return ctx.TargetAddress(), nil
 }
 
