@@ -48,7 +48,7 @@ type RequestTiming struct {
 	startTime      time.Time // When the request began processing
 	firstTokenTime time.Time // When the first token was received
 	lastTokenTime  time.Time // When the last token was received
-	tokenCount     int       // Count of tokens received so far
+	tokenCount     int64     // Count of tokens received so far
 
 }
 
@@ -56,7 +56,7 @@ type PodMetric struct {
 	Timestamp time.Time
 	TTFT      int64 // Time to first token
 	TPOT      int64 // Time per output token (for single token)
-	TokenNum  int   // Which token in the sequence (1 = first token)
+	TokenNum  int64 // Which token in the sequence (1 = first token)
 }
 
 type PodMetricsTracker struct {
@@ -226,27 +226,6 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 
 	// Start periodic metrics logging
 	server.metricsLogTicker = time.NewTicker(10 * time.Second)
-	go server.logPeriodicMetrics()
-
-	// Start CSV export if needed (commented out by default)
-	/*
-		go func() {
-			ticker := time.NewTicker(1 * time.Minute)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					if server.metricsEnabled.Load() {
-						if err := server.ExportMetricsToCSV("/var/log/aibrix/metrics"); err != nil {
-							klog.Errorf("Failed to export metrics: %v", err)
-						}
-					}
-				}
-			}
-		}()
-	*/
-
 	return server
 }
 
@@ -303,73 +282,6 @@ func (t *PodMetricsTracker) CleanupAllMetrics() {
 				TPOT:      0,
 				TokenNum:  0,
 			}}
-		}
-	}
-}
-
-// logPeriodicMetrics logs detailed metrics periodically for monitoring
-func (s *Server) logPeriodicMetrics() {
-	for {
-		select {
-		case <-s.metricsLogTicker.C:
-			if s.metricsEnabled.Load() {
-				metrics := s.metricsTracker.GetDetailedMetrics(time.Now().Add(-s.metricsTracker.windowSize))
-
-				// Skip logging if no metrics available
-				if len(metrics) == 0 {
-					continue
-				}
-
-				// System-wide averages
-				var ttftSum, tpotSum float64
-				var ttftCount, tpotCount int
-				totalRequests := 0
-				totalTokens := 0
-
-				for podIP, podMetrics := range metrics {
-					totalRequests += podMetrics.TotalRequests
-					totalTokens += podMetrics.TotalTokens
-
-					if podMetrics.AvgTTFT > 0 && podMetrics.TTFTSamples > 0 {
-						ttftSum += podMetrics.AvgTTFT * float64(podMetrics.TTFTSamples)
-						ttftCount += podMetrics.TTFTSamples
-					}
-
-					if podMetrics.AvgTPOT > 0 && podMetrics.TPOTSamples > 0 {
-						tpotSum += podMetrics.AvgTPOT * float64(podMetrics.TPOTSamples)
-						tpotCount += podMetrics.TPOTSamples
-					}
-
-					// Log individual pod metrics
-					klog.Infof("**,periodic_pod_metrics,pod,%s,avg_ttft,%.2f,avg_tpot,%.2f,token_count,%d,request_count,%d",
-						podIP,
-						podMetrics.AvgTTFT,
-						podMetrics.AvgTPOT,
-						podMetrics.TotalTokens,
-						podMetrics.TotalRequests)
-				}
-
-				// Calculate system-wide averages
-				systemAvgTTFT := 0.0
-				systemAvgTPOT := 0.0
-
-				if ttftCount > 0 {
-					systemAvgTTFT = ttftSum / float64(ttftCount)
-				}
-
-				if tpotCount > 0 {
-					systemAvgTPOT = tpotSum / float64(tpotCount)
-				}
-
-				// Log the system-wide summary
-				klog.Infof("**,periodic_system_metrics,timestamp,%d,pod_count,%d,total_requests,%d,total_tokens,%d,system_avg_ttft,%.2f,system_avg_tpot,%.2f",
-					time.Now().Unix(),
-					len(metrics),
-					totalRequests,
-					totalTokens,
-					systemAvgTTFT,
-					systemAvgTPOT)
-			}
 		}
 	}
 }

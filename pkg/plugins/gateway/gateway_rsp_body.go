@@ -631,7 +631,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	// 7. Pod detailed metrics
 	log_window_end_time := time.Now()
 	log_window_start_time := time.Now().Add(-s.metricsTracker.windowSize)
-	podDetailedMetrics := s.metricsTracker.GetDetailedMetrics(log_window_start_time)
+	podDetailedMetrics := s.metricsTracker.GetDetailedMetrics(log_window_start_time, numInputTokens, numOutputTokens, numTotalTokens)
 	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics)
 
 	klog.Infof("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@log_window_start_time@%d@log_window_end_time@%d",
@@ -685,9 +685,9 @@ type PodDetailedMetrics struct {
 	TPOTSamples int     `json:"tpot_samples"`
 
 	// // Token position-based TPOT metrics (average TPOT for tokens 2-10)
-	// EarlyTokensTPOT float64 `json:"early_tokens_tpot_ms"` // Avg TPOT for tokens 2-10
-	// MidTokensTPOT   float64 `json:"mid_tokens_tpot_ms"`   // Avg TPOT for tokens 11-100
-	// LateTokensTPOT  float64 `json:"late_tokens_tpot_ms"`  // Avg TPOT for tokens 101+
+	EarlyTokensTPOT float64 `json:"early_tokens_tpot_ms"` // Avg TPOT for tokens 2-10
+	MidTokensTPOT   float64 `json:"mid_tokens_tpot_ms"`   // Avg TPOT for tokens 11-100
+	LateTokensTPOT  float64 `json:"late_tokens_tpot_ms"`  // Avg TPOT for tokens 101+
 
 	// Overall metrics
 	TotalRequests int `json:"total_requests"`
@@ -717,7 +717,7 @@ func percentile(sortedValues []int64, p int) int64 {
 	return int64(float64(sortedValues[rankInt]) + fraction*(float64(sortedValues[rankInt+1])-float64(sortedValues[rankInt])))
 }
 
-func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) map[string]PodDetailedMetrics {
+func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) map[string]PodDetailedMetrics {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	result := make(map[string]PodDetailedMetrics)
@@ -755,7 +755,7 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 		var ttftValues []int64
 		var tpotValues []int64
 		var ttftSum, tpotSum int64
-		// var earlyTokensTPOT, midTokensTPOT, lateTokensTPOT []int64
+		var earlyTokensTPOT, midTokensTPOT, lateTokensTPOT []int64
 		uniqueRequests := make(map[string]bool)
 		totalTokens := 0
 		for _, m := range validMetrics {
@@ -769,14 +769,16 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 				tpotValues = append(tpotValues, m.TPOT)
 				tpotSum += m.TPOT
 				totalTokens++
-				// switch {
-				// case m.TokenNum >= 2 && m.TokenNum <= 10:
-				// 	earlyTokensTPOT = append(earlyTokensTPOT, m.TPOT)
-				// case m.TokenNum >= 11 && m.TokenNum <= 100:
-				// 	midTokensTPOT = append(midTokensTPOT, m.TPOT)
-				// case m.TokenNum > 100:
-				// 	lateTokensTPOT = append(lateTokensTPOT, m.TPOT)
-				// }
+				early_token_index := numOutputTokens / 3
+				mid_token_index := (numOutputTokens / 3) * 2
+				switch {
+				case m.TokenNum <= early_token_index:
+					earlyTokensTPOT = append(earlyTokensTPOT, m.TPOT)
+				case m.TokenNum > early_token_index && m.TokenNum <= mid_token_index:
+					midTokensTPOT = append(midTokensTPOT, m.TPOT)
+				case m.TokenNum > mid_token_index:
+					lateTokensTPOT = append(lateTokensTPOT, m.TPOT)
+				}
 			}
 		}
 		sort.Slice(ttftValues, func(i, j int) bool { return ttftValues[i] < ttftValues[j] })
@@ -805,27 +807,27 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 			detailedMetrics.P99TPOT = percentile(tpotValues, 99)
 		}
 
-		// if len(earlyTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range earlyTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.EarlyTokensTPOT = float64(sum) / float64(len(earlyTokensTPOT))
-		// }
-		// if len(midTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range midTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.MidTokensTPOT = float64(sum) / float64(len(midTokensTPOT))
-		// }
-		// if len(lateTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range lateTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.LateTokensTPOT = float64(sum) / float64(len(lateTokensTPOT))
-		// }
+		if len(earlyTokensTPOT) > 0 {
+			var sum int64
+			for _, v := range earlyTokensTPOT {
+				sum += v
+			}
+			detailedMetrics.EarlyTokensTPOT = float64(sum) / float64(len(earlyTokensTPOT))
+		}
+		if len(midTokensTPOT) > 0 {
+			var sum int64
+			for _, v := range midTokensTPOT {
+				sum += v
+			}
+			detailedMetrics.MidTokensTPOT = float64(sum) / float64(len(midTokensTPOT))
+		}
+		if len(lateTokensTPOT) > 0 {
+			var sum int64
+			for _, v := range lateTokensTPOT {
+				sum += v
+			}
+			detailedMetrics.LateTokensTPOT = float64(sum) / float64(len(lateTokensTPOT))
+		}
 
 		result[podIP] = detailedMetrics
 		klog.Infof("podIP: %s, detailedMetrics", podIP)
