@@ -29,4 +29,4 @@ else
     docker push aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gateway-plugins:$tag
 fi
 
-krrdgateway
+# krrdgateway
