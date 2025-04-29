@@ -76,9 +76,9 @@ type prefixCacheAndLoadRouter struct {
 	histogram      *SlidingWindowHistogram
 	numPods        int
 	podAllocations map[*prefixcacheindexer.TreeNode]map[int]bool
-	cacheMu        sync.RWMutex // Protects cache operations
-	histogramMu    sync.RWMutex // Protects histogram operations
-	podsMu         sync.RWMutex // Protects pod-related data
+	// cacheMu        sync.RWMutex // Protects cache operations
+	// histogramMu sync.RWMutex // Protects histogram operations
+	podsMu sync.RWMutex // Protects pod-related data
 }
 
 // Find all prefix matches with their depths
@@ -538,10 +538,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		return "", err
 	}
 
-	// ts = time.Now()
 	node, matchedTokens, _ := p.cache.AddPrefix(tokens, ctx.Model, "")
-	// klog.Infof("requestID: %s, AddPrefix overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-
 	var matchedPods []*v1.Pod
 	var matchedPodsNames []string
 	if modelPods, ok := node.GetModelToPods()[ctx.Model]; ok {
@@ -637,8 +634,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	}
 
 	if targetPod == nil {
-		klog.Errorf("requestID: %s, After all logic, no suitable pod found", ctx.RequestID)
-		klog.Errorf("requestID: %s, readyPods: %v", ctx.RequestID, readyPods)
+		klog.Errorf("requestID: %s, After all logic, no suitable pod found. readyPods: %v", ctx.RequestID, readyPods)
 		return "", fmt.Errorf("no suitable pod found")
 	}
 
