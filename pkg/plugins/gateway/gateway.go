@@ -120,7 +120,6 @@ func (t *PodMetricsTracker) InitPodKey(podIP string) {
 	}
 }
 
-// AddMetric adds a new metric reading for a specific pod
 func (t *PodMetricsTracker) AddMetric(podIP string, metric PodMetric) {
 	// Trim port from podIP if present
 	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
