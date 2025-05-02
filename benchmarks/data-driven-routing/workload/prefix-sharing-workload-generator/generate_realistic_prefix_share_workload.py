@@ -67,6 +67,11 @@ LOCATIONS = [
     "an innovation lab", "a digital marketplace", "an AI research center"
 ]
 
+RANDOM_WORDS = [
+    "Hello, ", "Sounds good, ", "Okay, ",
+    "Nice to meet you, ", "Let me start, ", "I will start, ", "Beginning, ", "However, ", "Therefore, ", "Well, ", "So, ", "In addition, ", "Moreover, ", "Furthermore, ", "Additionally, ", "On the other hand, ", "In contrast, ", "Conversely, ", "Nevertheless, ", "Nonetheless, ", "Despite that, ", "Even so, ", "In spite of that, ", "Yet, ", "Still, ", "But, ", "Although, ", "Though, ", "Even though, ", "While, ", "Whereas, ", "As a result, ", "Consequently, ", "Thus, ",
+]
+
 def generate_realistic_prompt(tokenizer, target_token_length):
     """
     Generate a realistic prompt using templates and domain-specific vocabulary
@@ -139,7 +144,7 @@ def generate_realistic_prompt(tokenizer, target_token_length):
     return filled_template
 
 def generate_unique_prefix(base_text, index):
-    return str(index) + base_text[len(str(index)):]
+    return RANDOM_WORDS[index] + base_text
 
 def prepare_prompts(tokenizer, config):
     """
@@ -155,7 +160,7 @@ def prepare_prompts(tokenizer, config):
     prefix_length = config["prefix_length"]
     suffix_length = config["suffix_length"]
     num_samples_per_prefix = config["num_samples_per_prefix"]
-    num_prefix = config["num_prefix"]
+    num_diff_prefix = config["num_diff_prefix"]
     
     # Generate a base prefix using realistic content
     base_prefix = generate_realistic_prompt(tokenizer, prefix_length)
@@ -163,7 +168,7 @@ def prepare_prompts(tokenizer, config):
     all_prompts = []
     prompts_token_counts = []  # Store token counts for each prompt
     
-    for i in tqdm(range(num_prefix), desc=f"Preparing prompts for config {config['id']}"):
+    for i in tqdm(range(num_diff_prefix), desc=f"Preparing prompts for config {config['id']}"):
         unique_prefix = generate_unique_prefix(base_prefix, i)
         prompt_list = []
         token_count_list = []
@@ -365,7 +370,7 @@ def process_workload_configs(tokenizer, configs):
         all_prefix_lengths.extend([config["prefix_length"]] * len(prompts))
         
         # Store stats for this config
-        total_num_req = config["num_prefix"] * config["num_samples_per_prefix"]
+        total_num_req = config["num_diff_prefix"] * config["num_samples_per_prefix"]
         total_duration = total_num_req / rps
         
         config_stats.append({
@@ -373,7 +378,7 @@ def process_workload_configs(tokenizer, configs):
             "prefix_length": config["prefix_length"],
             "suffix_length": config["suffix_length"],
             "num_samples_per_prefix": config["num_samples_per_prefix"],
-            "num_prefix": config["num_prefix"],
+            "num_diff_prefix": config["num_diff_prefix"],
             "rps": rps,
             "randomize_order": randomize_order,
             "num_requests": len(flat_prompts_data),
@@ -476,7 +481,7 @@ def save_stats(workload_data, stats_file):
     total_num_requests = 0
     print("\nConfiguration details:")
     for cfg in workload_data["stats"]:
-        num_req = cfg['num_prefix'] * cfg['num_samples_per_prefix']
+        num_req = cfg['num_diff_prefix'] * cfg['num_samples_per_prefix']
         duration = num_req / cfg['rps']
         total_duration += duration
         total_num_requests += num_req
@@ -484,7 +489,7 @@ def save_stats(workload_data, stats_file):
         print(f"  - Prefix length: {cfg['prefix_length']}")
         print(f"  - Suffix length: {cfg['suffix_length']}")
         print(f"  - Number of requests per prefix: {cfg['num_samples_per_prefix']}")
-        print(f"  - Number of different prefixes: {cfg['num_prefix']}")
+        print(f"  - Number of different prefixes: {cfg['num_diff_prefix']}")
         print(f"  - RPS: {cfg['rps']}")
         print(f"  - Randomized order: {cfg['randomize_order']}")
         print(f"  - Duration: {duration:.0f} seconds")
@@ -511,26 +516,34 @@ if __name__ == "__main__":
             "prefix_length": 1024,
             "suffix_length": 128,
             "num_samples_per_prefix": 32,
-            "num_prefix": 10,
-            "rps": 5,
+            "num_diff_prefix": 10,
+            "rps": 7,
             "randomize_order": True  # Add the randomization parameter
         },
-        # {
-        #     "prefix_length": 2048,
-        #     "suffix_length": 128,
-        #     "num_samples_per_prefix": 32,
-        #     "num_prefix": 5,
-        #     "rps": 5,
-        #     "randomize_order": False  # Can be set differently per config
-        # },
-        # {
-        #     "prefix_length": 4096,
-        #     "suffix_length": 128,
-        #     "num_samples_per_prefix": 32,
-        #     "num_prefix": 10,
-        #     "rps": 5,
-        #     "randomize_order": True  # Add the randomization parameter
-        # },
+        {
+            "prefix_length": 2048,
+            "suffix_length": 128,
+            "num_samples_per_prefix": 32,
+            "num_diff_prefix": 10,
+            "rps": 7,
+            "randomize_order": True  # Can be set differently per config
+        },
+        {
+            "prefix_length": 4096,
+            "suffix_length": 128,
+            "num_samples_per_prefix": 32,
+            "num_diff_prefix": 10,
+            "rps": 7,
+            "randomize_order": True  # Add the randomization parameter
+        },
+        {
+            "prefix_length": 8096,
+            "suffix_length": 128,
+            "num_samples_per_prefix": 32,
+            "num_diff_prefix": 10,
+            "rps": 7,
+            "randomize_order": True  # Add the randomization parameter
+        },
     ]
     
     # Initialize tokenizer
@@ -545,9 +558,9 @@ if __name__ == "__main__":
     
     # Add randomization info to filename
     # base_filename = f"realistic-prefix-share-workload-p{prefix_length}-s{suffix_length}-rps{rps}{rand_str}"
-    output_filename = "prefixsharingworkload"
+    output_filename = ""
     for config in prefix_workload_configs:
-        output_filename += f"-p{config['prefix_length']}_s{config['suffix_length']}_rps{config['rps']}"
+        output_filename += f"p{config['prefix_length']}_s{config['suffix_length']}_rps{config['rps']}-"
     print("Generating multi-configuration workload...")
     workload_data = process_workload_configs(tokenizer, prefix_workload_configs)
     
