@@ -66,6 +66,15 @@ func getRoutingStrategy(headers []*configPb.HeaderValue) (string, bool) {
 	return defaultRoutingStrategy, defaultRoutingStrategyEnabled
 }
 
+func getRequestID(headers []*configPb.HeaderValue) string {
+	for _, header := range headers {
+		if strings.ToLower(header.Key) == HeaderRequestID {
+			return string(header.RawValue)
+		}
+	}
+	return ""
+}
+
 // getRequestMessage returns input request message field which has user prompt
 func getRequestMessage(jsonMap map[string]interface{}) (string, *extProcPb.ProcessingResponse) {
 	messages, ok := jsonMap["messages"]

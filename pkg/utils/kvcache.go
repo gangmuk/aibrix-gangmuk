@@ -12,31 +12,55 @@ import (
 
 var (
 	// Global map to store KV cache hit ratios per request
-	requestKVCacheMutex    sync.RWMutex
-	requestKVCacheHitRatio map[string]float64            // requestID -> hit ratio
-	requestAllPodsKVCache  map[string]map[string]float64 // requestID -> (podName -> hit ratio)
 
+	requestToPrefillTokenNumsMutex sync.RWMutex
+	requestToPrefillTokenNums      map[string]int // requestID -> num prefill tokens
+
+	podInflightRequests map[string]int // podIP -> num inflight requests
 	PodInflightMutex    sync.RWMutex
-	podInflightRequests map[string]int // podName -> num inflight requests
+
+	podTotalPrefillTokensMutex sync.RWMutex
+	podTotalPrefillTokens      map[string]int // podIP -> total number of active prefill tokens
+
+	podTotalPrefillRequestsMutex sync.RWMutex
+	podTotalPrefillRequests      map[string]int // podIP -> total number of active prefill requests
+
+	podTotalDecodeTokensMutex sync.RWMutex
+	podTotalDecodeTokens      map[string]int // podIP -> total number of active decode tokens
+
+	podTotalDecodeRequestsMutex sync.RWMutex
+	podTotalDecodeRequests      map[string]int // podIP -> total number of active decode requests
+
+	podToTotalTokensMutex sync.RWMutex
+	podToTotalTokens      map[string]int // podIP -> total number of active tokens
+
+	requestAllPodsKVCacheMutex sync.RWMutex
+	requestAllPodsKVCache      map[string]map[string]float64 // requestID -> (podIP -> hit ratio)
 
 	requestInflightMutex sync.RWMutex
-	requestInflight      map[string]map[string]int // requestID -> (podName -> num inflight requests
+	requestInflight      map[string]map[string]int // requestID -> (podIP -> num inflight requests
 
-	requestToPodMutex sync.RWMutex
-	requestToPod      map[string]string // requestID -> podName
+	requestToNumPrefillTokensMutex sync.RWMutex
+	requestToNumPrefillTokens      map[string]int // requestID -> num prefill tokens
+
+	requestToNumDecodeTokensMutex sync.RWMutex
+	requestToNumDecodeTokens      map[string]int // requestID -> num decode tokens
+
+	requestToPodIPMutex sync.RWMutex
+	requestToPodIP      map[string]string // requestID -> podIP
 
 	vllmGPUKVCacheUsageMutex sync.RWMutex
-	vllmGPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podName -> gpu kv cache usage)
+	vllmGPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podIP -> gpu kv cache usage)
+
 	vllmCPUKVCacheUsageMutex sync.RWMutex
-	vllmCPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podName -> cpu kv cache usage)
+	vllmCPUKVCacheUsage      map[string]map[string]float64 // requestID -> (podIP -> cpu kv cache usage)
 
 	vllmNumRequestsRunningMutex sync.RWMutex
-	vllmNumRequestsRunning      map[string]map[string]float64 // requestID -> (podName -> num requests running)
-	vllmNumRequestsWaitingMutex sync.RWMutex
-	vllmNumRequestsWaiting      map[string]map[string]float64 // requestID -> (podName -> num requests waiting
+	vllmNumRequestsRunning      map[string]map[string]float64 // requestID -> (podIP -> num requests running)
 
-	podNameToIPMutex sync.RWMutex
-	podNameToIP      map[string]string // podName -> podIP:port
+	vllmNumRequestsWaitingMutex sync.RWMutex
+	vllmNumRequestsWaiting      map[string]map[string]float64 // requestID -> (podIP -> num requests waiting
+
 )
 
 const (
@@ -48,175 +72,192 @@ const (
 )
 
 func init() {
-	requestKVCacheHitRatio = make(map[string]float64)
-	requestAllPodsKVCache = make(map[string]map[string]float64)
-	requestInflight = make(map[string]map[string]int)
+
+	PodInflightMutex = sync.RWMutex{}
 	podInflightRequests = make(map[string]int)
-	requestToPod = make(map[string]string)
+
+	podTotalPrefillTokens = make(map[string]int)
+	podTotalPrefillTokensMutex = sync.RWMutex{}
+
+	podTotalPrefillRequestsMutex = sync.RWMutex{}
+	podTotalPrefillRequests = make(map[string]int)
+
+	podTotalDecodeTokensMutex = sync.RWMutex{}
+	podTotalDecodeTokens = make(map[string]int)
+
+	podTotalDecodeRequestsMutex = sync.RWMutex{}
+	podTotalDecodeRequests = make(map[string]int)
+
+	podToTotalTokensMutex = sync.RWMutex{}
+	podToTotalTokens = make(map[string]int)
+
+	requestAllPodsKVCacheMutex = sync.RWMutex{}
+	requestAllPodsKVCache = make(map[string]map[string]float64)
+
+	requestInflightMutex = sync.RWMutex{}
+	requestInflight = make(map[string]map[string]int)
+
+	requestToNumPrefillTokensMutex = sync.RWMutex{}
+	requestToNumPrefillTokens = make(map[string]int)
+
+	requestToNumDecodeTokensMutex = sync.RWMutex{}
+	requestToNumDecodeTokens = make(map[string]int)
+
+	requestToPodIPMutex = sync.RWMutex{}
+	requestToPodIP = make(map[string]string)
 
 	vllmGPUKVCacheUsage = make(map[string]map[string]float64)
+	vllmGPUKVCacheUsageMutex = sync.RWMutex{}
+
 	vllmCPUKVCacheUsage = make(map[string]map[string]float64)
+	vllmCPUKVCacheUsageMutex = sync.RWMutex{}
+
 	vllmNumRequestsRunning = make(map[string]map[string]float64)
+	vllmNumRequestsRunningMutex = sync.RWMutex{}
+
 	vllmNumRequestsWaiting = make(map[string]map[string]float64)
-
-	podNameToIP = make(map[string]string)
+	vllmNumRequestsWaitingMutex = sync.RWMutex{}
 }
 
-// StorePodIPMapping stores the mapping between pod name and IP
-func StorePodIPMapping(podName string, podIP string) {
-	podNameToIPMutex.Lock()
-	defer podNameToIPMutex.Unlock()
-	podNameToIP[podName] = podIP
+func GetrequestToPrefillTokenNumsMutex() *sync.RWMutex {
+	return &requestToPrefillTokenNumsMutex
 }
 
-// mapPodNamesToIPs converts a map with pod names as keys to a map with pod IPs as keys
-func mapPodNamesToIPs(podNameMetrics map[string]float64) map[string]float64 {
-	podNameToIPMutex.RLock()
-	defer podNameToIPMutex.RUnlock()
-
-	podIPMetrics := make(map[string]float64)
-	for podName, value := range podNameMetrics {
-		if podIP, exists := podNameToIP[podName]; exists {
-			podIPMetrics[podIP] = value
-		} else {
-			// Keep the original key if no mapping exists
-			podIPMetrics[podName] = value
-		}
+func GetNumPrefillTokensForTheRequest(requestID string) int {
+	requestToPrefillTokenNumsMutex.RLock()
+	defer requestToPrefillTokenNumsMutex.RUnlock()
+	if _, ok := requestToPrefillTokenNums[requestID]; !ok {
+		return 0
 	}
-	return podIPMetrics
+	return requestToPrefillTokenNums[requestID]
 }
 
-// mapPodNamesToIPsInt converts a map with pod names as keys to a map with pod IPs as keys for int values
-func mapPodNamesToIPsInt(podNameMetrics map[string]int) map[string]int {
-	podNameToIPMutex.RLock()
-	defer podNameToIPMutex.RUnlock()
-
-	podIPMetrics := make(map[string]int)
-	for podName, value := range podNameMetrics {
-		if podIP, exists := podNameToIP[podName]; exists {
-			podIPMetrics[podIP] = value
-		} else {
-			// Keep the original key if no mapping exists
-			podIPMetrics[podName] = value
-		}
+func SetNumPrefillTokensForTheRequest(requestID string, numTokens int) {
+	requestToPrefillTokenNumsMutex.Lock()
+	defer requestToPrefillTokenNumsMutex.Unlock()
+	if _, ok := requestToPrefillTokenNums[requestID]; !ok {
+		requestToPrefillTokenNums[requestID] = 0
 	}
-	return podIPMetrics
+	requestToPrefillTokenNums[requestID] += numTokens
+	klog.V(5).Infof("TokenCount, Set prefill tokens for request %s: by %d, %d", requestID, numTokens, requestToPrefillTokenNums[requestID])
 }
 
-func CleanupRequestToPod(requestID string) {
-	requestToPodMutex.Lock()
-	defer requestToPodMutex.Unlock()
-
-	delete(requestToPod, requestID)
+func GetrequestAllPodsKVCacheMutex() *sync.RWMutex {
+	return &requestAllPodsKVCacheMutex
 }
 
-func StoreKVCacheHitRatio(requestID string, podName string, ratio float64, allPodsRatios map[string]float64) {
-	requestKVCacheMutex.Lock()
-	defer requestKVCacheMutex.Unlock()
-	requestKVCacheHitRatio[requestID] = ratio
-	// klog.Infof("Saved KV cache hit ratio: %.2f%%", ratio*100)
+func CleanuprequestToPodIP(requestID string) {
+	requestToPodIPMutex.Lock()
+	defer requestToPodIPMutex.Unlock()
+	delete(requestToPodIP, requestID)
+}
+
+func StoreKVCacheHitRatio(requestID string, allPodsRatios map[string]float64) {
+	requestAllPodsKVCacheMutex.Lock()
+	defer requestAllPodsKVCacheMutex.Unlock()
 	requestAllPodsKVCache[requestID] = allPodsRatios
 }
 
-func GetKVCacheHitRatio(requestID string) float64 {
-	requestKVCacheMutex.RLock()
-	defer requestKVCacheMutex.RUnlock()
-
-	if ratio, ok := requestKVCacheHitRatio[requestID]; ok {
-		return ratio
-	}
-	return -1
-}
-
 func GetAllPodsKVCacheHitRatios(requestID string) map[string]float64 {
-	requestKVCacheMutex.RLock()
-	defer requestKVCacheMutex.RUnlock()
-
+	requestAllPodsKVCacheMutex.RLock()
+	defer requestAllPodsKVCacheMutex.RUnlock()
 	if ratios, ok := requestAllPodsKVCache[requestID]; ok {
-		return mapPodNamesToIPs(ratios)
+		return ratios
 	}
 	return make(map[string]float64)
 }
 
 func CleanupKVCacheHitRatio(requestID string) {
-	requestKVCacheMutex.Lock()
-	defer requestKVCacheMutex.Unlock()
-
-	delete(requestKVCacheHitRatio, requestID)
+	requestAllPodsKVCacheMutex.Lock()
+	defer requestAllPodsKVCacheMutex.Unlock()
 	delete(requestAllPodsKVCache, requestID)
 }
 
-// /////////////////////////////////////////////////////////
-
-func StoreRequestToPod(requestID string, podName string) {
-	requestToPodMutex.Lock()
-	defer requestToPodMutex.Unlock()
-	if _, exists := requestToPod[requestID]; exists {
-		klog.Errorf("requestID already exists in requestToPod: %s", requestID)
+func StoreRequestToPodIP(requestID string, podIP string) {
+	requestToPodIPMutex.Lock()
+	defer requestToPodIPMutex.Unlock()
+	if _, exists := requestToPodIP[requestID]; exists {
+		klog.Errorf("requestID already exists in requestToPodIP: %s", requestID)
 	}
-	requestToPod[requestID] = podName
+	requestToPodIP[requestID] = podIP
 }
 
-// GetPodNameForRequest retrieves the pod name for a given request ID
-func GetPodNameForRequest(requestID string) (string, bool) {
-	requestToPodMutex.RLock()
-	defer requestToPodMutex.RUnlock()
-	podName, exists := requestToPod[requestID]
+func GetPodIPForRequest(requestID string) (string, bool) {
+	requestToPodIPMutex.RLock()
+	defer requestToPodIPMutex.RUnlock()
+	podIP, exists := requestToPodIP[requestID]
 	if !exists {
-		klog.Errorf("requestID not found in requestToPod: %s", requestID)
+		klog.Errorf("requestID not found in requestToPodIP: %s", requestID)
 		return "", false
 	}
-	return podName, exists
+	return podIP, exists
+}
+
+func IncrementNumPrefillTokensForRequest(requestID string, numTokens int) {
+	requestToNumPrefillTokensMutex.Lock()
+	defer requestToNumPrefillTokensMutex.Unlock()
+	if _, ok := requestToNumPrefillTokens[requestID]; !ok {
+		requestToNumPrefillTokens[requestID] = 0
+	}
+	requestToNumPrefillTokens[requestID] += numTokens
+	klog.V(5).Infof("TokenCount, Increment prefill tokens for request %s: by %d, %d", requestID, numTokens, requestToNumPrefillTokens[requestID])
+}
+
+func GetNumPrefillTokensForRequest(requestID string) int {
+	requestToNumPrefillTokensMutex.RLock()
+	defer requestToNumPrefillTokensMutex.RUnlock()
+	if _, ok := requestToNumPrefillTokens[requestID]; !ok {
+		return 0
+	}
+	return requestToNumPrefillTokens[requestID]
 }
 
 // Increment the number of inflight requests for a specific pod
 func IncrementNumInflightForPod(requestID string) {
 	PodInflightMutex.Lock()
 	defer PodInflightMutex.Unlock()
-	podName, exists := GetPodNameForRequest(requestID)
+	podIP, exists := GetPodIPForRequest(requestID)
 	if !exists {
 		klog.Errorf("Pod name not found for request ID: %s", requestID)
 		return
 	}
-	if _, ok := podInflightRequests[podName]; !ok {
-		podInflightRequests[podName] = 0
+	if _, ok := podInflightRequests[podIP]; !ok {
+		podInflightRequests[podIP] = 0
 	}
 
-	podInflightRequests[podName]++
-	klog.Infof("Incremented inflight requests for pod %s: %d", podName, podInflightRequests[podName])
+	podInflightRequests[podIP]++
+	klog.V(5).Infof("Incremented inflight requests for pod %s: %d", podIP, podInflightRequests[podIP])
 }
 
 // Decrement the number of inflight requests for a specific pod
 func DecrementNumInflightForPod(requestID string) {
 	PodInflightMutex.Lock()
 	defer PodInflightMutex.Unlock()
-	podName, exists := GetPodNameForRequest(requestID)
+	podIP, exists := GetPodIPForRequest(requestID)
 	if !exists {
 		klog.Errorf("Pod name not found for request ID: %s", requestID)
 		return
 	}
-	if _, ok := podInflightRequests[podName]; !ok {
-		klog.Errorf("Pod name not found in podInflightRequests: %s", podName)
+	if _, ok := podInflightRequests[podIP]; !ok {
+		klog.Errorf("Pod name not found in podInflightRequests: %s", podIP)
 		return
 	}
 
-	podInflightRequests[podName]--
-	if podInflightRequests[podName] <= 0 {
-		klog.Errorf("podInflightRequests[%s]: %d is negative!", podName, podInflightRequests[podName])
+	podInflightRequests[podIP]--
+	if podInflightRequests[podIP] < 0 {
+		klog.Errorf("podInflightRequests[%s]: %d is negative!", podIP, podInflightRequests[podIP])
 	}
-	klog.Infof("Decremented inflight requests for pod %s: %d", podName, podInflightRequests[podName])
+	klog.V(5).Infof("Decremented inflight requests for pod %s: %d", podIP, podInflightRequests[podIP])
 }
 
-func GetNumInflightRequestsForPod(podName string) int {
+func GetNumInflightRequestsForPod(podIP string) int {
 	PodInflightMutex.RLock()
 	defer PodInflightMutex.RUnlock()
-	if _, ok := podInflightRequests[podName]; !ok {
+	if _, ok := podInflightRequests[podIP]; !ok {
 		return 0
 	}
-	return podInflightRequests[podName]
+	return podInflightRequests[podIP]
 }
-
-// /////////////////////////////////////////////////////
 
 func StoreInflightRequestsForTheRequest(requestID string) {
 	requestInflightMutex.Lock()
@@ -228,9 +269,13 @@ func StoreInflightRequestsForTheRequest(requestID string) {
 	requestInflight[requestID] = make(map[string]int)
 	PodInflightMutex.RLock()
 	defer PodInflightMutex.RUnlock()
-	for podName, numinflightrequests := range podInflightRequests {
-		requestInflight[requestID][podName] = numinflightrequests
+	for podIP, numinflightrequests := range podInflightRequests {
+		requestInflight[requestID][podIP] = numinflightrequests
 	}
+}
+
+func GetrequestInflightMutex() *sync.RWMutex {
+	return &requestInflightMutex
 }
 
 func GetInflightRequestsForAllPods(requestID string) map[string]int {
@@ -240,7 +285,7 @@ func GetInflightRequestsForAllPods(requestID string) map[string]int {
 		return make(map[string]int)
 	} else {
 		// Convert pod names to pod IPs before returning
-		return mapPodNamesToIPsInt(inflightRequests)
+		return inflightRequests
 	}
 }
 
@@ -250,39 +295,204 @@ func CleanupInflightRequests(requestID string) {
 	delete(requestInflight, requestID)
 }
 
+func IncrementNumPrefillTokensForPod(podIP string, numTokens int) int {
+	podTotalPrefillTokensMutex.Lock()
+	defer podTotalPrefillTokensMutex.Unlock()
+	if _, ok := podTotalPrefillTokens[podIP]; !ok {
+		podTotalPrefillTokens[podIP] = 0
+	}
+	old_numTokens := podTotalPrefillTokens[podIP]
+	podTotalPrefillTokens[podIP] += numTokens
+	klog.V(5).Infof("TokenCount, Incremented prefill tokens for pod %s by %d. from %d to %d", podIP, numTokens, old_numTokens, podTotalPrefillTokens[podIP])
+	return podTotalPrefillTokens[podIP]
+}
+
+func DecrementNumPrefillTokensForPod(podIP string, numTokens int) int {
+	podTotalPrefillTokensMutex.Lock()
+	defer podTotalPrefillTokensMutex.Unlock()
+	if _, ok := podTotalPrefillTokens[podIP]; !ok {
+		klog.Errorf("Pod name not found in podTotalPrefillTokens: %s", podIP)
+		return -1
+	}
+	if podTotalPrefillTokens[podIP] < numTokens {
+		klog.Errorf("podTotalPrefillTokens[%s]: %d is less than numTokens: %d", podIP, podTotalPrefillTokens[podIP], numTokens)
+		return -1
+	}
+	old_numTokens := podTotalPrefillTokens[podIP]
+	podTotalPrefillTokens[podIP] -= numTokens
+	klog.V(5).Infof("TokenCount, Decremented prefill tokens for pod %s by %d. from %d to %d", podIP, numTokens, old_numTokens, podTotalPrefillTokens[podIP])
+	if podTotalPrefillTokens[podIP] < 0 {
+		klog.Errorf("podTotalPrefillTokens[%s]: %d is negative!", podIP, podTotalPrefillTokens[podIP])
+	}
+	return podTotalPrefillTokens[podIP]
+}
+
+func GetNumPrefillTokensForPod(podIP string) int {
+	podTotalPrefillTokensMutex.RLock()
+	defer podTotalPrefillTokensMutex.RUnlock()
+	if _, ok := podTotalPrefillTokens[podIP]; !ok {
+		return 0
+	}
+	return podTotalPrefillTokens[podIP]
+}
+
+func IncrementNumTotalTokensForPod(podIP string, numTokens int) {
+	podToTotalTokensMutex.Lock()
+	defer podToTotalTokensMutex.Unlock()
+	if _, ok := podToTotalTokens[podIP]; !ok {
+		podToTotalTokens[podIP] = 0
+	}
+	podToTotalTokens[podIP] += numTokens
+	klog.V(5).Infof("TokenCount, Incremented total tokens for pod %s: %d and became %d", podIP, numTokens, podToTotalTokens[podIP])
+}
+
+func DecrementNumTotalTokensForPod(podIP string, numTokens int) int {
+	podToTotalTokensMutex.Lock()
+	defer podToTotalTokensMutex.Unlock()
+	if _, ok := podToTotalTokens[podIP]; !ok {
+		klog.Errorf("Pod name not found in podToTotalTokens: %s", podIP)
+		return -1
+	}
+	podToTotalTokens[podIP] -= numTokens
+	if podToTotalTokens[podIP] < 0 {
+		klog.Errorf("podToTotalTokens[%s]: %d is negative!", podIP, podToTotalTokens[podIP])
+	}
+	klog.V(5).Infof("TokenCount, Decremented total tokens for pod %s: %d", podIP, podToTotalTokens[podIP])
+	return podToTotalTokens[podIP]
+}
+
+func GetNumTotalTokensForPod(podIP string) int {
+	podToTotalTokensMutex.RLock()
+	defer podToTotalTokensMutex.RUnlock()
+	if _, ok := podToTotalTokens[podIP]; !ok {
+		return 0
+	}
+	return podToTotalTokens[podIP]
+}
+
+func GetNumTotalRequestsForAllPods() map[string]int {
+	podToTotalTokensMutex.RLock()
+	defer podToTotalTokensMutex.RUnlock()
+	return podToTotalTokens
+}
+
+func IncrementNumDecodeTokensForPod(podIP string, numTokens int) int {
+	podTotalDecodeTokensMutex.Lock()
+	defer podTotalDecodeTokensMutex.Unlock()
+	if _, ok := podTotalDecodeTokens[podIP]; !ok {
+		podTotalDecodeTokens[podIP] = 0
+	}
+	old_numTokens := podTotalDecodeTokens[podIP]
+	klog.V(5).Infof("TokenCount, Incremented decode tokens for pod %s by %d, from %d to %d", podIP, numTokens, old_numTokens, podTotalDecodeTokens[podIP])
+	podTotalDecodeTokens[podIP] += numTokens
+	return podTotalDecodeTokens[podIP]
+}
+
+func IncrementNumDecodeTokensForRequest(requestID string, numTokens int) int {
+	requestToNumDecodeTokensMutex.Lock()
+	defer requestToNumDecodeTokensMutex.Unlock()
+	if _, ok := requestToNumDecodeTokens[requestID]; !ok {
+		requestToNumDecodeTokens[requestID] = 0
+	}
+	requestToNumDecodeTokens[requestID] += numTokens
+	return requestToNumDecodeTokens[requestID]
+}
+
+func DecrementNumDecodeTokensForPod(podIP string, numTokens int) int {
+	podTotalDecodeTokensMutex.Lock()
+	defer podTotalDecodeTokensMutex.Unlock()
+	if _, ok := podTotalDecodeTokens[podIP]; !ok {
+		klog.Errorf("Pod name not found in podTotalDecodeTokens: %s", podIP)
+		return -1
+	}
+	old_numTokens := podTotalDecodeTokens[podIP]
+	podTotalDecodeTokens[podIP] -= numTokens
+	if podTotalDecodeTokens[podIP] < 0 {
+		klog.Errorf("DecrementNumDecodeTokensForPod ,podTotalDecodeTokens[%s]: %d is negative!", podIP, podTotalDecodeTokens[podIP])
+	}
+	klog.V(5).Infof("TokenCount, Decremented decode tokens for pod %s by %d, from %d to %d", podIP, numTokens, old_numTokens, podTotalDecodeTokens[podIP])
+	return podTotalDecodeTokens[podIP]
+}
+
+func GetNumDecodeTokensForPod(podIP string) int {
+	podTotalDecodeTokensMutex.RLock()
+	defer podTotalDecodeTokensMutex.RUnlock()
+	if _, ok := podTotalDecodeTokens[podIP]; !ok {
+		return 0
+	}
+	return podTotalDecodeTokens[podIP]
+}
+
+func GetpodTotalDecodeTokensMutex() *sync.RWMutex {
+	return &podTotalDecodeTokensMutex
+}
+
+func GetNumDecodeTokensForAllPods() map[string]int {
+	podTotalDecodeTokensMutex.RLock()
+	defer podTotalDecodeTokensMutex.RUnlock()
+	return podTotalDecodeTokens
+}
+
+func CleanupNumDecodeTokensForRequest(requestID string) {
+	requestToNumDecodeTokensMutex.Lock()
+	defer requestToNumDecodeTokensMutex.Unlock()
+	if _, ok := requestToNumDecodeTokens[requestID]; ok {
+		delete(requestToNumDecodeTokens, requestID)
+	} else {
+		klog.Errorf("requestToNumDecodeTokens not found for request ID %s", requestID)
+	}
+}
+
+func CleanupNumPrefillTokensForRequest(requestID string) {
+	requestToNumPrefillTokensMutex.Lock()
+	defer requestToNumPrefillTokensMutex.Unlock()
+	if _, ok := requestToNumPrefillTokens[requestID]; ok {
+		delete(requestToNumPrefillTokens, requestID)
+	} else {
+		klog.Errorf("requestToNumPrefillTokens not found for request ID %s", requestID)
+	}
+}
+
+func GetpodTotalPrefillTokensMutex() *sync.RWMutex {
+	return &podTotalPrefillTokensMutex
+}
+
+func GetNumPrefillTokensForAllPods() map[string]int {
+	podTotalPrefillTokensMutex.RLock()
+	defer podTotalPrefillTokensMutex.RUnlock()
+	return podTotalPrefillTokens
+}
+
 // /////////////////////////////////////////////////////
 
 func ReadAndStorevLLMGPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
-
-	StorePodIPMapping(pod.Name, pod.Status.PodIP)
-
 	allMetrics, err := metrics.ParseMetricsURL(url)
 	if err != nil {
-		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Status.PodIP, err)
 		return err
 	}
 	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricGPUCacheUsagePerc)]
 	if !exists {
-		klog.Errorf("Metric %s not found for pod %s", MetricGPUCacheUsagePerc, pod.Name)
+		klog.Errorf("Metric %s not found for pod %s", MetricGPUCacheUsagePerc, pod.Status.PodIP)
 		vllmGPUKVCacheUsageMutex.Lock()
-		vllmGPUKVCacheUsage[requestID][pod.Name] = -1
+		vllmGPUKVCacheUsage[requestID][pod.Status.PodIP] = -1
 		vllmGPUKVCacheUsageMutex.Unlock()
 	}
 	for _, familyMetric := range metricFamily.Metric {
 		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
 		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
 		if err != nil {
-			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricGPUCacheUsagePerc, pod.Name, err)
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricGPUCacheUsagePerc, pod.Status.PodIP, err)
 			continue
 		}
 		vllmGPUKVCacheUsageMutex.Lock()
 		if _, ok := vllmGPUKVCacheUsage[requestID]; !ok {
 			vllmGPUKVCacheUsage[requestID] = make(map[string]float64)
 		}
-		vllmGPUKVCacheUsage[requestID][pod.Name] = metricValue
+		vllmGPUKVCacheUsage[requestID][pod.Status.PodIP] = metricValue
 		vllmGPUKVCacheUsageMutex.Unlock()
-		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricGPUCacheUsagePerc, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricGPUCacheUsagePerc, modelName, pod.Status.PodIP, metricValue)
 	}
 	return nil
 }
@@ -291,30 +501,30 @@ func ReadAndStorevLLMCPUKVCacheUsage(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
 	allMetrics, err := metrics.ParseMetricsURL(url)
 	if err != nil {
-		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Status.PodIP, err)
 		return err
 	}
 	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricCPUCacheUsagePerc)]
 	if !exists {
-		klog.Errorf("Metric %s not found for pod %s", MetricCPUCacheUsagePerc, pod.Name)
+		klog.Errorf("Metric %s not found for pod %s", MetricCPUCacheUsagePerc, pod.Status.PodIP)
 		vllmCPUKVCacheUsageMutex.Lock()
-		vllmCPUKVCacheUsage[requestID][pod.Name] = -1
+		vllmCPUKVCacheUsage[requestID][pod.Status.PodIP] = -1
 		vllmCPUKVCacheUsageMutex.Unlock()
 	}
 	for _, familyMetric := range metricFamily.Metric {
 		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
 		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
 		if err != nil {
-			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricCPUCacheUsagePerc, pod.Name, err)
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricCPUCacheUsagePerc, pod.Status.PodIP, err)
 			continue
 		}
 		vllmCPUKVCacheUsageMutex.Lock()
 		if _, ok := vllmCPUKVCacheUsage[requestID]; !ok {
 			vllmCPUKVCacheUsage[requestID] = make(map[string]float64)
 		}
-		vllmCPUKVCacheUsage[requestID][pod.Name] = metricValue
+		vllmCPUKVCacheUsage[requestID][pod.Status.PodIP] = metricValue
 		vllmCPUKVCacheUsageMutex.Unlock()
-		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricCPUCacheUsagePerc, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricCPUCacheUsagePerc, modelName, pod.Status.PodIP, metricValue)
 	}
 	return nil
 }
@@ -323,30 +533,30 @@ func ReadAndStorevLLMNumRequestsRunning(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
 	allMetrics, err := metrics.ParseMetricsURL(url)
 	if err != nil {
-		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Status.PodIP, err)
 		return err
 	}
 	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricNumRequestsRunning)]
 	if !exists {
-		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsRunning, pod.Name)
+		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsRunning, pod.Status.PodIP)
 		vllmNumRequestsRunningMutex.Lock()
-		vllmNumRequestsRunning[requestID][pod.Name] = -1
+		vllmNumRequestsRunning[requestID][pod.Status.PodIP] = -1
 		vllmNumRequestsRunningMutex.Unlock()
 	}
 	for _, familyMetric := range metricFamily.Metric {
 		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
 		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
 		if err != nil {
-			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsRunning, pod.Name, err)
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsRunning, pod.Status.PodIP, err)
 			continue
 		}
 		vllmNumRequestsRunningMutex.Lock()
 		if _, ok := vllmNumRequestsRunning[requestID]; !ok {
 			vllmNumRequestsRunning[requestID] = make(map[string]float64)
 		}
-		vllmNumRequestsRunning[requestID][pod.Name] = metricValue
+		vllmNumRequestsRunning[requestID][pod.Status.PodIP] = metricValue
 		vllmNumRequestsRunningMutex.Unlock()
-		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsRunning, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsRunning, modelName, pod.Status.PodIP, metricValue)
 	}
 	return nil
 }
@@ -355,32 +565,36 @@ func ReadAndStorevLLMNumRequestsWaiting(requestID string, pod *v1.Pod) error {
 	url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, PodPort)
 	allMetrics, err := metrics.ParseMetricsURL(url)
 	if err != nil {
-		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Name, err)
+		err := fmt.Errorf("error parsing metric families from pod %s: %v", pod.Status.PodIP, err)
 		return err
 	}
 	metricFamily, exists := allMetrics[fmt.Sprintf("vllm:%s", MetricNumRequestsWaiting)]
 	if !exists {
-		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsWaiting, pod.Name)
+		klog.Errorf("Metric %s not found for pod %s", MetricNumRequestsWaiting, pod.Status.PodIP)
 		vllmNumRequestsWaitingMutex.Lock()
-		vllmNumRequestsWaiting[requestID][pod.Name] = -1
+		vllmNumRequestsWaiting[requestID][pod.Status.PodIP] = -1
 		vllmNumRequestsWaitingMutex.Unlock()
 	}
 	for _, familyMetric := range metricFamily.Metric {
 		modelName, _ := metrics.GetLabelValueForKey(familyMetric, "model_name")
 		metricValue, err := metrics.GetCounterGaugeValue(familyMetric, metricFamily.GetType())
 		if err != nil {
-			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsWaiting, pod.Name, err)
+			klog.Errorf("Failed to parse metric %s from pod %s: %v", MetricNumRequestsWaiting, pod.Status.PodIP, err)
 			continue
 		}
 		vllmNumRequestsWaitingMutex.Lock()
 		if _, ok := vllmNumRequestsWaiting[requestID]; !ok {
 			vllmNumRequestsWaiting[requestID] = make(map[string]float64)
 		}
-		vllmNumRequestsWaiting[requestID][pod.Name] = metricValue
+		vllmNumRequestsWaiting[requestID][pod.Status.PodIP] = metricValue
 		vllmNumRequestsWaitingMutex.Unlock()
-		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsWaiting, modelName, pod.Name, metricValue)
+		klog.V(5).Infof("Read metric %s for model %s from pod %s: %f", MetricNumRequestsWaiting, modelName, pod.Status.PodIP, metricValue)
 	}
 	return nil
+}
+
+func GetvllmGPUKVCacheUsageMutex() *sync.RWMutex {
+	return &vllmGPUKVCacheUsageMutex
 }
 
 func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
@@ -389,9 +603,13 @@ func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 
 	if usage, ok := vllmGPUKVCacheUsage[requestID]; ok {
 		// Convert pod names to pod IPs before returning
-		return mapPodNamesToIPs(usage), nil
+		return usage, nil
 	}
 	return nil, fmt.Errorf("vLLM GPU KV cache usage not found for request ID %s", requestID)
+}
+
+func GetvllmCPUKVCacheUsageMutex() *sync.RWMutex {
+	return &vllmCPUKVCacheUsageMutex
 }
 
 func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
@@ -399,9 +617,13 @@ func GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string
 	defer vllmCPUKVCacheUsageMutex.RUnlock()
 
 	if usage, ok := vllmCPUKVCacheUsage[requestID]; ok {
-		return mapPodNamesToIPs(usage), nil
+		return usage, nil
 	}
 	return nil, fmt.Errorf("vLLM CPU KV cache usage not found for request ID %s", requestID)
+}
+
+func GetvllmNumRequestsRunningMutex() *sync.RWMutex {
+	return &vllmNumRequestsRunningMutex
 }
 
 func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[string]float64, error) {
@@ -409,9 +631,13 @@ func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[str
 	defer vllmNumRequestsRunningMutex.RUnlock()
 
 	if requests, ok := vllmNumRequestsRunning[requestID]; ok {
-		return mapPodNamesToIPs(requests), nil
+		return requests, nil
 	}
 	return nil, fmt.Errorf("vLLM Num requests running not found for request ID %s", requestID)
+}
+
+func GetvllmNumRequestsWaitingMutex() *sync.RWMutex {
+	return &vllmNumRequestsWaitingMutex
 }
 
 func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[string]float64, error) {
@@ -419,7 +645,7 @@ func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[str
 	defer vllmNumRequestsWaitingMutex.RUnlock()
 
 	if requests, ok := vllmNumRequestsWaiting[requestID]; ok {
-		return mapPodNamesToIPs(requests), nil
+		return requests, nil
 	}
 	return nil, fmt.Errorf("vLLM Num requests waiting not found for request ID %s", requestID)
 }

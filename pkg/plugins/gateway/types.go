@@ -77,6 +77,9 @@ const (
 	HeadervLLMNumwWaitingRequests = "x-vllm-num-waiting-requests"
 
 	HeaderPodDetailedMetrics = "x-pod-detailed-metrics"
+
+	HeaderNumPrefillTokensForAllPods = "x-num-prefill-tokens-all-pods"
+	HeaderNumDecodeTokensForAllPods  = "x-num-decode-tokens-all-pods"
 )
 
 var (

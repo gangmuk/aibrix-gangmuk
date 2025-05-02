@@ -25,7 +25,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	// "github.com/vllm-project/aibrix/pkg/utils/kvcache"
@@ -45,18 +44,35 @@ import (
 )
 
 type RequestTiming struct {
-	startTime      time.Time // When the request began processing
-	firstTokenTime time.Time // When the first token was received
-	lastTokenTime  time.Time // When the last token was received
-	tokenCount     int64     // Count of tokens received so far
-
+	startTime            time.Time // When the request began processing
+	firstTokenTime       time.Time // When the first token was received
+	firstDecodeTokenTime time.Time // When the first decode token was received
+	lastTokenTime        time.Time // When the last token was received
+	totalTokenCount      int64
+	prefillTokenCount    int64
+	decodeTokenCount     int64 // Count of tokens in the decode phase
+	IsPrefill            bool
 }
 
+// **NOTE**: the name PodMetric is very confusing. one PodMetric instance is one response token (first token will create one PodMetric and also one decode response(token) will create one PodMetric instance).
 type PodMetric struct {
-	Timestamp time.Time
-	TTFT      int64 // Time to first token
-	TPOT      int64 // Time per output token (for single token)
-	TokenNum  int64 // Which token in the sequence (1 = first token)
+	requestID       string
+	Timestamp       time.Time
+	TTFT            int64 // Time to first token
+	TPOT            int64 // Time per output token (for single token)
+	PrefillTokenNum int64 // number of tokens in the decode phase
+	DecodeTokenNum  int64 // number of decoded tokens generated up to Timestamp
+}
+
+func CreatePodMetric() PodMetric {
+	return PodMetric{
+		requestID:       "",
+		Timestamp:       time.Now(),
+		TTFT:            0,
+		TPOT:            0,
+		PrefillTokenNum: 0,
+		DecodeTokenNum:  0,
+	}
 }
 
 type PodMetricsTracker struct {
@@ -109,18 +125,12 @@ func (t *PodMetricsTracker) InitPodKey(podIP string) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	if _, exists := t.podMetrics[podIP]; !exists {
-		podmetric := PodMetric{
-			Timestamp: time.Now(),
-			TTFT:      0,
-			TPOT:      0,
-			TokenNum:  0,
-		}
-		t.podMetrics[podIP] = []PodMetric{podmetric}
+		t.podMetrics[podIP] = []PodMetric{CreatePodMetric()}
 		klog.Infof("Initialized pod metrics for pod %s", podIP)
 	}
 }
 
-func (t *PodMetricsTracker) AddMetric(podIP string, metric PodMetric) {
+func (t *PodMetricsTracker) AddPodMetric(podIP string, metric PodMetric) {
 	// Trim port from podIP if present
 	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
 		podIP = podIP[:colonIndex]
@@ -228,31 +238,6 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 	return server
 }
 
-// // CleanupAllMetrics removes all metrics outside the window for all pods
-// func (t *PodMetricsTracker) CleanupAllMetrics() {
-// 	t.mutex.Lock()
-// 	defer t.mutex.Unlock()
-
-// 	now := time.Now()
-// 	cutoff := now.Add(-t.windowSize)
-
-// 	for podIP, metrics := range t.podMetrics {
-// 		var newMetrics []PodMetric
-// 		for _, m := range metrics {
-// 			if m.Timestamp.After(cutoff) {
-// 				newMetrics = append(newMetrics, m)
-// 			}
-// 		}
-
-// 		if len(newMetrics) > 0 {
-// 			t.podMetrics[podIP] = newMetrics
-// 		} else {
-// 			// If no metrics are left in the window, remove the pod entry
-// 			delete(t.podMetrics, podIP)
-// 		}
-// 	}
-// }
-
 func (t *PodMetricsTracker) CleanupAllMetrics() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
@@ -275,12 +260,7 @@ func (t *PodMetricsTracker) CleanupAllMetrics() {
 		// to mark that the pod exists, you could add a placeholder:
 		if len(newMetrics) == 0 {
 			// Add a placeholder metric with zero values
-			t.podMetrics[podIP] = []PodMetric{{
-				Timestamp: now,
-				TTFT:      0,
-				TPOT:      0,
-				TokenNum:  0,
-			}}
+			t.podMetrics[podIP] = []PodMetric{CreatePodMetric()}
 		}
 	}
 }
@@ -294,11 +274,10 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 	var routerCtx *types.RoutingContext
 	var stream, isRespError bool
 	ctx := srv.Context()
-	requestID := uuid.New().String()
+	// requestID := uuid.New().String()
+	// klog.InfoS("processing request", "requestID", requestID)
 	completed := false
-
-	klog.InfoS("processing request", "requestID", requestID)
-
+	requestID := ""
 	for {
 		select {
 		case <-ctx.Done():
@@ -318,10 +297,12 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 		switch v := req.Request.(type) {
 
 		case *extProcPb.ProcessingRequest_RequestHeaders:
+			requestID = getRequestID(v.RequestHeaders.Headers.Headers)
+			klog.Infof("Before HandleRequestHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, user, rpm, routingAlgorithm = s.HandleRequestHeaders(ctx, requestID, req)
 
 		case *extProcPb.ProcessingRequest_RequestBody:
-			klog.InfoS("Before HandleRequestBody", "requestID", requestID)
+			klog.Infof("Before HandleRequestBody, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, model, routerCtx, stream, traceTerm = s.HandleRequestBody(ctx, requestID, req, user, routingAlgorithm)
 			if routerCtx != nil {
 				if routerCtx.Err() != nil {
@@ -332,6 +313,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			}
 
 		case *extProcPb.ProcessingRequest_ResponseHeaders:
+			klog.Infof("Before HandleResponseHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, isRespError, respErrorCode = s.HandleResponseHeaders(ctx, requestID, model, req)
 			if isRespError {
 				klog.Errorf("Response headers processing error %d, requestID: %s, selectedPod: %s, model: %s", respErrorCode, requestID, routerCtx.TargetAddress(), model)
@@ -340,6 +322,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			respBody := req.Request.(*extProcPb.ProcessingRequest_ResponseBody)
 			if isRespError {
 				klog.ErrorS(errors.New("request end"), string(respBody.ResponseBody.GetBody()), "requestID", requestID)
+				klog.Errorf("Response body processing error %d, requestID: %s, selectedPod: %s, model: %s", respErrorCode, requestID, routerCtx.TargetAddress(), model)
 				generateErrorResponse(envoyTypePb.StatusCode(respErrorCode), nil, string(respBody.ResponseBody.GetBody()))
 			} else {
 				resp, completed = s.HandleResponseBody(ctx, requestID, req, user, rpm, model, stream, traceTerm, completed)
@@ -353,15 +336,17 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			if routerCtx != nil {
 				routerCtx.Delete()
 			}
-			klog.ErrorS(err, "requestID", requestID)
+			klog.ErrorS(err, "Error, requestID", requestID)
 		}
 	}
 }
 
 func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) (string, error) {
+	klog.Infof("selectTargetPod context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 	defer func() {
 		klog.InfoS("Exiting selectTargetPod", "requestID", ctx.RequestID, "ctxDone", ctx.Err() != nil)
 	}()
+
 	router, err := routing.Select(ctx.Algorithm)(ctx)
 	if err != nil {
 		klog.ErrorS(err, "Router selection failed", "requestID", ctx.RequestID)
@@ -384,7 +369,14 @@ func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) 
 	for _, pod := range readyPods {
 		s.metricsTracker.InitPodKey(pod.Status.PodIP)
 	}
-	return router.Route(ctx, &utils.PodArray{Pods: readyPods})
+	ts := time.Now()
+	route_ret, err := router.Route(ctx, &utils.PodArray{Pods: readyPods})
+	klog.Infof("Routing took %s", time.Since(ts))
+	if err != nil {
+		klog.ErrorS(err, "Routing failed", "requestID", ctx.RequestID)
+		return "", err
+	}
+	return route_ret, nil
 }
 
 func NewHealthCheckServer() *HealthServer {

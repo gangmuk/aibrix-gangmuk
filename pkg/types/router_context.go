@@ -90,6 +90,9 @@ func (r *RoutingContext) TargetAddress() string {
 	return r.targetAddress(r.TargetPod())
 }
 
+func (r *RoutingContext) TargetAddressWithoutPort() string {
+	return r.targetAddressWithoutPort(r.TargetPod())
+}
 func (r *RoutingContext) TargetName() string {
 	targetPod := r.TargetPod()
 	if targetPod == nilPod {
@@ -105,6 +108,10 @@ func (r *RoutingContext) HasRouted() bool {
 
 func (r *RoutingContext) targetAddress(pod *v1.Pod) string {
 	return fmt.Sprintf("%v:%v", pod.Status.PodIP, podMetricPort)
+}
+
+func (r *RoutingContext) targetAddressWithoutPort(pod *v1.Pod) string {
+	return fmt.Sprintf("%v", pod.Status.PodIP)
 }
 
 func (r *RoutingContext) reset(ctx context.Context, algorithms RoutingAlgorithm, model string, message string, requestID string) {

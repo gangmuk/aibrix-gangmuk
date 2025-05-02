@@ -35,16 +35,6 @@ import (
 func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, routingAlgorithm types.RoutingAlgorithm) (*extProcPb.ProcessingResponse, string, *types.RoutingContext, bool, int64) {
 	klog.Infof("HandleRequestBody context state, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 
-	if deadline, ok := ctx.Deadline(); ok {
-		klog.Infof("Context has deadline set: %v, time remaining: %v", deadline, time.Until(deadline))
-	} else {
-		klog.Info("Context does not have a deadline set")
-	}
-	s.requestTimings.Store(requestID, &RequestTiming{
-		startTime:  time.Now(),
-		tokenCount: 0,
-	})
-
 	var model string
 	var routingCtx *types.RoutingContext
 	var ok, stream bool
@@ -109,9 +99,9 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			klog.Errorf("error to get request message: %v, requestID: %s", extErr, requestID)
 			return extErr, model, routingCtx, stream, term
 		}
-		klog.InfoS("Context state before pod selection", "requestID", requestID, "isDone", ctx.Err() != nil)
+		// klog.InfoS("Context state before pod selection", "requestID", requestID, "isDone", ctx.Err() != nil)
 		routingCtx = routingAlgorithm.NewContext(ctx, model, message, requestID)
-		klog.InfoS("New routing context created", "requestID", requestID, "isDone", routingCtx.Err() != nil)
+		// klog.V(5).InfoS("New routing context created", "requestID", requestID, "isDone", routingCtx.Err() != nil)
 
 		if routingCtx != nil {
 			s.routingContexts.Store(requestID, routingCtx)
@@ -119,6 +109,17 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 
 		targetPodIP, err := s.selectTargetPod(routingCtx, podsArr)
 		s.selectedPodIP.Store(requestID, targetPodIP)
+		num_prefill_tokens := utils.GetNumPrefillTokensForRequest(requestID)
+		s.requestTimings.Store(requestID, &RequestTiming{
+			startTime:         time.Now(),
+			totalTokenCount:   int64(num_prefill_tokens),
+			prefillTokenCount: int64(num_prefill_tokens),
+			decodeTokenCount:  0,
+			IsPrefill:         true,
+		})
+		targetPodIPWithPort := routingCtx.TargetAddressWithoutPort()
+		ret := utils.IncrementNumPrefillTokensForPod(targetPodIPWithPort, num_prefill_tokens)
+		klog.Infof("IncrementNumPrefillTokensForPod(%s) by %d, %d", targetPodIPWithPort, num_prefill_tokens, ret)
 		if targetPodIP == "" || err != nil {
 			klog.ErrorS(err, "failed to select target pod", "requestID", requestID, "routingAlgorithm", routingAlgorithm, "model", model)
 			return generateErrorResponse(

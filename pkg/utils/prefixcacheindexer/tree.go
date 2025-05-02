@@ -45,7 +45,7 @@ type TreeNode struct {
 	isLeaf        bool
 	contextLength int // total length from root to this node
 	depth         int
-	modelToPods   map[string]map[string]time.Time // model -> {podName -> lastAccessTime}
+	modelToPods   map[string]map[string]time.Time // model -> {podIP -> lastAccessTime}
 }
 
 func (n *TreeNode) GetModelToPods() map[string]map[string]time.Time {
@@ -54,7 +54,7 @@ func (n *TreeNode) GetModelToPods() map[string]map[string]time.Time {
 	return n.modelToPods
 }
 
-func (n *TreeNode) InitAndUpdateModelPod(model string, podName string, timestamp time.Time) {
+func (n *TreeNode) InitAndUpdateModelPod(model string, podIP string, timestamp time.Time) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -64,7 +64,7 @@ func (n *TreeNode) InitAndUpdateModelPod(model string, podName string, timestamp
 	if n.modelToPods[model] == nil {
 		n.modelToPods[model] = make(map[string]time.Time)
 	}
-	n.modelToPods[model][podName] = timestamp
+	n.modelToPods[model][podIP] = timestamp
 }
 
 func (n *TreeNode) GetRefCounter() []int {
@@ -136,9 +136,9 @@ func (n *TreeNode) RemovePodsNotInCurrentPodSet(currentPodSet map[string]bool) b
 	defer n.mu.Unlock()
 	podsChanged := false
 	for model, podMap := range n.modelToPods {
-		for podName := range podMap {
-			if !currentPodSet[podName] {
-				delete(podMap, podName)
+		for podIP := range podMap {
+			if !currentPodSet[podIP] {
+				delete(podMap, podIP)
 				podsChanged = true
 			}
 		}
@@ -149,14 +149,14 @@ func (n *TreeNode) RemovePodsNotInCurrentPodSet(currentPodSet map[string]bool) b
 	return podsChanged
 }
 
-func (n *TreeNode) HasPodForModel(model, podName string) bool {
+func (n *TreeNode) HasPodForModel(model, podIP string) bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	pods, ok := n.modelToPods[model]
 	if !ok {
 		return false
 	}
-	_, exists := pods[podName]
+	_, exists := pods[podIP]
 	return exists
 }
 
@@ -164,8 +164,8 @@ func (n *TreeNode) HasValidPods(currentPodSet map[string]bool) bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	for _, podMap := range n.modelToPods {
-		for podName := range podMap {
-			if currentPodSet[podName] {
+		for podIP := range podMap {
+			if currentPodSet[podIP] {
 				return true
 			}
 		}
@@ -188,7 +188,7 @@ func (n *TreeNode) GetPodsForModel(model string) map[string]time.Time {
 	return nil
 }
 
-func (n *TreeNode) AddOrUpdatePodForModel(model string, podName string, timestamp time.Time) {
+func (n *TreeNode) AddOrUpdatePodForModel(model string, podIP string, timestamp time.Time) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.modelToPods == nil {
@@ -197,7 +197,7 @@ func (n *TreeNode) AddOrUpdatePodForModel(model string, podName string, timestam
 	if _, exists := n.modelToPods[model]; !exists {
 		n.modelToPods[model] = make(map[string]time.Time)
 	}
-	n.modelToPods[model][podName] = timestamp
+	n.modelToPods[model][podIP] = timestamp
 }
 
 func (n *TreeNode) RemovePodsNotInSet(currentPodSet map[string]bool) bool {
@@ -206,15 +206,15 @@ func (n *TreeNode) RemovePodsNotInSet(currentPodSet map[string]bool) bool {
 	podsChanged := false
 	deleted_pods := make([]string, 0)
 	for model, podMap := range n.modelToPods {
-		for podName := range podMap {
-			if podName == "" {
+		for podIP := range podMap {
+			if podIP == "" {
 				klog.Warningf("Found empty pod name in node(%d) model(%s)", n.id, model)
 			}
-			if !currentPodSet[podName] {
-				delete(podMap, podName)
+			if !currentPodSet[podIP] {
+				delete(podMap, podIP)
 				podsChanged = true
-				deleted_pods = append(deleted_pods, podName)
-				klog.Infof("Removing pod: %s", podName)
+				deleted_pods = append(deleted_pods, podIP)
+				klog.Infof("Removing pod: %s", podIP)
 			}
 		}
 		if len(podMap) == 0 {
@@ -268,8 +268,8 @@ func (c *LPRadixCache) NewTreeNode(numPods int, parent *TreeNode, key []int, val
 }
 
 func (c *LPRadixCache) PrettyPrint() {
-	// c.mu.RLock()
-	// defer c.mu.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	c.prettyPrintHelper(c.rootNode, "", true)
 }
 
@@ -284,8 +284,8 @@ func (c *LPRadixCache) GetAllPodsInNode(node *TreeNode) []string {
 	defer node.mu.RUnlock()
 	allPodsInNode := make([]string, 0)
 	for _, pods := range node.modelToPods {
-		for podName := range pods {
-			allPodsInNode = append(allPodsInNode, podName)
+		for podIP := range pods {
+			allPodsInNode = append(allPodsInNode, podIP)
 		}
 	}
 	return allPodsInNode
@@ -303,24 +303,8 @@ func (c *LPRadixCache) prettyPrintHelper(node *TreeNode, prefix string, isLast b
 	if !isLast {
 		childPrefix = prefix + "│   "
 	}
-	// klog.Infof("%s%s[Key: %v, Value: %v, Load: %d, Depth: %d]", prefix, marker, node.key, node.value, node.load, node.depth)
-	// tokensInString, err := utils.DetokenizeText(node.key)
-	// if err != nil {
-	// 	klog.Errorf("Failed to detokenize key for node %d: %v", node.id, err)
-	// 	tokensInString = "ERROR"
-	// }
 	allPodsInNode := c.GetAllPodsInNode(node)
 	klog.Infof("%s%s[Node: %d, Load: %d, Pods: %v, Depth: %d]", prefix, marker, node.id, node.load, allPodsInNode, node.depth)
-	// if len(node.ModelToPods) > 0 {
-	// 	klog.Infof("%s    Models:", prefix)
-	// 	for model, pods := range node.ModelToPods {
-	// 		podNames := make([]string, 0, len(pods))
-	// 		for podName := range pods {
-	// 			podNames = append(podNames, podName)
-	// 		}
-	// 		klog.Infof("%s    └── %s: %v", prefix, model, podNames)
-	// 	}
-	// }
 	childKeys := make([]int, 0, len(node.children))
 	for k := range node.children {
 		childKeys = append(childKeys, k)
@@ -388,12 +372,11 @@ func (c *LPRadixCache) MatchPrefix(inputTokens []int, model string, pods []*v1.P
 	var matchedPods []*v1.Pod
 	if modelPods, ok := node.modelToPods[model]; ok {
 		for _, pod := range pods {
-			if _, ok := modelPods[pod.Name]; ok {
+			if _, ok := modelPods[pod.Status.PodIP]; ok {
 				if matchedPods == nil {
 					matchedPods = make([]*v1.Pod, 0, len(pods))
 				}
 				matchedPods = append(matchedPods, pod)
-				klog.Infof("Matched pod for node(%d): %s", node.id, pod.Name)
 			}
 		}
 	}
@@ -433,32 +416,31 @@ func (c *LPRadixCache) matchPrefixHelper(node *TreeNode, tokens []int) (*TreeNod
 	return node, nil
 }
 
-func (c *LPRadixCache) AddPrefix(tokens []int, model string, podName string) (*TreeNode, []int, []int) {
+func (c *LPRadixCache) AddPrefix(tokens []int, model string, podIP string) (*TreeNode, []int, []int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Do insertion first
 	node, matchedTokens, unmatchedTokens := c.insertHelper(c.rootNode, tokens, tokens)
-	if node != nil && podName != "" {
-		node.InitAndUpdateModelPod(model, podName, time.Now())
+	if node != nil && podIP != "" {
+		node.InitAndUpdateModelPod(model, podIP, time.Now())
 		current := node
 		for current.parent != nil {
-			current.parent.InitAndUpdateModelPod(model, podName, time.Now())
+			current.parent.InitAndUpdateModelPod(model, podIP, time.Now())
 			current = current.parent
 		}
-		klog.V(5).Infof("Updated mapping for model %s, pod %s in node(%d) with key %v",
-			model, podName, node.id, node.key)
+		klog.V(4).Infof("Updated mapping for model %s, pod %s in node(%d) with key %v",
+			model, podIP, node.id, node.key)
 	}
-	// c.PrettyPrint()
 	return node, matchedTokens, unmatchedTokens
 }
 
 func (c *LPRadixCache) insertHelper(node *TreeNode, key []int, value []int) (*TreeNode, []int, []int) {
 	node.lastAccess = time.Now()
 	node.load++
-	klog.V(5).Infof("Trying to insert key: %v into node(%d)", key, node.id)
+	klog.V(4).Infof("Trying to insert key: %v into node(%d)", key, node.id)
 	timePassed := node.lastAccess.Sub(c.startTime).Seconds()
-	klog.V(5).Infof("Updated node(%d) last access: %.2f seconds", node.id, timePassed)
+	klog.V(4).Infof("Updated node(%d) last access: %.2f seconds", node.id, timePassed)
 
 	if len(key) == 0 {
 		return node, nil, nil
@@ -471,13 +453,13 @@ func (c *LPRadixCache) insertHelper(node *TreeNode, key []int, value []int) (*Tr
 		// Case 1: Complete match with child's key
 		if prefixLen == len(child.key) {
 			if prefixLen == len(key) {
-				klog.V(5).Infof("Entire input tokens match the child node(%d)", child.id)
+				klog.V(4).Infof("Entire input tokens match the child node(%d)", child.id)
 				child.lastAccess = time.Now()
 				child.load++
 				return child, key, nil // Return the original key for exact match
 			}
 			// Partial match, continue deeper
-			klog.V(5).Infof("Partial tokens match child node(%d). Continue deeper", child.id)
+			klog.V(4).Infof("Partial tokens match child node(%d). Continue deeper", child.id)
 			childNode, childMatched, childUnmatched := c.insertHelper(child, key[prefixLen:], value[prefixLen:])
 			if len(childMatched) > 0 {
 				return childNode, key[:prefixLen+len(childMatched)], childUnmatched
@@ -498,7 +480,7 @@ func (c *LPRadixCache) insertHelper(node *TreeNode, key []int, value []int) (*Tr
 	}
 
 	// No matching child, create new node
-	klog.V(5).Info("No child matches any of the prefix. Create a new tree node")
+	klog.V(4).Info("No child matches any of the prefix. Create a new tree node")
 	newNode := c.NewTreeNode(c.numPods, node, key, value)
 	node.children[key[0]] = newNode
 	c.allNodes[newNode.id] = newNode
@@ -522,22 +504,18 @@ func (c *LPRadixCache) Evict(now time.Time) []*TreeNode {
 	for _, node := range c.allNodes {
 		if node != c.rootNode {
 			if c.doesExceededTTL(node, now) {
-				// timePassed := now.Sub(node.lastAccess).Seconds()
-				// klog.Infof("Node(%d) exceeded TTL(%ds), time since last access: %.2f",
-				// 	node.id, int(evictionDuration.Seconds()), timePassed)
 				if collected := c.collectNodeAndChildren(node); collected != nil {
 					nodesToEvict = append(nodesToEvict, collected...)
 				}
 			}
 		}
 	}
-	// Actually perform the eviction
+	// perform the eviction
 	for _, node := range nodesToEvict {
 		c.evictNode(node)
 	}
 	if len(nodesToEvict) > 0 {
-		klog.V(5).Infof("Evicted %d nodes", len(nodesToEvict))
-		// c.PrettyPrint()
+		klog.V(4).Infof("Evicted %d nodes", len(nodesToEvict))
 	}
 	return nodesToEvict
 }
@@ -572,8 +550,8 @@ func (c *LPRadixCache) evictNode(node *TreeNode) {
 		// Remove this node's pod mappings from parent
 		for model, pods := range current.modelToPods {
 			if parentPods, ok := parent.modelToPods[model]; ok {
-				for podName := range pods {
-					delete(parentPods, podName)
+				for podIP := range pods {
+					delete(parentPods, podIP)
 				}
 				// Remove model mapping if no pods left
 				if len(parentPods) == 0 {
@@ -604,7 +582,6 @@ func (c *LPRadixCache) evictNode(node *TreeNode) {
 }
 
 func (c *LPRadixCache) splitNode(key []int, child *TreeNode, splitLen int) *TreeNode {
-	klog.Infof("Splitting node(%d)", child.id)
 
 	// Create new node with split portions
 	newNode := c.NewTreeNode(c.numPods, child.parent, child.key[:splitLen], child.value[:splitLen])
@@ -645,13 +622,12 @@ func (c *LPRadixCache) splitNode(key []int, child *TreeNode, splitLen int) *Tree
 	for model, pods := range child.modelToPods {
 		// Copy to new node (prefix node)
 		newNode.modelToPods[model] = make(map[string]time.Time)
-		for podName, lastAccess := range pods {
-			newNode.modelToPods[model][podName] = lastAccess
+		for podIP, lastAccess := range pods {
+			newNode.modelToPods[model][podIP] = lastAccess
 		}
 	}
 
-	klog.V(5).Infof("Split complete - New node(%d)", newNode.id)
-	klog.V(5).Infof("Split complete - Child node(%d)", child.id)
+	klog.V(4).Infof("Split node complete - New node(%d), Child node(%d)", newNode.id, child.id)
 
 	c.allNodes[newNode.id] = newNode
 	return newNode
@@ -669,14 +645,14 @@ func matchLen(key, seq []int) int {
 	return i
 }
 
-func (c *LPRadixCache) GetPodKVCacheHitRatio(tokens []int, model string, podName string) float64 {
+func (c *LPRadixCache) GetPodKVCacheHitRatio(tokens []int, model string, podIP string) float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	// First check if pod exists in the tree at all
 	podExists := false
 	for _, node := range c.allNodes {
-		if node.HasPodForModel(model, podName) {
+		if node.HasPodForModel(model, podIP) {
 			podExists = true
 			break
 		}
@@ -696,7 +672,7 @@ func (c *LPRadixCache) GetPodKVCacheHitRatio(tokens []int, model string, podName
 	hasPod := false
 	currentNode := matchedNode
 	for currentNode != nil {
-		if currentNode.HasPodForModel(model, podName) {
+		if currentNode.HasPodForModel(model, podIP) {
 			hasPod = true
 			break
 		}
@@ -709,13 +685,13 @@ func (c *LPRadixCache) GetPodKVCacheHitRatio(tokens []int, model string, podName
 	}
 
 	// Return the ratio of matched tokens to total tokens
-	klog.Infof("podName: %s, Input token: %v, Matched token: %v, num matched tokens: %d, out of num input tokens: %d", podName, tokens, matchedTokens, len(matchedTokens), len(tokens))
+	klog.Infof("podIP: %s, Input token: %v, Matched token: %v, num matched tokens: %d, out of num input tokens: %d", podIP, tokens, matchedTokens, len(matchedTokens), len(tokens))
 	return float64(len(matchedTokens)) / float64(len(tokens))
 }
 
 //////////////////////////////////////////////////////////////////////
 
-func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, model string, podName string) (*TreeNode, []int) {
+func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, model string, podIP string) (*TreeNode, []int) {
 	// Add indentation based on recursion depth for logging
 	depth := 0
 	current := node
@@ -725,58 +701,48 @@ func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, mo
 	}
 	indent := strings.Repeat("  ", depth)
 
-	klog.V(5).Infof("%s[PodMatch] Checking node(%d) with key=%v for tokens=%v, model=%s, pod=%s",
-		indent, node.id, node.key, tokens, model, podName)
-	klog.V(5).Infof("%s[PodMatch] Node(%d) has pod %s: %t",
-		indent, node.id, podName, node.HasPodForModel(model, podName))
+	klog.V(4).Infof("%s[PodMatch] Checking node(%d) with key=%v for tokens=%v, model=%s, pod=%s",
+		indent, node.id, node.key, tokens, model, podIP)
 
 	// Base case: no more tokens
 	if len(tokens) == 0 {
-		if node.HasPodForModel(model, podName) {
-			klog.V(5).Infof("%s[PodMatch] No tokens to match, but node(%d) has pod %s. Returning empty tokens",
-				indent, node.id, podName)
+		if node.HasPodForModel(model, podIP) {
+			klog.V(4).Infof("%s[PodMatch] No tokens to match, but node(%d) has pod %s. Returning empty tokens",
+				indent, node.id, podIP)
 			return node, tokens
 		}
-		klog.V(5).Infof("%s[PodMatch] No tokens to match and node(%d) doesn't have pod %s. Returning nil",
-			indent, node.id, podName)
+		klog.V(4).Infof("%s[PodMatch] No tokens to match and node(%d) doesn't have pod %s. Returning nil",
+			indent, node.id, podIP)
 		return nil, nil
 	}
 
 	node.lastAccess = time.Now()
-	hasPodAtCurrentLevel := node.HasPodForModel(model, podName)
-
+	hasPodAtCurrentLevel := node.HasPodForModel(model, podIP)
 	// Try to match with child node
 	if child, ok := node.children[tokens[0]]; ok {
-		klog.V(5).Infof("%s[PodMatch] Found child node(%d) with key=%v for first token %d",
-			indent, child.id, child.key, tokens[0])
-
 		prefixLen := matchLen(child.key, tokens)
-		klog.V(5).Infof("%s[PodMatch] Matched %d tokens with child node(%d)",
+		klog.V(4).Infof("%s[PodMatch] Matched %d tokens with child node(%d)",
 			indent, prefixLen, child.id)
-
 		if prefixLen > 0 {
-			childHasPod := child.HasPodForModel(model, podName)
-			klog.V(5).Infof("%s[PodMatch] Child node(%d) has pod %s: %t",
-				indent, child.id, podName, childHasPod)
-
+			childHasPod := child.HasPodForModel(model, podIP)
+			klog.V(4).Infof("%s[PodMatch] Child node(%d) has pod %s: %t",
+				indent, child.id, podIP, childHasPod)
 			if prefixLen == len(child.key) {
-				klog.V(5).Infof("%s[PodMatch] Fully matched child's key", indent)
-
+				klog.V(4).Infof("%s[PodMatch] Fully matched child's key", indent)
 				if prefixLen == len(tokens) {
-					klog.V(5).Infof("%s[PodMatch] Matched all input tokens", indent)
 					if childHasPod {
-						klog.V(5).Infof("%s[PodMatch] Child has pod, returning child(%d) with all tokens: %v",
+						klog.V(4).Infof("%s[PodMatch] Child has pod, returning child(%d) with all tokens: %v",
 							indent, child.id, tokens)
 						return child, tokens
 					}
-					klog.V(5).Infof("%s[PodMatch] Child doesn't have pod", indent)
+					klog.V(4).Infof("%s[PodMatch] Child doesn't have pod", indent)
 				} else {
 					// Continue recursively
-					klog.V(5).Infof("%s[PodMatch] Continue matching with remaining tokens: %v",
+					klog.V(4).Infof("%s[PodMatch] Continue matching with remaining tokens: %v",
 						indent, tokens[prefixLen:])
 
 					deeperNode, deeperMatched := c.matchPrefixWithPodHelper(
-						child, tokens[prefixLen:], model, podName)
+						child, tokens[prefixLen:], model, podIP)
 
 					if deeperNode != nil {
 						if childHasPod {
@@ -784,70 +750,68 @@ func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, mo
 							if len(deeperMatched) > 0 {
 								// Combine child's matched tokens with deeper matched tokens
 								combinedTokens := append(tokens[:prefixLen], deeperMatched...)
-								klog.V(5).Infof("%s[PodMatch] Found deeper match with node(%d), child has pod, returning combined tokens: %v",
+								klog.V(4).Infof("%s[PodMatch] Found deeper match with node(%d), child has pod, returning combined tokens: %v",
 									indent, deeperNode.id, combinedTokens)
 								return deeperNode, combinedTokens
 							} else {
 								// Deeper node has pod but no more matches
-								klog.V(5).Infof("%s[PodMatch] Deeper node has pod but no more matches, returning tokens from this node: %v",
+								klog.V(4).Infof("%s[PodMatch] Deeper node has pod but no more matches, returning tokens from this node: %v",
 									indent, tokens[:prefixLen])
 								return child, tokens[:prefixLen]
 							}
 						} else {
 							// Child doesn't have pod, only return matches from deeper nodes
-							klog.V(5).Infof("%s[PodMatch] Child doesn't have pod, only returning matches from deeper nodes: %v",
+							klog.V(4).Infof("%s[PodMatch] Child doesn't have pod, only returning matches from deeper nodes: %v",
 								indent, deeperMatched)
 							return deeperNode, deeperMatched
 						}
 					}
-					klog.V(5).Infof("%s[PodMatch] No deeper match found", indent)
+					klog.V(4).Infof("%s[PodMatch] No deeper match found", indent)
 				}
 			} else {
-				klog.V(5).Infof("%s[PodMatch] Partially matched child's key (%d < %d)",
+				klog.V(4).Infof("%s[PodMatch] Partially matched child's key (%d < %d)",
 					indent, prefixLen, len(child.key))
 				if childHasPod {
-					klog.V(5).Infof("%s[PodMatch] Child has pod, returning partial match: %v",
+					klog.V(4).Infof("%s[PodMatch] Child has pod, returning partial match: %v",
 						indent, tokens[:prefixLen])
 					return child, tokens[:prefixLen]
 				}
-				klog.V(5).Infof("%s[PodMatch] Child doesn't have pod", indent)
+				klog.V(4).Infof("%s[PodMatch] Child doesn't have pod", indent)
 			}
 		}
 	} else {
-		klog.V(5).Infof("%s[PodMatch] No child found for token %d", indent, tokens[0])
+		klog.V(4).Infof("%s[PodMatch] No child found for token %d", indent, tokens[0])
 	}
 
 	// Fallback to current node if it has pod
 	if hasPodAtCurrentLevel {
-		klog.V(5).Infof("%s[PodMatch] Current node(%d) has pod, returning as fallback", indent, node.id)
+		klog.V(4).Infof("%s[PodMatch] Current node(%d) has pod, returning as fallback", indent, node.id)
 		if node.parent != nil {
 			// For non-root nodes, don't include tokens that don't match this node's key
 			// This is the key fix - don't return tokens that don't match this node
-			klog.V(5).Infof("%s[PodMatch] Non-root node with pod, but remaining tokens don't match. Returning empty tokens.", indent)
+			klog.V(4).Infof("%s[PodMatch] Non-root node with pod, but remaining tokens don't match. Returning empty tokens.", indent)
 			return node, []int{} // Return empty token list since tokens don't match this node
 		}
-		klog.V(5).Infof("%s[PodMatch] Root node with pod, returning empty tokens", indent)
+		klog.V(4).Infof("%s[PodMatch] Root node with pod, returning empty tokens", indent)
 		return node, []int{} // Root node with pod
 	}
-	klog.V(5).Infof("%s[PodMatch] No pod found in this path, returning nil", indent)
+	klog.V(4).Infof("%s[PodMatch] No pod found in this path, returning nil", indent)
 	return nil, nil
 }
 
-func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, podName string) float64 {
+func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, podIP string) float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	matchedNode, matchedTokens := c.matchPrefixWithPodHelper(c.rootNode, tokens, model, podName)
+	matchedNode, matchedTokens := c.matchPrefixWithPodHelper(c.rootNode, tokens, model, podIP)
 	if matchedNode == nil || len(matchedTokens) == 0 {
-		klog.V(5).Infof("Pod-aware matching - podName: %s, model: %s, Matched tokens: [], matched: 0/%d (0.00%%)",
-			podName, model, len(tokens))
+		klog.V(4).Infof("Pod-aware matching - podIP: %s, model: %s, Matched tokens: [], matched: 0/%d (0.00%%)",
+			podIP, model, len(tokens))
 		return 0.0 // No match found
 	}
-	klog.V(5).Infof("Input tokens: %v, Matched tokens: %v", tokens, matchedTokens)
-	klog.Infof("Pod-aware matching - podName: %s, model: %s, matched: %d/%d (%.2f%%)",
-		podName, model, len(matchedTokens), len(tokens),
+	klog.V(4).Infof("Input tokens: %v, Matched tokens: %v", tokens, matchedTokens)
+	klog.Infof("Pod-aware matching - podIP: %s, model: %s, matched: %d/%d (%.2f%%)",
+		podIP, model, len(matchedTokens), len(tokens),
 		100.0*float64(len(matchedTokens))/float64(len(tokens)))
-
-	// c.PrettyPrint()
 
 	return float64(len(matchedTokens)) / float64(len(tokens))
 }

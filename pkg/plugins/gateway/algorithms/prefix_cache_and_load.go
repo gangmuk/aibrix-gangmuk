@@ -346,12 +346,12 @@ func (h *SlidingWindowHistogram) getSimplePrefillCost(node *prefixcacheindexer.T
 	return missRate * float64(h.nodeToCount[node]) * prefillTime
 }
 
-func (h *SlidingWindowHistogram) getNodeCost(node *prefixcacheindexer.TreeNode, podName string) float64 {
+func (h *SlidingWindowHistogram) getNodeCost(node *prefixcacheindexer.TreeNode, podIP string) float64 {
 	// prefillCost := h.getSimplePrefillCost(node)
 	prefillCost := h.getPrefillCost(node)
 	// Get median time per token for the pod
 	timePerToken := 0.15 // default value
-	if times, ok := h.avgTimePerTokenPerPod[podName]; ok && len(times) > 0 {
+	if times, ok := h.avgTimePerTokenPerPod[podIP]; ok && len(times) > 0 {
 		sort.Float64s(times)
 		timePerToken = times[len(times)/2] // median
 	}
@@ -365,8 +365,8 @@ func (h *SlidingWindowHistogram) getCurrentAllocationCostPerPod() map[string]flo
 	for node := range h.histogram {
 		// Iterate through all models and their pods for this node
 		for _, modelPods := range node.GetModelToPods() {
-			for podName := range modelPods {
-				costs[podName] += h.getNodeCost(node, podName)
+			for podIP := range modelPods {
+				costs[podIP] += h.getNodeCost(node, podIP)
 			}
 		}
 	}
@@ -376,7 +376,7 @@ func (h *SlidingWindowHistogram) getCurrentAllocationCostPerPod() map[string]flo
 func (p *prefixCacheAndLoadRouter) updatePodSet(readyPods []*v1.Pod) {
 	currentPodSet := make(map[string]bool)
 	for _, pod := range readyPods {
-		currentPodSet[pod.Name] = true
+		currentPodSet[pod.Status.PodIP] = true
 	}
 	allNodes := p.cache.GetAllNodes()
 	podsChanged := false
@@ -412,10 +412,10 @@ func (p *prefixCacheAndLoadRouter) updatePodSet(readyPods []*v1.Pod) {
 		h.numPods = len(currentPodSet)
 
 		// Clean up pod-specific maps
-		for podName := range h.currentDecodeLengthsPerPod {
-			if !currentPodSet[podName] {
-				delete(h.currentDecodeLengthsPerPod, podName)
-				delete(h.avgTimePerTokenPerPod, podName)
+		for podIP := range h.currentDecodeLengthsPerPod {
+			if !currentPodSet[podIP] {
+				delete(h.currentDecodeLengthsPerPod, podIP)
+				delete(h.avgTimePerTokenPerPod, podIP)
 			}
 		}
 
@@ -451,7 +451,7 @@ func (h *SlidingWindowHistogram) getPodLoad(pod *v1.Pod) int {
 	load := 0
 	for node, count := range h.nodeToCount {
 		for _, podMap := range node.GetModelToPods() {
-			if _, exists := podMap[pod.Name]; exists {
+			if _, exists := podMap[pod.Status.PodIP]; exists {
 				load += count
 				break // Found this pod in this node, no need to check other models
 			}
@@ -461,7 +461,7 @@ func (h *SlidingWindowHistogram) getPodLoad(pod *v1.Pod) int {
 }
 
 // Update histogram to use pod name instead of pod ID
-func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *prefixcacheindexer.TreeNode, podName string, decodingLength int) {
+func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *prefixcacheindexer.TreeNode, podIP string, decodingLength int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -480,11 +480,11 @@ func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *pre
 	// // Update costs
 	// oldCost := h.perNodePrefillCost[node]
 	// newCost := h.getPrefillCost(node)
-	// h.currentPrefillCostPerPod[podName] -= oldCost
-	// h.currentPrefillCostPerPod[podName] += newCost
+	// h.currentPrefillCostPerPod[podIP] -= oldCost
+	// h.currentPrefillCostPerPod[podIP] += newCost
 	// h.perNodePrefillCost[node] = newCost
 
-	h.currentDecodeLengthsPerPod[podName] += decodingLength
+	h.currentDecodeLengthsPerPod[podIP] += decodingLength
 	h.perNodeTotalDecodeLengths[node] += decodingLength
 }
 
@@ -496,7 +496,6 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 			klog.ErrorS(ctx.Err(), "Error in Route", "requestID", ctx.RequestID)
 		} else {
 			klog.Infof("Exiting Route successfully, requestID: %s", ctx.RequestID)
-			klog.Infof("Route before successful return, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 		}
 	}()
 	// ts := time.Now()
@@ -509,7 +508,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	if len(readyPods) == 1 {
 		for _, pod := range readyPods {
 			ctx.SetTargetPod(pod)
-			klog.Infof("Only one pod is ready. requestID: %s, Route to this pod: %s", ctx.RequestID, pod.Name)
+			klog.Infof("Only one pod is ready. requestID: %s, Route to this pod: %s", ctx.RequestID, pod.Status.PodIP)
 			return ctx.TargetAddress(), nil
 		}
 	}
@@ -544,13 +543,13 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	if modelPods, ok := node.GetModelToPods()[ctx.Model]; ok {
 		readyPodsMap := make(map[string]*v1.Pod)
 		for _, pod := range readyPods {
-			readyPodsMap[pod.Name] = pod
+			readyPodsMap[pod.Status.PodIP] = pod
 		}
-		for podName := range modelPods {
-			if pod, exists := readyPodsMap[podName]; exists {
-				klog.Infof("requestID: %s, Matched pod: %s", ctx.RequestID, podName)
+		for podIP := range modelPods {
+			if pod, exists := readyPodsMap[podIP]; exists {
+				klog.Infof("requestID: %s, Matched pod: %s", ctx.RequestID, podIP)
 				matchedPods = append(matchedPods, pod)
-				matchedPodsNames = append(matchedPodsNames, podName)
+				matchedPodsNames = append(matchedPodsNames, podIP)
 			}
 		}
 	}
@@ -568,9 +567,9 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		for currentNode != nil {
 			if modelPods, ok := currentNode.GetModelToPods()[ctx.Model]; ok {
 				var nodePods []*v1.Pod
-				for podName := range modelPods {
+				for podIP := range modelPods {
 					for _, pod := range readyPods {
-						if pod.Name == podName {
+						if pod.Status.PodIP == podIP {
 							nodePods = append(nodePods, pod)
 						}
 					}
@@ -603,7 +602,7 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 					targetPod = pod
 				}
 			}
-			klog.Infof("requestID: %s, Selected pod %s from longest matching node with match length %d", ctx.RequestID, targetPod.Name, longestMatch.matchLength)
+			klog.Infof("requestID: %s, Selected pod %s from longest matching node with match length %d", ctx.RequestID, targetPod.Status.PodIP, longestMatch.matchLength)
 		} else {
 			tokenInString, err := utils.DetokenizeText(tokens)
 			matchedTokensInString, _ := utils.DetokenizeText(matchedTokens)
@@ -622,15 +621,15 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 		podCosts := p.histogram.getCurrentAllocationCostPerPod()
 		minCost := math.MaxFloat64
 		for _, pod := range readyPods {
-			cost := podCosts[pod.Name]
-			klog.Infof("Pod: %s, Cost: %.2f", pod.Name, cost)
+			cost := podCosts[pod.Status.PodIP]
+			klog.Infof("Pod: %s, Cost: %.2f", pod.Status.PodIP, cost)
 			if cost < minCost {
 				minCost = cost
 				targetPod = pod
 			}
 		}
 		// klog.Infof("requestID: %s, Cost model based routing overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-		klog.Infof("requestID: %s, Lowest cost pod: %s", ctx.RequestID, targetPod.Name)
+		klog.Infof("requestID: %s, Lowest cost pod: %s", ctx.RequestID, targetPod.Status.PodIP)
 	}
 
 	if targetPod == nil {
@@ -639,21 +638,17 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	}
 
 	// ts = time.Now()
-	utils.StoreRequestToPod(ctx.RequestID, targetPod.Name)
+	utils.StoreRequestToPodIP(ctx.RequestID, targetPod.Status.PodIP)
 	utils.IncrementNumInflightForPod(ctx.RequestID)
 	utils.StoreInflightRequestsForTheRequest(ctx.RequestID)
 
 	// KV cache hit ratios
-	targetPodHitRatio := -1.0
 	allPodsRatios := map[string]float64{}
 	for _, pod := range readyPods {
-		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(tokens, ctx.Model, pod.Name) // tree.go
-		if pod.Name == targetPod.Name {
-			targetPodHitRatio = podHitRatio
-		}
-		allPodsRatios[pod.Name] = podHitRatio
+		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(tokens, ctx.Model, pod.Status.PodIP)
+		allPodsRatios[pod.Status.PodIP] = podHitRatio
 	}
-	utils.StoreKVCacheHitRatio(ctx.RequestID, targetPod.Name, targetPodHitRatio, allPodsRatios)
+	utils.StoreKVCacheHitRatio(ctx.RequestID, allPodsRatios)
 
 	// vllm metrics, defined in utils.kvcache.go
 	targetMetrics := [...]string{
@@ -693,17 +688,21 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
 	for currentNode != nil {
-		currentNode.AddOrUpdatePodForModel(ctx.Model, targetPod.Name, time.Now())
+		currentNode.AddOrUpdatePodForModel(ctx.Model, targetPod.Status.PodIP, time.Now())
 		currentNode = currentNode.GetParent()
 	}
 
 	// ts = time.Now()
-	p.histogram.update(time.Now(), node, node, targetPod.Name, defaultDecodingLength)
+	p.histogram.update(time.Now(), node, node, targetPod.Status.PodIP, defaultDecodingLength)
 	// klog.Infof("requestID: %s, Histogram update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
 
 	// p.cache.PrettyPrint()
 	ctx.SetTargetPod(targetPod)
-	// klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Name)
+
+	utils.IncrementNumPrefillTokensForRequest(ctx.RequestID, len(tokens))
+	klog.Infof("IncrementNumPrefillTokensForRequest, %s, %d", ctx.RequestID, len(tokens))
+
+	// klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Status.PodIP)
 	return ctx.TargetAddress(), nil
 }
 
