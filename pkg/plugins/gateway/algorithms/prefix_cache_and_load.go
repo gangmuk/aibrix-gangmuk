@@ -489,27 +489,27 @@ func (h *SlidingWindowHistogram) update(timestamp time.Time, node, leafNode *pre
 }
 
 // Modified Route function that preserves original routing logic but adds metrics logging
-func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.PodList) (string, error) {
-	klog.InfoS("Entering Route", "requestID", ctx.RequestID, "ctxDone", ctx.Err() != nil)
+func (p *prefixCacheAndLoadRouter) Route(routingCtx *types.RoutingContext, pods types.PodList) (string, error) {
+	klog.InfoS("Entering Route", "requestID", routingCtx.RequestID, "routingCtx", routingCtx.Err() != nil)
 	defer func() {
-		if ctx.Err() != nil {
-			klog.ErrorS(ctx.Err(), "Error in Route", "requestID", ctx.RequestID)
+		if routingCtx.Err() != nil {
+			klog.ErrorS(routingCtx.Err(), "Error in Route", "requestID", routingCtx.RequestID)
 		} else {
-			klog.Infof("Exiting Route successfully, requestID: %s", ctx.RequestID)
+			klog.Infof("Exiting Route successfully, requestID: %s", routingCtx.RequestID)
 		}
 	}()
 	// ts := time.Now()
 	readyPods := utils.FilterRoutablePods(pods.All())
-	// klog.Infof("requestID: %s, FilterRoutablePods overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
+	// klog.Infof("requestID: %s, FilterRoutablePods overhead: %.2f seconds", routingCtx.RequestID, time.Since(ts).Seconds())
 	if len(readyPods) == 0 {
-		klog.Errorf("no pods ready to forward request, requestID: %s", ctx.RequestID)
+		klog.Errorf("no pods ready to forward request, requestID: %s", routingCtx.RequestID)
 		return "", fmt.Errorf("no pods to forward request")
 	}
 	if len(readyPods) == 1 {
 		for _, pod := range readyPods {
-			ctx.SetTargetPod(pod)
-			klog.Infof("Only one pod is ready. requestID: %s, Route to this pod: %s", ctx.RequestID, pod.Status.PodIP)
-			return ctx.TargetAddress(), nil
+			routingCtx.SetTargetPod(pod)
+			klog.Infof("Only one pod is ready. requestID: %s, Route to this pod: %s", routingCtx.RequestID, pod.Status.PodIP)
+			return routingCtx.TargetAddress(), nil
 		}
 	}
 
@@ -521,33 +521,29 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	}()
 
 	if podUpdateNeeded {
-		klog.Infof("requestID: %s, num pods in data structure: %d", ctx.RequestID, p.numPods)
-		klog.Infof("requestID: %s, current actual ready pods: %d", ctx.RequestID, len(readyPods))
+		klog.Infof("requestID: %s, num pods in data structure: %d", routingCtx.RequestID, p.numPods)
+		klog.Infof("requestID: %s, current actual ready pods: %d", routingCtx.RequestID, len(readyPods))
 		p.podsMu.Lock()
 		p.updatePodSet(readyPods) // Move update pod logic to separate function
 		p.podsMu.Unlock()
-		klog.Infof("requestID: %s, num pods in data structure after updatePodSet: %d", ctx.RequestID, p.numPods)
+		klog.Infof("requestID: %s, num pods in data structure after updatePodSet: %d", routingCtx.RequestID, p.numPods)
 	}
 
 	// ts = time.Now()
-	tokens, err := utils.TokenizeInputText(ctx.Message)
-	// klog.Infof("requestID: %s, Tokenization overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-	if err != nil {
-		klog.Errorf("requestID: %s, Tokenization failed: %v", ctx.RequestID, err)
-		return "", err
-	}
+	prefill_tokens := utils.GetPrefillTokensForRequest(routingCtx.RequestID)
+	// klog.Infof("requestID: %s, Tokenization overhead: %.2f seconds", routingCtx.RequestID, time.Since(ts).Seconds())
 
-	node, matchedTokens, _ := p.cache.AddPrefix(tokens, ctx.Model, "")
+	node, matchedTokens, _ := p.cache.AddPrefix(prefill_tokens, routingCtx.Model, "")
 	var matchedPods []*v1.Pod
 	var matchedPodsNames []string
-	if modelPods, ok := node.GetModelToPods()[ctx.Model]; ok {
+	if modelPods, ok := node.GetModelToPods()[routingCtx.Model]; ok {
 		readyPodsMap := make(map[string]*v1.Pod)
 		for _, pod := range readyPods {
 			readyPodsMap[pod.Status.PodIP] = pod
 		}
 		for podIP := range modelPods {
 			if pod, exists := readyPodsMap[podIP]; exists {
-				klog.Infof("requestID: %s, Matched pod: %s", ctx.RequestID, podIP)
+				klog.Infof("requestID: %s, Matched pod: %s", routingCtx.RequestID, podIP)
 				matchedPods = append(matchedPods, pod)
 				matchedPodsNames = append(matchedPodsNames, podIP)
 			}
@@ -555,17 +551,17 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 	}
 
 	var targetPod *v1.Pod
-	matchRatio := float64(len(matchedTokens)) / float64(len(tokens))
+	matchRatio := float64(len(matchedTokens)) / float64(len(prefill_tokens))
 	prefixRoutingThreshold := 0.5
-	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %.0f%%, len(matchedPodsNames): %d, matchedPodsNames: %v", ctx.RequestID, len(matchedTokens), len(tokens), matchRatio*100, len(matchedPods), matchedPodsNames)
+	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %.0f%%, len(matchedPodsNames): %d, matchedPodsNames: %v", routingCtx.RequestID, len(matchedTokens), len(prefill_tokens), matchRatio*100, len(matchedPods), matchedPodsNames)
 
 	if matchRatio > prefixRoutingThreshold {
-		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %.2f > %.2f)", ctx.RequestID, matchRatio, prefixRoutingThreshold)
+		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %.2f > %.2f)", routingCtx.RequestID, matchRatio, prefixRoutingThreshold)
 		var prefixMatches []prefixMatch
 
 		currentNode := node
 		for currentNode != nil {
-			if modelPods, ok := currentNode.GetModelToPods()[ctx.Model]; ok {
+			if modelPods, ok := currentNode.GetModelToPods()[routingCtx.Model]; ok {
 				var nodePods []*v1.Pod
 				for podIP := range modelPods {
 					for _, pod := range readyPods {
@@ -602,21 +598,21 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 					targetPod = pod
 				}
 			}
-			klog.Infof("requestID: %s, Selected pod %s from longest matching node with match length %d", ctx.RequestID, targetPod.Status.PodIP, longestMatch.matchLength)
+			klog.Infof("requestID: %s, Selected pod %s from longest matching node with match length %d", routingCtx.RequestID, targetPod.Status.PodIP, longestMatch.matchLength)
 		} else {
-			tokenInString, err := utils.DetokenizeText(tokens)
+			tokenInString, err := utils.DetokenizeText(prefill_tokens)
 			matchedTokensInString, _ := utils.DetokenizeText(matchedTokens)
 			if err != nil {
-				klog.Errorf("requestID: %s, DetokenizeTexts failed: %s, tokens: '%v', matchedTokens: '%v', model: %s", ctx.RequestID, err, tokenInString, matchedTokensInString, ctx.Model)
+				klog.Errorf("requestID: %s, DetokenizeTexts failed: %s, tokens: '%v', matchedTokens: '%v', model: %s", routingCtx.RequestID, err, tokenInString, matchedTokensInString, routingCtx.Model)
 			} else {
-				klog.Infof("requestID: %s, No matched pods found for tokens: '%v', matchedTokens: '%v', model: %s", ctx.RequestID, tokenInString, matchedTokensInString, ctx.Model)
-				klog.Infof("requestID: %s, Go to cost model based routing!", ctx.RequestID)
+				klog.Infof("requestID: %s, No matched pods found for tokens: '%v', matchedTokens: '%v', model: %s", routingCtx.RequestID, tokenInString, matchedTokensInString, routingCtx.Model)
+				klog.Infof("requestID: %s, Go to cost model based routing!", routingCtx.RequestID)
 			}
 		}
 	}
 
 	if targetPod == nil {
-		klog.Infof("requestID: %s, Do cost model based routing! (matching ratio: %.2f%%, len(matchedPods): %d)", ctx.RequestID, matchRatio*100, len(matchedPods))
+		klog.Infof("requestID: %s, Do cost model based routing! (matching ratio: %.2f%%, len(matchedPods): %d)", routingCtx.RequestID, matchRatio*100, len(matchedPods))
 		// ts = time.Now()
 		podCosts := p.histogram.getCurrentAllocationCostPerPod()
 		minCost := math.MaxFloat64
@@ -628,82 +624,27 @@ func (p *prefixCacheAndLoadRouter) Route(ctx *types.RoutingContext, pods types.P
 				targetPod = pod
 			}
 		}
-		// klog.Infof("requestID: %s, Cost model based routing overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-		klog.Infof("requestID: %s, Lowest cost pod: %s", ctx.RequestID, targetPod.Status.PodIP)
+		if targetPod == nil {
+			klog.Errorf("requestID: %s, After all logic, no suitable pod found. readyPods: %v", routingCtx.RequestID, readyPods)
+			return "", fmt.Errorf("no suitable pod found")
+		}
+		klog.Infof("requestID: %s, Lowest cost pod: %s", routingCtx.RequestID, targetPod.Status.PodIP)
 	}
 
-	if targetPod == nil {
-		klog.Errorf("requestID: %s, After all logic, no suitable pod found. readyPods: %v", ctx.RequestID, readyPods)
-		return "", fmt.Errorf("no suitable pod found")
-	}
-
-	// ts = time.Now()
-	utils.StoreRequestToPodIP(ctx.RequestID, targetPod.Status.PodIP)
-	utils.IncrementNumInflightForPod(ctx.RequestID)
-	utils.StoreInflightRequestsForTheRequest(ctx.RequestID)
-
-	// KV cache hit ratios
 	allPodsRatios := map[string]float64{}
 	for _, pod := range readyPods {
-		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(tokens, ctx.Model, pod.Status.PodIP)
+		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(prefill_tokens, routingCtx.Model, pod.Status.PodIP)
 		allPodsRatios[pod.Status.PodIP] = podHitRatio
 	}
-	utils.StoreKVCacheHitRatio(ctx.RequestID, allPodsRatios)
+	utils.StoreKVCacheHitRatio(routingCtx.RequestID, allPodsRatios)
 
-	// vllm metrics, defined in utils.kvcache.go
-	targetMetrics := [...]string{
-		utils.MetricGPUCacheUsagePerc,
-		utils.MetricCPUCacheUsagePerc,
-		utils.MetricNumRequestsRunning,
-		utils.MetricNumRequestsWaiting,
-	}
-
-	// Collect metrics concurrently
-	var wg sync.WaitGroup
-	for _, pod := range readyPods {
-		wg.Add(1)
-		go func(pod *v1.Pod) {
-			defer wg.Done()
-			for _, metricName := range targetMetrics {
-				switch metricName {
-				case utils.MetricGPUCacheUsagePerc:
-					utils.ReadAndStorevLLMGPUKVCacheUsage(ctx.RequestID, pod)
-				case utils.MetricCPUCacheUsagePerc:
-					utils.ReadAndStorevLLMCPUKVCacheUsage(ctx.RequestID, pod)
-				case utils.MetricNumRequestsRunning:
-					utils.ReadAndStorevLLMNumRequestsRunning(ctx.RequestID, pod)
-				case utils.MetricNumRequestsWaiting:
-					utils.ReadAndStorevLLMNumRequestsWaiting(ctx.RequestID, pod)
-				default:
-					klog.Errorf("Unknown metric: %s", metricName)
-					return
-				}
-			}
-		}(pod)
-	}
-	wg.Wait()
-
-	// klog.Infof("requestID: %s, Request metric update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-
-	// Update pod mapping in ALL nodes from matched node to root
 	currentNode := node
 	for currentNode != nil {
-		currentNode.AddOrUpdatePodForModel(ctx.Model, targetPod.Status.PodIP, time.Now())
+		currentNode.AddOrUpdatePodForModel(routingCtx.Model, targetPod.Status.PodIP, time.Now())
 		currentNode = currentNode.GetParent()
 	}
-
-	// ts = time.Now()
 	p.histogram.update(time.Now(), node, node, targetPod.Status.PodIP, defaultDecodingLength)
-	// klog.Infof("requestID: %s, Histogram update overhead: %.2f seconds", ctx.RequestID, time.Since(ts).Seconds())
-
-	// p.cache.PrettyPrint()
-	ctx.SetTargetPod(targetPod)
-
-	utils.IncrementNumPrefillTokensForRequest(ctx.RequestID, len(tokens))
-	klog.Infof("IncrementNumPrefillTokensForRequest, %s, %d", ctx.RequestID, len(tokens))
-
-	// klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", ctx.RequestID, time.Since(ts), targetPod.Status.PodIP)
-	return ctx.TargetAddress(), nil
+	routingCtx.SetTargetPod(targetPod)
+	// klog.Infof("requestID: %s, entire Route overhead: %.2f, Routing complete for request. target pod: %s", routingCtx.RequestID, time.Since(ts), targetPod.Status.PodIP)
+	return routingCtx.TargetAddress(), nil
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////////////

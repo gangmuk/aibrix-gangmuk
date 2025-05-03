@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
 	configPb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -107,19 +109,65 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			s.routingContexts.Store(requestID, routingCtx)
 		}
 
+		prefill_tokens, err := utils.TokenizeInputText(routingCtx.Message)
+		if err != nil {
+			klog.Errorf("requestID: %s, Tokenization failed: %v", routingCtx.RequestID, err)
+		}
+		utils.SetPrefillTokensForRequest(routingCtx.RequestID, prefill_tokens)
+
+		//////////////////////////////////////////////////////////
 		targetPodIP, err := s.selectTargetPod(routingCtx, podsArr)
 		s.selectedPodIP.Store(requestID, targetPodIP)
-		num_prefill_tokens := utils.GetNumPrefillTokensForRequest(requestID)
+		//////////////////////////////////////////////////////////
+		targetPodIPWithPort := routingCtx.TargetAddressWithoutPort()
+
+		utils.SetNumPrefillTokensForRequest(routingCtx.RequestID, len(prefill_tokens))
+		klog.Infof("SetNumPrefillTokensForRequest, %s, %d", routingCtx.RequestID, len(prefill_tokens))
+		ret := utils.IncrementNumPrefillTokensForPod(targetPodIPWithPort, len(prefill_tokens))
+		klog.Infof("IncrementNumPrefillTokensForPod(%s) by %d, %d", targetPodIPWithPort, len(prefill_tokens), ret)
+
 		s.requestTimings.Store(requestID, &RequestTiming{
 			startTime:         time.Now(),
-			totalTokenCount:   int64(num_prefill_tokens),
-			prefillTokenCount: int64(num_prefill_tokens),
+			totalTokenCount:   int64(len(prefill_tokens)),
+			prefillTokenCount: int64(len(prefill_tokens)),
 			decodeTokenCount:  0,
 			IsPrefill:         true,
 		})
-		targetPodIPWithPort := routingCtx.TargetAddressWithoutPort()
-		ret := utils.IncrementNumPrefillTokensForPod(targetPodIPWithPort, num_prefill_tokens)
-		klog.Infof("IncrementNumPrefillTokensForPod(%s) by %d, %d", targetPodIPWithPort, num_prefill_tokens, ret)
+		utils.StoreRequestToPodIP(routingCtx.RequestID, targetPodIPWithPort)
+		utils.IncrementNumInflightForPod(routingCtx.RequestID)
+		utils.StoreInflightRequestsForTheRequest(routingCtx.RequestID)
+		targetMetrics := [...]string{
+			utils.MetricGPUCacheUsagePerc,
+			utils.MetricCPUCacheUsagePerc,
+			utils.MetricNumRequestsRunning,
+			utils.MetricNumRequestsWaiting,
+		}
+		var wg sync.WaitGroup
+		readyPods := utils.FilterRoutablePods(podsArr.All())
+		for _, pod := range readyPods {
+			wg.Add(1)
+			go func(pod *v1.Pod) {
+				defer wg.Done()
+				for _, metricName := range targetMetrics {
+					switch metricName {
+					case utils.MetricGPUCacheUsagePerc:
+						utils.ReadAndStorevLLMGPUKVCacheUsage(routingCtx.RequestID, pod)
+					case utils.MetricCPUCacheUsagePerc:
+						utils.ReadAndStorevLLMCPUKVCacheUsage(routingCtx.RequestID, pod)
+					case utils.MetricNumRequestsRunning:
+						utils.ReadAndStorevLLMNumRequestsRunning(routingCtx.RequestID, pod)
+					case utils.MetricNumRequestsWaiting:
+						utils.ReadAndStorevLLMNumRequestsWaiting(routingCtx.RequestID, pod)
+					default:
+						klog.Errorf("Unknown metric: %s", metricName)
+						return
+					}
+				}
+			}(pod)
+		}
+		wg.Wait()
+		//////////////////////////////////////////////////////////////////
+
 		if targetPodIP == "" || err != nil {
 			klog.ErrorS(err, "failed to select target pod", "requestID", requestID, "routingAlgorithm", routingAlgorithm, "model", model)
 			return generateErrorResponse(

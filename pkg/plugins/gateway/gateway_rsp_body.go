@@ -239,12 +239,12 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			usage = res.Usage
 		}
 		if b.ResponseBody.EndOfStream {
-			if routerCtx.Algorithm == "prefix-cache-and-load" {
-				ret := utils.DecrementNumDecodeTokensForPod(routerCtx.TargetAddressWithoutPort(), int(timing.totalTokenCount))
-				klog.V(5).Infof("DecrementNumDecodeTokensForPod(%s) by %d, %d", routerCtx.TargetAddressWithoutPort(), timing.totalTokenCount, ret)
-				timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
-				headers = append(headers, timingHeaders...)
-			}
+			// if routerCtx.Algorithm == "prefix-cache-and-load" {
+			ret := utils.DecrementNumDecodeTokensForPod(routerCtx.TargetAddressWithoutPort(), int(timing.totalTokenCount))
+			klog.V(5).Infof("DecrementNumDecodeTokensForPod(%s) by %d, %d", routerCtx.TargetAddressWithoutPort(), timing.totalTokenCount, ret)
+			timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+			headers = append(headers, timingHeaders...)
+			// }
 			s.requestTimings.Delete(requestID)
 			s.routingContexts.Delete(requestID)
 		}

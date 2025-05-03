@@ -12,10 +12,6 @@ import (
 
 var (
 	// Global map to store KV cache hit ratios per request
-
-	requestToPrefillTokenNumsMutex sync.RWMutex
-	requestToPrefillTokenNums      map[string]int // requestID -> num prefill tokens
-
 	podInflightRequests map[string]int // podIP -> num inflight requests
 	PodInflightMutex    sync.RWMutex
 
@@ -42,6 +38,9 @@ var (
 
 	requestToNumPrefillTokensMutex sync.RWMutex
 	requestToNumPrefillTokens      map[string]int // requestID -> num prefill tokens
+
+	requestToPrefillTokensMutex sync.RWMutex
+	requestToPrefillTokens      map[string][]int // requestID -> num prefill tokens
 
 	requestToNumDecodeTokensMutex sync.RWMutex
 	requestToNumDecodeTokens      map[string]int // requestID -> num decode tokens
@@ -100,6 +99,9 @@ func init() {
 	requestToNumPrefillTokensMutex = sync.RWMutex{}
 	requestToNumPrefillTokens = make(map[string]int)
 
+	requestToPrefillTokensMutex = sync.RWMutex{}
+	requestToPrefillTokens = make(map[string][]int)
+
 	requestToNumDecodeTokensMutex = sync.RWMutex{}
 	requestToNumDecodeTokens = make(map[string]int)
 
@@ -119,27 +121,26 @@ func init() {
 	vllmNumRequestsWaitingMutex = sync.RWMutex{}
 }
 
-func GetrequestToPrefillTokenNumsMutex() *sync.RWMutex {
-	return &requestToPrefillTokenNumsMutex
+func GetrequestToPrefillTokensMutex() *sync.RWMutex {
+	return &requestToPrefillTokensMutex
 }
 
-func GetNumPrefillTokensForTheRequest(requestID string) int {
-	requestToPrefillTokenNumsMutex.RLock()
-	defer requestToPrefillTokenNumsMutex.RUnlock()
-	if _, ok := requestToPrefillTokenNums[requestID]; !ok {
-		return 0
+func GetPrefillTokensForRequest(requestID string) []int {
+	requestToPrefillTokensMutex.RLock()
+	defer requestToPrefillTokensMutex.RUnlock()
+	if _, ok := requestToPrefillTokens[requestID]; !ok {
+		return nil
 	}
-	return requestToPrefillTokenNums[requestID]
+	return requestToPrefillTokens[requestID]
 }
 
-func SetNumPrefillTokensForTheRequest(requestID string, numTokens int) {
-	requestToPrefillTokenNumsMutex.Lock()
-	defer requestToPrefillTokenNumsMutex.Unlock()
-	if _, ok := requestToPrefillTokenNums[requestID]; !ok {
-		requestToPrefillTokenNums[requestID] = 0
+func SetPrefillTokensForRequest(requestID string, prefillTokens []int) {
+	requestToPrefillTokensMutex.Lock()
+	defer requestToPrefillTokensMutex.Unlock()
+	if _, ok := requestToPrefillTokens[requestID]; !ok {
+		requestToPrefillTokens[requestID] = make([]int, 0)
 	}
-	requestToPrefillTokenNums[requestID] += numTokens
-	klog.V(5).Infof("TokenCount, Set prefill tokens for request %s: by %d, %d", requestID, numTokens, requestToPrefillTokenNums[requestID])
+	requestToPrefillTokens[requestID] = prefillTokens
 }
 
 func GetrequestAllPodsKVCacheMutex() *sync.RWMutex {
@@ -193,7 +194,7 @@ func GetPodIPForRequest(requestID string) (string, bool) {
 	return podIP, exists
 }
 
-func IncrementNumPrefillTokensForRequest(requestID string, numTokens int) {
+func SetNumPrefillTokensForRequest(requestID string, numTokens int) {
 	requestToNumPrefillTokensMutex.Lock()
 	defer requestToNumPrefillTokensMutex.Unlock()
 	if _, ok := requestToNumPrefillTokens[requestID]; !ok {
