@@ -64,8 +64,10 @@ def normalize_time(df):
     df['log_window_end_time'] = df['log_window_end_time'] - first_request_start_time
     df['log_window_end_time'] /= 1_000_000
     df = df[df['normalized_start_time'] > cutoff_time]
-    df['normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
-    df['normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
+    # df['normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
+    df.loc[:, 'normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
+    # df['normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
+    df.loc[:, 'normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
     df = df.sort_values(by='normalized_start_time', ascending=True)
     df['time_bucket'] = df['normalized_start_time'].astype(int)
     df = df[['normalized_start_time', 'time_bucket', 'normalized_end_time'] + [col for col in df.columns if col != 'normalized_start_time' and col != 'normalized_end_time' and col != 'time_bucket']]
@@ -900,8 +902,8 @@ def create_pod_metrics_correlation_plots(df):
 
     # ['avg_ttft_ms', 'min_ttft_ms', 'max_ttft_ms', 'p50_ttft_ms', 'p90_ttft_ms', 'p95_ttft_ms', 'p99_ttft_ms', 'ttft_samples', 'avg_tpot_ms', 'min_tpot_ms', 'max_tpot_ms', 'p50_tpot_ms', 'p90_tpot_ms', 'p95_tpot_ms', 'p99_tpot_ms', 'tpot_samples', 'early_tokens_tpot_ms', 'mid_tokens_tpot_ms', 'late_tokens_tpot_ms', 'total_requests', 'total_decode_tokens']
     
-    ###################################################################################
-    # Avg TTFT
+    #####################################################################
+    # Avg TTFT and total requests
     if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_requests',
@@ -912,16 +914,18 @@ def create_pod_metrics_correlation_plots(df):
             'xlim': (0, None)
         })
     
-    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
+    # Avg TTFT and total tokens
+    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_decode_tokens',
+            'x': 'selected_pod_total_tokens',
             'y': 'selected_pod_avg_ttft_ms',
             'title': '#Running Tokens vs Avg TTFT',
-            'xlabel': 'selected_pod_total_decode_tokens',
+            'xlabel': 'selected_pod_total_tokens',
             'ylabel': 'selected_pod_avg_ttft_ms',
             'xlim': (0, None)
         })
 
+    # Avg TTFT and total prefill tokens
     if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_prefill_tokens',
@@ -932,17 +936,56 @@ def create_pod_metrics_correlation_plots(df):
             'xlim': (0, None)
         })
     
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_input_tokens' in df.columns:
+    # Avg TTFT and total decode tokens
+    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_input_tokens',
+            'x': 'selected_pod_total_decode_tokens',
+            'y': 'selected_pod_avg_ttft_ms',
+            'title': '#Running Tokens vs Avg TTFT',
+            'xlabel': 'selected_pod_total_decode_tokens',
+            'ylabel': 'selected_pod_avg_ttft_ms',
+            'xlim': (0, None)
+        })
+    #####################################################################
+
+    
+    #####################################################################
+    # P99 TTFT and total prefill tokens
+
+    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_requests',
             'y': 'selected_pod_p99_ttft_ms',
-            'title': '#Running Input Tokens vs p99 TTFT',
-            'xlabel': 'selected_pod_total_input_tokens',
+            'title': 'Num Running Request vs p99 TTFT',
+            'xlabel': 'selected_pod_total_requests',
             'ylabel': 'selected_pod_p99_ttft_ms',
             'xlim': (0, None)
         })
 
-    # P99 TTFT
+    # P99 TTFT and total tokens
+    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_tokens',
+            'y': 'selected_pod_p99_ttft_ms',
+            'title': '#Running Tokens vs p99 TTFT',
+            'xlabel': 'selected_pod_total_tokens',
+            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlim': (0, None)
+        })
+
+    # P99 TTFT and total prefill tokens
+    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_prefill_tokens',
+            'y': 'selected_pod_p99_ttft_ms',
+            'title': '#Running Input Tokens vs p99 TTFT',
+            'xlabel': 'selected_pod_total_prefill_tokens',
+            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlim': (0, None)
+        })
+    
+
+    # P99 TTFT and total decode tokens
     if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_decode_tokens',
@@ -952,20 +995,10 @@ def create_pod_metrics_correlation_plots(df):
             'ylabel': 'selected_pod_p99_ttft_ms',
             'xlim': (0, None)
         })
-    
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
-        correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_p99_ttft_ms',
-            'title': 'Running Prefill Tokens vs p99 TTFT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_p99_ttft_ms',
-            'xlim': (0, None)
-        })
+    #####################################################################
 
-    ###################################################################################
-    
-    # Avg TPOT
+    #####################################################################
+    # Avg TPOT and total requests
     if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_requests',
@@ -975,7 +1008,30 @@ def create_pod_metrics_correlation_plots(df):
             'ylabel': 'selected_pod_avg_tpot_ms',
             'xlim': (0, None)
         })
+    
+    # Avg TPOT and total tokens
+    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_tokens',
+            'y': 'selected_pod_avg_tpot_ms',
+            'title': 'Running Tokens vs Avg TPOT',
+            'xlabel': 'selected_pod_total_tokens',
+            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlim': (0, None)
+        })
 
+    # Avg TPOT and total prefill tokens
+    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_prefill_tokens',
+            'y': 'selected_pod_avg_tpot_ms',
+            'title': 'Running Prefill Tokens vs Avg TPOT',
+            'xlabel': 'selected_pod_total_prefill_tokens',
+            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlim': (0, None)
+        })
+
+    # Avg TPOT and total decode tokens
     if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_decode_tokens',
@@ -986,17 +1042,32 @@ def create_pod_metrics_correlation_plots(df):
             'xlim': (0, None)
         })
 
-    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+    #####################################################################
+    
+    #####################################################################
+    # P99 TPOT and total requests
+    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_avg_tpot_ms',
-            'title': 'Running Prefill Tokens vs Avg TPOT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_avg_tpot_ms',
+            'x': 'selected_pod_total_requests',
+            'y': 'selected_pod_p99_tpot_ms',
+            'title': 'Num Running Request vs p99 TPOT',
+            'xlabel': 'selected_pod_total_requests',
+            'ylabel': 'selected_pod_p99_tpot_ms',
             'xlim': (0, None)
         })
-    
-    # P99 TPOT
+
+    # P99 TPOT and total tokens
+    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+        correlation_plots.append({
+            'x': 'selected_pod_total_tokens',
+            'y': 'selected_pod_p99_tpot_ms',
+            'title': 'Running Tokens vs p99 TPOT',
+            'xlabel': 'selected_pod_total_tokens',
+            'ylabel': 'selected_pod_p99_tpot_ms',
+            'xlim': (0, None)
+        })
+
+    # P99 TPOT and total decode tokens
     if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_decode_tokens',
@@ -1007,6 +1078,7 @@ def create_pod_metrics_correlation_plots(df):
             'xlim': (0, None)
         })
 
+    # P99 TPOT and total prefill tokens
     if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
         correlation_plots.append({
             'x': 'selected_pod_total_prefill_tokens',
@@ -1016,6 +1088,7 @@ def create_pod_metrics_correlation_plots(df):
             'ylabel': 'selected_pod_p99_tpot_ms',
             'xlim': (0, None)
         })
+
 
     ###################################################################################
 
