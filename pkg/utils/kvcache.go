@@ -31,7 +31,7 @@ var (
 	podToTotalTokens      map[string]int // podIP -> total number of active tokens
 
 	requestAllPodsKVCacheMutex sync.RWMutex
-	requestAllPodsKVCache      map[string]map[string]float64 // requestID -> (podIP -> hit ratio)
+	requestAllPodsKVCache      map[string]map[string]int // requestID -> (podIP -> hit ratio)
 
 	requestInflightMutex sync.RWMutex
 	requestInflight      map[string]map[string]int // requestID -> (podIP -> num inflight requests
@@ -91,7 +91,7 @@ func init() {
 	podToTotalTokens = make(map[string]int)
 
 	requestAllPodsKVCacheMutex = sync.RWMutex{}
-	requestAllPodsKVCache = make(map[string]map[string]float64)
+	requestAllPodsKVCache = make(map[string]map[string]int)
 
 	requestInflightMutex = sync.RWMutex{}
 	requestInflight = make(map[string]map[string]int)
@@ -153,19 +153,19 @@ func CleanuprequestToPodIP(requestID string) {
 	delete(requestToPodIP, requestID)
 }
 
-func StoreKVCacheHitRatio(requestID string, allPodsRatios map[string]float64) {
+func StoreKVCacheHitRatio(requestID string, allPodsRatios map[string]int) {
 	requestAllPodsKVCacheMutex.Lock()
 	defer requestAllPodsKVCacheMutex.Unlock()
 	requestAllPodsKVCache[requestID] = allPodsRatios
 }
 
-func GetAllPodsKVCacheHitRatios(requestID string) map[string]float64 {
+func GetAllPodsKVCacheHitRatios(requestID string) map[string]int {
 	requestAllPodsKVCacheMutex.RLock()
 	defer requestAllPodsKVCacheMutex.RUnlock()
 	if ratios, ok := requestAllPodsKVCache[requestID]; ok {
 		return ratios
 	}
-	return make(map[string]float64)
+	return make(map[string]int)
 }
 
 func CleanupKVCacheHitRatio(requestID string) {
