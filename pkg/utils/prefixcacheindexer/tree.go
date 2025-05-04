@@ -799,19 +799,16 @@ func (c *LPRadixCache) matchPrefixWithPodHelper(node *TreeNode, tokens []int, mo
 	return nil, nil
 }
 
-func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, podIP string) float64 {
+func (c *LPRadixCache) GetCacheHitRatioForTargetPod(tokens []int, model string, podIP string) int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	matchedNode, matchedTokens := c.matchPrefixWithPodHelper(c.rootNode, tokens, model, podIP)
 	if matchedNode == nil || len(matchedTokens) == 0 {
 		klog.V(4).Infof("Pod-aware matching - podIP: %s, model: %s, Matched tokens: [], matched: 0/%d (0.00%%)",
 			podIP, model, len(tokens))
-		return 0.0 // No match found
+		return 0 // No match found
 	}
-	klog.V(4).Infof("Input tokens: %v, Matched tokens: %v", tokens, matchedTokens)
-	klog.Infof("Pod-aware matching - podIP: %s, model: %s, matched: %d/%d (%.2f%%)",
-		podIP, model, len(matchedTokens), len(tokens),
-		100.0*float64(len(matchedTokens))/float64(len(tokens)))
-
-	return float64(len(matchedTokens)) / float64(len(tokens))
+	hitPercentage := len(matchedTokens) * 100 / len(tokens)
+	klog.Infof("Pod-aware matching - podIP: %s, model: %s, matched: %d/%d (%d%%)", podIP, model, len(matchedTokens), len(tokens), hitPercentage)
+	return hitPercentage
 }

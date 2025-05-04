@@ -551,12 +551,12 @@ func (p *prefixCacheAndLoadRouter) Route(routingCtx *types.RoutingContext, pods 
 	}
 
 	var targetPod *v1.Pod
-	matchRatio := float64(len(matchedTokens)) / float64(len(prefill_tokens))
-	prefixRoutingThreshold := 0.5
-	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %.0f%%, len(matchedPodsNames): %d, matchedPodsNames: %v", routingCtx.RequestID, len(matchedTokens), len(prefill_tokens), matchRatio*100, len(matchedPods), matchedPodsNames)
+	matchPercentage := len(matchedTokens) * 100 / len(prefill_tokens)
+	prefixRoutingThreshold := 50 // percentage
+	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %.0f%%, len(matchedPodsNames): %d, matchedPodsNames: %v", routingCtx.RequestID, len(matchedTokens), len(prefill_tokens), matchPercentage, len(matchedPods), matchedPodsNames)
 
-	if matchRatio > prefixRoutingThreshold {
-		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %.2f > %.2f)", routingCtx.RequestID, matchRatio, prefixRoutingThreshold)
+	if matchPercentage > prefixRoutingThreshold {
+		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %.2f > %.2f)", routingCtx.RequestID, matchPercentage, prefixRoutingThreshold)
 		var prefixMatches []prefixMatch
 
 		currentNode := node
@@ -612,7 +612,7 @@ func (p *prefixCacheAndLoadRouter) Route(routingCtx *types.RoutingContext, pods 
 	}
 
 	if targetPod == nil {
-		klog.Infof("requestID: %s, Do cost model based routing! (matching ratio: %.2f%%, len(matchedPods): %d)", routingCtx.RequestID, matchRatio*100, len(matchedPods))
+		klog.Infof("requestID: %s, Do cost model based routing! (matching ratio: %.2f%%, len(matchedPods): %d)", routingCtx.RequestID, matchPercentage, len(matchedPods))
 		// ts = time.Now()
 		podCosts := p.histogram.getCurrentAllocationCostPerPod()
 		minCost := math.MaxFloat64
@@ -631,12 +631,12 @@ func (p *prefixCacheAndLoadRouter) Route(routingCtx *types.RoutingContext, pods 
 		klog.Infof("requestID: %s, Lowest cost pod: %s", routingCtx.RequestID, targetPod.Status.PodIP)
 	}
 
-	allPodsRatios := map[string]float64{}
+	allPodCacheHitRatio := map[string]int{}
 	for _, pod := range readyPods {
 		podHitRatio := p.cache.GetCacheHitRatioForTargetPod(prefill_tokens, routingCtx.Model, pod.Status.PodIP)
-		allPodsRatios[pod.Status.PodIP] = podHitRatio
+		allPodCacheHitRatio[pod.Status.PodIP] = podHitRatio
 	}
-	utils.StoreKVCacheHitRatio(routingCtx.RequestID, allPodsRatios)
+	utils.StoreKVCacheHitRatio(routingCtx.RequestID, allPodCacheHitRatio)
 
 	currentNode := node
 	for currentNode != nil {
