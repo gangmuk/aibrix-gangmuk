@@ -157,6 +157,7 @@ func StoreKVCacheHitRatio(requestID string, allPodsRatios map[string]int) {
 	requestAllPodsKVCacheMutex.Lock()
 	defer requestAllPodsKVCacheMutex.Unlock()
 	requestAllPodsKVCache[requestID] = allPodsRatios
+	klog.Infof("Stored KV cache hit ratios for request %s: %v", requestID, allPodsRatios)
 }
 
 func GetAllPodsKVCacheHitRatios(requestID string) map[string]int {

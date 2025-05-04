@@ -80,21 +80,22 @@ func (p flexiblePrefixCacheRouter) Route(ctx *types.RoutingContext, pods types.P
 		readyPodsMap[pod.Status.PodIP] = struct{}{}
 	}
 
-	matchedPods, prefixHashes = p.prefixCacheIndexer.MatchPrefix(tokens, ctx.Model, readyPodsMap)
-	klog.InfoS("matched_pods", "request_id", ctx.RequestID, "matched_pods", matchedPods)
-	klog.InfoS("prefix_hashes", "request_id", ctx.RequestID, "prefix_hashes", prefixHashes)
-	utils.StoreKVCacheHitRatio(ctx.RequestID, matchedPods)
-
 	targetPod, err = selectRandomPod(pods.All(), rand.Intn)
 	if err != nil {
 		klog.Errorf("error to select target pod: %v, requestID: %s", err, ctx.RequestID)
 		return "", err
 	}
-	klog.InfoS("Random routing", "request_id", ctx.RequestID, "target_pod", targetPod.Name)
+	klog.InfoS("Random routing", "request_id", ctx.RequestID, "target_pod", targetPod.Status.PodIP)
 
-	if len(prefixHashes) > 0 {
-		p.prefixCacheIndexer.AddPrefix(prefixHashes, ctx.Model, targetPod.Name)
-	}
+	matchedPods, prefixHashes = p.prefixCacheIndexer.MatchPrefix(tokens, ctx.Model, readyPodsMap)
+	klog.InfoS("matched_pods", "request_id", ctx.RequestID, "matched_pods", matchedPods)
+
+	// klog.InfoS("request_id", ctx.RequestID, "prefix_hashes", prefixHashes)
+	utils.StoreKVCacheHitRatio(ctx.RequestID, matchedPods)
+
+	// if len(prefixHashes) > 0 {
+	p.prefixCacheIndexer.AddPrefix(prefixHashes, ctx.Model, targetPod.Status.PodIP)
+	// }
 
 	ctx.SetTargetPod(targetPod)
 	return ctx.TargetAddress(), nil

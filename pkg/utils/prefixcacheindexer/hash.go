@@ -123,6 +123,11 @@ func (c *PrefixHashTable) AddPrefix(prefixHashes []uint64, model, pod string) {
 
 		c.store.Put(prefixHash, block)
 	}
+	// klog.InfoS("prefix_cache_add_prefix",
+	// 	"prefix_hashes", prefixHashes,
+	// 	"model", model,
+	// 	"pod", pod,
+	// 	"pod_last_access_time", time.Now())
 }
 
 // matchPods returns ready pods that intersect with pods on which prefix tokens are catched.
