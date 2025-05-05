@@ -261,6 +261,7 @@ def create_simple_rps_plots(df):
         plots_to_create.append('pod_rps')
     if 'normalized_start_time' in df.columns and 'numInputTokens' in df.columns:
         plots_to_create.append('prompt_tps')
+        plots_to_create.append('prompt_tps_per_pod')
     if 'normalized_start_time' in df.columns and 'numOutputTokens' in df.columns:
         plots_to_create.append('output_tps')
     if not plots_to_create:
@@ -298,6 +299,8 @@ def create_simple_rps_plots(df):
             for pod in pod_rps['selectedpod'].unique():
                 pod_data = pod_rps[pod_rps['selectedpod'] == pod]
                 ax.plot(pod_data['time_bucket'], pod_data['count'], label=pod)
+                print(f"Pod: {pod}, avg RPS: {pod_data['count'].mean():.2f}, max RPS: {pod_data['count'].max():.2f}")
+
             ax.set_title('RPS by Pod')
             ax.set_ylabel('Requests per second (RPS)')
             ax.legend()
@@ -310,6 +313,19 @@ def create_simple_rps_plots(df):
             ax.plot(prompt_tps['time_bucket'], prompt_tps['count'])
             ax.set_title('Prompt Tokens per Second')
             ax.set_ylabel('Tokens per Second')
+            if len(prompt_tps) > 0:
+                ax.set_ylim(0, prompt_tps['count'].max() * 1.1)
+        
+        elif plot_type == 'prompt_tps_per_pod':
+            # Prompt tokens per second by pod
+            prompt_tps = df_copy.groupby(['time_bucket', 'selectedpod'])['numInputTokens'].sum().reset_index(name='count')
+            for pod in prompt_tps['selectedpod'].unique():
+                pod_data = prompt_tps[prompt_tps['selectedpod'] == pod]
+                ax.plot(pod_data['time_bucket'], pod_data['count'], label=pod)
+                print(f"Pod: {pod}, avg prompt tps: {pod_data['count'].mean():.2f}, max prompt tps: {pod_data['count'].max():.2f}")
+            ax.set_title('Prompt Tokens per Second by Pod')
+            ax.set_ylabel('Tokens per Second')
+            ax.legend()
             if len(prompt_tps) > 0:
                 ax.set_ylim(0, prompt_tps['count'].max() * 1.1)
                 
@@ -349,7 +365,7 @@ def create_e2e_latency_correlation_plots(df):
             'title': 'E2E Latency vs KV Cache Hit Ratio',
             'xlabel': 'KV Cache Hit Ratio',
             'ylabel': 'Gateway Side E2E Latency (ms)',
-            'xlim': (0, 1)
+            'xlim': (0, 100)
         })
     
     # Plot 2: E2E latency vs GPU KV Cache Usage
@@ -486,7 +502,7 @@ def create_ttft_correlation_plots(df):
             'title': 'TTFT vs KV Cache Hit Ratio',
             'xlabel': 'KV Cache Hit Ratio',
             'ylabel': 'TTFT (ms)',
-            'xlim': (0, 1)
+            'xlim': (0, 100)
         })
     
     # Plot 2: TTFT vs GPU KV Cache Usage
@@ -595,7 +611,9 @@ def create_ttft_correlation_plots(df):
                 ax.set_xlim(xlim[0], xlim[1])
             else:
                 ax.set_xlim(left=xlim[0])
-        
+        print(f"x: {plot_config['x']}")
+        print(f"y: {plot_config['y']}")
+        print(f"x max: {x_data.max()}")
         ax.grid(True, alpha=0.3)
     
     # Hide any unused subplots
@@ -712,7 +730,7 @@ def create_tpot_correlation_plots(df):
             'title': 'TPOT vs KV Cache Hit Ratio',
             'xlabel': 'KV Cache Hit Ratio',
             'ylabel': 'Time Per Output Token (ms)',
-            'xlim': (0, 1)
+            'xlim': (0, 100)
         })
     
     # Plot 2: TPOT vs GPU KV Cache Usage

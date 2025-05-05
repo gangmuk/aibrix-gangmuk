@@ -21,7 +21,7 @@ class Config:
         self.gamma = 0.99  # Discount factor
         self.batch_size = 256
         self.num_epochs = 200
-        self.alpha = 0.01  # CQL regularization parameter - reduced to 0.01
+        self.alpha = 0.1  # CQL regularization parameter - higher more conservative
         self.tau = 0.005  # Target network update rate
         self.input_dir = input_dir
         self.model_save_path = f"{input_dir}/models/cql_model.pt"
@@ -332,6 +332,71 @@ def analyze_feature_importance(agent, scaler, feature_names):
                                                  reverse=True)}
     
     return feature_importance
+def analyze_feature_correlations(states, feature_names):
+    """Analyze correlations between features"""
+    # Convert to numpy for correlation calculation
+    states_np = states.cpu().numpy()
+    
+    # Calculate correlation matrix
+    corr_matrix = np.corrcoef(states_np.T)
+    
+    # Find highly correlated features with pod_10_0_0_4_prefill_tokens
+    # First, find the index of this feature
+    target_feature = "pod_10_0_0_4_prefill_tokens"
+    if target_feature in feature_names:
+        target_idx = feature_names.index(target_feature)
+        
+        # Get correlations with this feature
+        correlations = []
+        for i, name in enumerate(feature_names):
+            if i != target_idx:
+                correlations.append((name, corr_matrix[target_idx, i]))
+        
+        # Sort by absolute correlation
+        correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+        
+        # Return top correlations
+        return correlations[:10]
+    else:
+        return "Target feature not found"
+
+def improved_feature_importance(agent, states, actions, feature_names):
+    """Permutation-based feature importance analysis"""
+    # Get baseline performance
+    agent.q_network.eval()
+    with torch.no_grad():
+        baseline_q = agent.q_network(states).gather(1, actions.unsqueeze(1)).mean().item()
+    
+    # Calculate importance by permuting each feature
+    importance = []
+    for i in range(states.shape[1]):
+        # Create a copy with the i-th feature permuted
+        permuted_states = states.clone()
+        permuted_states[:, i] = permuted_states[torch.randperm(states.shape[0]), i]
+        
+        # Measure impact on Q-values
+        with torch.no_grad():
+            permuted_q = agent.q_network(permuted_states).gather(1, actions.unsqueeze(1)).mean().item()
+        
+        # Importance is the drop in performance
+        feature_importance = baseline_q - permuted_q
+        importance.append(feature_importance)
+    
+    # Convert to numpy and normalize
+    importance = np.array(importance)
+    importance = np.abs(importance)  # Take absolute value
+    if importance.sum() > 0:  # Avoid division by zero
+        importance = 100.0 * (importance / importance.sum())
+    
+    # Create dictionary mapping features to importance
+    feature_importance_dict = {}
+    for name, imp in zip(feature_names, importance):
+        feature_importance_dict[name] = imp
+    
+    # Sort by importance
+    sorted_importance = sorted(feature_importance_dict.items(), key=lambda x: x[1], reverse=True)
+    
+    return dict(sorted_importance)  # Return as dictionary
 
 # Main function
 def main(input_dir):
@@ -345,6 +410,16 @@ def main(input_dir):
     # Load and preprocess data
     train_states, train_actions, train_rewards, mapping_info, feature_cols, scaler = load_and_preprocess_data(train_data_path, mapping_path, config)
     test_states, test_actions, test_rewards, _, _, _ = load_and_preprocess_data(test_data_path, mapping_path, config)
+
+    # Analyze feature correlations before training
+    print("\nAnalyzing feature correlations:")
+    correlations = analyze_feature_correlations(train_states, feature_cols)
+    if isinstance(correlations, list):
+        print("Top correlations with pod_10_0_0_4_prefill_tokens:")
+        for feature, corr in correlations:
+            print(f"  {feature}: {corr:.4f}")
+    else:
+        print(correlations)
     
     # Initialize agent
     agent = CQLAgent(config)
@@ -371,20 +446,37 @@ def main(input_dir):
     print(f"Actual rewards: {test_results['actual_rewards']:.4f}")
     print(f"Potential improvement: {test_results['improvement']:.4f}")
     
-    # Analyze feature importance
-    print("\nAnalyzing feature importance:")
+    # Standard feature importance
+    print("\nStandard feature importance analysis:")
     feature_importance = analyze_feature_importance(agent, scaler, feature_cols)
     for feature, importance in list(feature_importance.items())[:10]:
         print(f"  {feature}: {importance:.2f}%")
     
-    # Visualize feature importance
+    # Improved feature importance
+    print("\nImproved permutation-based feature importance:")
+    improved_importance = improved_feature_importance(agent, train_states.to(config.device), train_actions.to(config.device), feature_cols)
+    for feature, importance in list(improved_importance.items())[:10]:
+        print(f"  {feature}: {importance:.2f}%")
+    
+    # Visualize feature importance (using both methods)
+    plt.figure(figsize=(12, 16))
+    
+    # Standard importance
+    plt.subplot(2, 1, 1)
     top_features = dict(list(feature_importance.items())[:20])
-    plt.figure(figsize=(12, 8))
     plt.barh(list(top_features.keys()), list(top_features.values()))
     plt.xlabel('Importance (%)')
-    plt.title('Top 20 Feature Importance')
+    plt.title('Top 20 Feature Importance (Standard Method)')
+    
+    # Improved importance
+    plt.subplot(2, 1, 2)
+    improved_top_features = dict(list(improved_importance.items())[:20])
+    plt.barh(list(improved_top_features.keys()), list(improved_top_features.values()))
+    plt.xlabel('Importance (%)')
+    plt.title('Top 20 Feature Importance (Permutation Method)')
+    
     plt.tight_layout()
-    plt.savefig(f'{config.input_dir}/feature_importance.pdf')
+    plt.savefig(f'{config.input_dir}/feature_importance_comparison.pdf')
     plt.show()
     
     print("\nTraining and evaluation complete!")
