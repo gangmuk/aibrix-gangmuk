@@ -350,6 +350,189 @@ def create_simple_rps_plots(df):
     plt.subplots_adjust(top=0.85)  # Adjust for the suptitle
     plt.show()
 
+def create_pod_latency_bar_charts(df):
+    """
+    Create bar charts comparing average TTFT and TPOT metrics across different pods.
+    
+    Parameters:
+    df (DataFrame): Pandas DataFrame containing the processed log data
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    # Check if we have the necessary data columns
+    if 'selectedpod' not in df.columns:
+        print("Error: 'selectedpod' column not found in DataFrame")
+        return
+    
+    # Create a figure with subplots
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Get unique pod identifiers
+    pod_ids = df['selectedpod'].unique()
+    
+    # Use different colors for each pod
+    num_pods = len(pod_ids)
+    colors = plt.cm.viridis(np.linspace(0, 0.9, num_pods))
+    
+    # Subplot 1: Average TTFT by pod
+    if 'ttft' in df.columns:
+        ax = axes[0]
+        ttft_by_pod = df.groupby('selectedpod')['ttft'].mean().sort_values(ascending=False)
+        
+        # Create the bar chart
+        bars = ax.bar(ttft_by_pod.index, ttft_by_pod.values, color=colors)
+        
+        # Annotate bars with values
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+        
+        ax.set_title('Average TTFT by Pod', fontsize=14)
+        ax.set_xlabel('Pod ID', fontsize=12)
+        ax.set_ylabel('Average TTFT (ms)', fontsize=12)
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add a text box with statistics
+        stats_text = (f"Overall Avg: {df['ttft'].mean():.1f} ms\n"
+                      f"Min Pod Avg: {ttft_by_pod.min():.1f} ms\n"
+                      f"Max Pod Avg: {ttft_by_pod.max():.1f} ms\n"
+                      f"Variance: {ttft_by_pod.var():.1f}")
+        ax.text(0.02, 0.95, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', alpha=0.1))
+    else:
+        axes[0].text(0.5, 0.5, 'TTFT data not available', 
+                    horizontalalignment='center', verticalalignment='center')
+    
+    # Subplot 2: Average TPOT by pod
+    if 'avg_tpot' in df.columns:
+        ax = axes[1]
+        tpot_by_pod = df.groupby('selectedpod')['avg_tpot'].mean().sort_values(ascending=False)
+        
+        # Create the bar chart
+        bars = ax.bar(tpot_by_pod.index, tpot_by_pod.values, color=colors)
+        
+        # Annotate bars with values
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+        
+        ax.set_title('Average TPOT by Pod', fontsize=14)
+        ax.set_xlabel('Pod ID', fontsize=12)
+        ax.set_ylabel('Average TPOT (ms)', fontsize=12)
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add a text box with statistics
+        stats_text = (f"Overall Avg: {df['avg_tpot'].mean():.1f} ms\n"
+                      f"Min Pod Avg: {tpot_by_pod.min():.1f} ms\n"
+                      f"Max Pod Avg: {tpot_by_pod.max():.1f} ms\n"
+                      f"Variance: {tpot_by_pod.var():.1f}")
+        ax.text(0.02, 0.95, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', alpha=0.1))
+    else:
+        axes[1].text(0.5, 0.5, 'TPOT data not available', 
+                    horizontalalignment='center', verticalalignment='center')
+    
+    # Additional checks for alternative column names
+    if 'avg_tpot' not in df.columns and 'selected_pod_avg_tpot_ms' in df.columns:
+        ax = axes[1]
+        tpot_by_pod = df.groupby('selectedpod')['selected_pod_avg_tpot_ms'].mean().sort_values(ascending=False)
+        
+        # Create the bar chart
+        bars = ax.bar(tpot_by_pod.index, tpot_by_pod.values, color=colors)
+        
+        # Annotate bars with values
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+        
+        ax.set_title('Average TPOT by Pod', fontsize=14)
+        ax.set_xlabel('Pod ID', fontsize=12)
+        ax.set_ylabel('Average TPOT (ms)', fontsize=12)
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add a text box with statistics
+        stats_text = (f"Overall Avg: {df['selected_pod_avg_tpot_ms'].mean():.1f} ms\n"
+                      f"Min Pod Avg: {tpot_by_pod.min():.1f} ms\n"
+                      f"Max Pod Avg: {tpot_by_pod.max():.1f} ms\n"
+                      f"Variance: {tpot_by_pod.var():.1f}")
+        ax.text(0.02, 0.95, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', alpha=0.1))
+    
+    # Check alternative column for TTFT
+    if 'ttft' not in df.columns and 'selected_pod_avg_ttft_ms' in df.columns:
+        ax = axes[0]
+        ttft_by_pod = df.groupby('selectedpod')['selected_pod_avg_ttft_ms'].mean().sort_values(ascending=False)
+        
+        # Create the bar chart
+        bars = ax.bar(ttft_by_pod.index, ttft_by_pod.values, color=colors)
+        
+        # Annotate bars with values
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+        
+        ax.set_title('Average TTFT by Pod', fontsize=14)
+        ax.set_xlabel('Pod ID', fontsize=12)
+        ax.set_ylabel('Average TTFT (ms)', fontsize=12)
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add a text box with statistics
+        stats_text = (f"Overall Avg: {df['selected_pod_avg_ttft_ms'].mean():.1f} ms\n"
+                      f"Min Pod Avg: {ttft_by_pod.min():.1f} ms\n"
+                      f"Max Pod Avg: {ttft_by_pod.max():.1f} ms\n"
+                      f"Variance: {ttft_by_pod.var():.1f}")
+        ax.text(0.02, 0.95, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', alpha=0.1))
+    
+    plt.tight_layout()
+    plt.suptitle('Pod Latency Comparison', fontsize=16, y=1.05)
+    plt.show()
+    
+    # Print summary statistics
+    print("Pod Performance Summary:")
+    if 'ttft' in df.columns:
+        print("\nTTFT by Pod:")
+        ttft_stats = df.groupby('selectedpod')['ttft'].agg(['mean', 'min', 'max', 'std']).round(2)
+        print(ttft_stats)
+    elif 'selected_pod_avg_ttft_ms' in df.columns:
+        print("\nTTFT by Pod:")
+        ttft_stats = df.groupby('selectedpod')['selected_pod_avg_ttft_ms'].agg(['mean', 'min', 'max', 'std']).round(2)
+        print(ttft_stats)
+    
+    if 'avg_tpot' in df.columns:
+        print("\nTPOT by Pod:")
+        tpot_stats = df.groupby('selectedpod')['avg_tpot'].agg(['mean', 'min', 'max', 'std']).round(2)
+        print(tpot_stats)
+    elif 'selected_pod_avg_tpot_ms' in df.columns:
+        print("\nTPOT by Pod:")
+        tpot_stats = df.groupby('selectedpod')['selected_pod_avg_tpot_ms'].agg(['mean', 'min', 'max', 'std']).round(2)
+        print(tpot_stats)
+
 
 def create_e2e_latency_correlation_plots(df):
     """Create scatter plots for correlations between E2E latency and different metrics as subfigures with 4 per row"""
