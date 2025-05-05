@@ -296,7 +296,7 @@ def preprocess_dataset(input_file, output_file=None):
             print(f"Checking podMetricsLastSecond structure...")
             # Check structure for each pod
             for pod_id, metrics in pod_metrics.items():
-                print(f"Checking metrics for pod {pod_id}")
+                # print(f"Checking metrics for pod {pod_id}")
                 
                 # Check for missing expected keys
                 missing_keys = [key for key in expected_pod_metrics_keys if key not in metrics]
@@ -328,11 +328,10 @@ def preprocess_dataset(input_file, output_file=None):
     
     for col in json_columns:
         if col in df.columns:
-            print(f"Processing column: {col}")
-            # Check if we need to parse this column
+            # print(f"Processing column: {col}")
             sample_val = df[col].iloc[0]
             if isinstance(sample_val, str):
-                print(f"  Parsing as JSON string")
+                # print(f"  Parsing as JSON string")
                 df[col] = df[col].apply(safe_parse_json)
             elif isinstance(sample_val, dict):
                 print(f"  Already parsed as dictionary")
@@ -356,12 +355,8 @@ def preprocess_dataset(input_file, output_file=None):
     # Create a new list to store processed records
     processed_records = []
     
-    print("Processing records...")
     pod_gpu_models = {pod_id: "NVIDIA-L20" for pod_id in all_pods}
-    
-    # Process each row
     for _, row in df.iterrows():
-        # Get base request features
         base_features = {
             'request_id': row['requestID'],
             'request_start_time': row['request_start_time'],
@@ -512,53 +507,15 @@ def create_train_test_split(processed_df, train_ratio=0.8, output_dir=None):
     
     return train_df, test_df
 
-def main():
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Preprocess dataset for RL training")
-    parser.add_argument("--input", default="./parsed-gateway-plugins.log.csv", 
-                      help="Input CSV file path")
-    parser.add_argument("--output-dir", default="processed_data",
-                      help="Output directory for processed data")
-    parser.add_argument("--tpot-slo-threshold", type=float, default=25,
-                      help="SLO threshold for average tokens per second in milliseconds")
-    parser.add_argument("--ttft-slo-threshold", type=float, default=500,
-                      help="SLO threshold for time to first token in milliseconds")
-    args = parser.parse_args()
-    
-    # Set paths
-    input_file = args.input
-    output_dir = args.output_dir
-    
-    # Set SLO thresholds as global variables
-    global avg_tpot_slo_threshold, avg_ttft_slo_threshold
-    avg_tpot_slo_threshold = args.tpot_slo_threshold
-    avg_ttft_slo_threshold = args.ttft_slo_threshold
-
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Process the dataset
+def main(input_dir):
+    output_dir = input_dir
+    input_file = os.path.join(input_dir, "parsed-gateway-plugins.log.csv")
     output_file = os.path.join(output_dir, "processed_dataset.csv")
-    
     try:
         processed_df, mapping_info = preprocess_dataset(input_file, output_file)
         
         # Create train-test split
         train_df, test_df = create_train_test_split(processed_df, output_dir=output_dir)
-        
-        print("\n----- OFFLINE RL DATASET PREPARATION COMPLETE -----")
-        print("This preprocessed dataset is suitable for offline/batch reinforcement learning.")
-        print("The 'action' column represents the pod that was historically selected.")
-        print("The 'reward' column is a synthetic reward based on multiple SLO metrics.")
-        print(f"\nSLO thresholds used:")
-        print(f"  Avg TPOT: {avg_tpot_slo_threshold} ms")
-        print(f"  Avg TTFT: {avg_ttft_slo_threshold} ms")
-        
-        # Print sample of processed data with SLO metrics
-        print("\nSample of processed data with SLO metrics:")
-        print(processed_df[['request_id', 'e2e_latency', 'avg_tpot', 'ttft', 'avg_tpot_slo_satisfied', 'avg_ttft_slo_satisfied', 'reward', 'tpot_reward', 'ttft_reward']].head(2))
-        
-        # Print pod mapping
         print("\nPod mapping (for action space):")
         for pod, idx in mapping_info['pod_to_index'].items():
             print(f"  Pod {pod} -> Action {idx}")
@@ -568,4 +525,18 @@ def main():
         assert False
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python reorg.py <input_dir>")
+        sys.exit(1)
+    input_dir = sys.argv[1]
+    if not os.path.exists(input_dir):
+        print("Input dir does not exist. exiting...")
+        exit()
+
+    global avg_tpot_slo_threshold, avg_ttft_slo_threshold
+    avg_tpot_slo_threshold = 25
+    avg_ttft_slo_threshold = 500
+    main(input_dir)
+    print(f"* avg_tpot_slo_threshold: {avg_tpot_slo_threshold} ms")
+    print(f"* avg_ttft_slo_threshold: {avg_ttft_slo_threshold} ms")
