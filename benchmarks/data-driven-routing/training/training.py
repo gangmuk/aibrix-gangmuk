@@ -26,7 +26,67 @@ class Config:
         self.input_dir = input_dir
         self.model_save_path = f"{input_dir}/models/cql_model.pt"
 
-# Data loading and preprocessing
+def create_essential_relative_features(df, pod_ids, metrics=None):
+    """
+    Create essential relative features for key metrics
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Input dataframe with pod metrics
+    pod_ids : list
+        List of pod identifiers
+    metrics : list, optional
+        List of metrics to process. If None, will detect automatically.
+    
+    Returns:
+    --------
+    pandas.DataFrame
+        Dataframe with added relative features
+    """
+    if metrics is None:
+        # Detect metrics by finding columns that appear for multiple pods
+        all_cols = set(df.columns)
+        metrics = set()
+        
+        for pod_id in pod_ids:
+            pod_prefix = f"pod_{pod_id}_"
+            pod_cols = [col[len(pod_prefix):] for col in all_cols if col.startswith(pod_prefix)]
+            
+            if not metrics:
+                metrics = set(pod_cols)
+            else:
+                metrics = metrics.intersection(pod_cols)
+        
+        metrics = list(metrics)
+        print(f"Detected {len(metrics)} common metrics across pods: {metrics}")
+    
+    # Process each metric
+    for metric in metrics:
+        # Get all pod columns for this metric
+        pod_metric_cols = [f"pod_{p}_{metric}" for p in pod_ids if f"pod_{p}_{metric}" in df.columns]
+        
+        if len(pod_metric_cols) <= 1:
+            continue  # Skip if not enough pods have this metric
+        
+        # Calculate total and normalized values (percentage of cluster total)
+        df[f"total_{metric}"] = df[pod_metric_cols].sum(axis=1)
+        
+        for col in pod_metric_cols:
+            pod_id = col.split("_")[1]
+            df[f"pct_{pod_id}_{metric}"] = df[col] / (df[f"total_{metric}"] + 1e-6)
+        
+        # Calculate ranks (1 = lowest value, which is typically better for load metrics)
+        ranks = df[pod_metric_cols].rank(axis=1)
+        for col in pod_metric_cols:
+            pod_id = col.split("_")[1]
+            df[f"rank_{pod_id}_{metric}"] = ranks[col]
+            
+            # Normalized rank (0-1 scale)
+            df[f"norm_rank_{pod_id}_{metric}"] = (df[f"rank_{pod_id}_{metric}"] - 1) / (len(pod_metric_cols) - 1)
+    
+    return df
+
 def load_and_preprocess_data(data_path, mapping_path, config):
     print(f"Loading data from {data_path}")
     df = pd.read_csv(data_path)
@@ -35,7 +95,16 @@ def load_and_preprocess_data(data_path, mapping_path, config):
     with open(mapping_path, 'r') as f:
         mapping_info = json.load(f)
     
-    print(f"Dataset shape: {df.shape}")
+    print(f"Dataset shape before feature engineering: {df.shape}")
+    
+    # Extract pod IDs from the mapping info
+    pod_ids = list(mapping_info['pod_to_index'].keys())
+    print(f"Found {len(pod_ids)} pods from mapping")
+    
+    # Create relative features
+    df = create_essential_relative_features(df, pod_ids)
+    
+    print(f"Dataset shape after feature engineering: {df.shape}")
     
     # Define which columns are features and which are metadata
     metadata_cols = ['request_id', 'request_start_time', 'request_end_time', 
@@ -46,18 +115,15 @@ def load_and_preprocess_data(data_path, mapping_path, config):
     # Identify GPU model columns
     gpu_model_cols = [col for col in df.columns if 'gpu_model' in col]
     
-    # Numeric feature columns (exclude metadata and GPU model columns)
+    # Numeric feature columns (exclude metadata and handle GPU model columns as before)
     numeric_feature_cols = [col for col in df.columns if col not in metadata_cols and col not in gpu_model_cols]
     
-    # Check GPU model values to prepare one-hot encoding
+    # Handle one-hot encoding of GPU models as in your original code
     unique_gpu_models = set()
     for col in gpu_model_cols:
         unique_gpu_models.update(df[col].unique())
     
-    print(f"Found {len(unique_gpu_models)} unique GPU models: {unique_gpu_models}")
-    
     # One-hot encode GPU models
-    # For each pod, create a one-hot encoded feature for its GPU model
     encoded_gpu_features = {}
     for col in gpu_model_cols:
         pod_id = col.replace('_gpu_model', '')
@@ -446,11 +512,17 @@ def main(input_dir):
     print(f"Actual rewards: {test_results['actual_rewards']:.4f}")
     print(f"Potential improvement: {test_results['improvement']:.4f}")
     
-    # Standard feature importance
-    print("\nStandard feature importance analysis:")
-    feature_importance = analyze_feature_importance(agent, scaler, feature_cols)
-    for feature, importance in list(feature_importance.items())[:10]:
-        print(f"  {feature}: {importance:.2f}%")
+    # # Standard feature importance
+    # print("\nStandard feature importance analysis:")
+    # feature_importance = analyze_feature_importance(agent, scaler, feature_cols)
+    # for feature, importance in list(feature_importance.items())[:10]:
+    #     print(f"  {feature}: {importance:.2f}%")
+    # # Standard importance
+    # plt.subplot(2, 1, 1)
+    # top_features = dict(list(feature_importance.items())[:20])
+    # plt.barh(list(top_features.keys()), list(top_features.values()))
+    # plt.xlabel('Importance (%)')
+    # plt.title('Top 20 Feature Importance (Standard Method)')
     
     # Improved feature importance
     print("\nImproved permutation-based feature importance:")
@@ -459,17 +531,7 @@ def main(input_dir):
         print(f"  {feature}: {importance:.2f}%")
     
     # Visualize feature importance (using both methods)
-    plt.figure(figsize=(12, 16))
-    
-    # Standard importance
-    plt.subplot(2, 1, 1)
-    top_features = dict(list(feature_importance.items())[:20])
-    plt.barh(list(top_features.keys()), list(top_features.values()))
-    plt.xlabel('Importance (%)')
-    plt.title('Top 20 Feature Importance (Standard Method)')
-    
-    # Improved importance
-    plt.subplot(2, 1, 2)
+    plt.figure(figsize=(12, 6))
     improved_top_features = dict(list(improved_importance.items())[:20])
     plt.barh(list(improved_top_features.keys()), list(improved_top_features.values()))
     plt.xlabel('Importance (%)')
