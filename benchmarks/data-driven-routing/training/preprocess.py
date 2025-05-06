@@ -249,6 +249,26 @@ def preprocess_dataset(input_file, output_file=None):
     print(f"Reading dataset from {input_file}...")
     df = pd.read_csv(input_file)
     
+
+    all_pods_set = set()
+    print("Collecting all unique pod IDs across the dataset...")
+    for _, row in df.iterrows():
+        kv_cache_hit_ratios = safe_parse_json(row['allPodsKvCacheHitRatios'])
+        if kv_cache_hit_ratios:
+            all_pods_set.update(kv_cache_hit_ratios.keys())
+        inflight_requests = safe_parse_json(row['numInflightRequestsAllPods'])
+        if inflight_requests:
+            all_pods_set.update(inflight_requests.keys())
+        pod_metrics = safe_parse_json(row['podMetricsLastSecond'])
+        if pod_metrics:
+            all_pods_set.update(pod_metrics.keys())
+        if len(all_pods_set) == 8:
+            print(f"Found all EIGHT pods: {all_pods_set}. break")
+            break
+    all_pods = list(all_pods_set)
+    print(f"Identified {len(all_pods)} pods: {all_pods}")
+
+
     print(f"Original dataset shape: {df.shape}")
     print(f"Columns: {df.columns.tolist()}")
     
