@@ -38,10 +38,11 @@ type RoutingAlgorithm string
 // It can be extended with more fields as needed in the future.
 type RoutingContext struct {
 	context.Context
-	Algorithm RoutingAlgorithm
-	Model     string
-	Message   string
-	RequestID string
+	Algorithm    RoutingAlgorithm
+	SubAlgorithm string
+	Model        string
+	Message      string
+	RequestID    string
 
 	targetPodSet chan struct{}
 	targetPod    atomic.Pointer[v1.Pod]
@@ -117,6 +118,7 @@ func (r *RoutingContext) targetAddressWithoutPort(pod *v1.Pod) string {
 func (r *RoutingContext) reset(ctx context.Context, algorithms RoutingAlgorithm, model string, message string, requestID string) {
 	r.Context = ctx
 	r.Algorithm = algorithms
+	r.SubAlgorithm = "" // Initialize the new field
 	r.Model = model
 	r.Message = message
 	r.RequestID = requestID

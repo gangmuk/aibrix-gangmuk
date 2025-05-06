@@ -28,8 +28,20 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// const (
+// 	defaultSubRoutingStrategy = "random"
+// )
+
+// var (
+// 	subRoutingStrategy = utils.LoadEnv("AIBRIX_FLEXIBLE_PREFIX_CACHE_ROUTING_STRATEGY", defaultSubRoutingStrategy)
+// )
+
 func init() {
 	RegisterDelayedConstructor("flexible-prefix-cache", NewFlexiblePrefixCacheRouter)
+	klog.InfoS("flexible_prefix_cache_configurations",
+		// "subRoutingStrategy", subRoutingStrategy,
+		"pod_running_request_imbalance_abs_count", podRunningRequestImbalanceAbsCount,
+		"matched_pods_running_requests_standard_deviation_factor", standardDeviationFactor)
 }
 
 type flexiblePrefixCacheRouter struct {
@@ -80,15 +92,25 @@ func (p flexiblePrefixCacheRouter) Route(ctx *types.RoutingContext, pods types.P
 		readyPodsMap[pod.Status.PodIP] = struct{}{}
 	}
 
-	targetPod, err = selectRandomPod(pods.All(), rand.Intn)
-	if err != nil {
-		klog.Errorf("error to select target pod: %v, requestID: %s", err, ctx.RequestID)
-		return "", err
-	}
-	klog.InfoS("Random routing", "request_id", ctx.RequestID, "target_pod", targetPod.Status.PodIP)
-
 	matchedPods, prefixHashes = p.prefixCacheIndexer.MatchPrefix(tokens, ctx.Model, readyPodsMap)
-	klog.InfoS("matched_pods", "request_id", ctx.RequestID, "matched_pods", matchedPods)
+
+	if ctx.SubAlgorithm == "random" {
+		klog.Infof("random rouiting, request_id: %s", ctx.RequestID)
+		targetPod, _ = selectRandomPod(pods.All(), rand.Intn)
+	} else if ctx.SubAlgorithm == "prefix-cache" {
+		var isLoadImbalanced bool
+		targetPod, isLoadImbalanced = getTargetPodOnLoadImbalance(p.cache, readyPods)
+		if !isLoadImbalanced {
+			if len(matchedPods) > 0 {
+				targetPod = getTargetPodFromMatchedPods(p.cache, readyPods, matchedPods)
+				klog.Infof("prefix routing - prefix routing, request_id: %s", ctx.RequestID)
+			}
+		}
+		if len(matchedPods) == 0 || targetPod == nil {
+			targetPod = selectTargetPodWithLeastRequestCount(p.cache, readyPods)
+			klog.Infof("prefix routing - least request count routing, request_id: %s", ctx.RequestID)
+		}
+	}
 
 	// klog.InfoS("request_id", ctx.RequestID, "prefix_hashes", prefixHashes)
 	utils.StoreKVCacheHitRatio(ctx.RequestID, matchedPods)

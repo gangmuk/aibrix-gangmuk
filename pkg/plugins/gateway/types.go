@@ -35,6 +35,8 @@ const (
 	HeaderErrorNoModelInRequest = "x-error-no-model-in-request"
 	HeaderErrorNoModelBackends  = "x-error-no-model-backends"
 
+	HeaderErrorNoSubAlgorithmInRequest = "x-error-no-sub-algorithm-in-request"
+
 	// Streaming Headers
 	HeaderErrorStreaming                 = "x-error-streaming"
 	HeaderErrorNoStreamOptions           = "x-error-no-stream-options"

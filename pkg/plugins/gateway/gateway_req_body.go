@@ -38,6 +38,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 	klog.Infof("HandleRequestBody context state, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 
 	var model string
+	var subAlgorithm string
 	var routingCtx *types.RoutingContext
 	var ok, stream bool
 	var term int64 // Identify the trace window
@@ -58,6 +59,16 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			[]*configPb.HeaderValueOption{{Header: &configPb.HeaderValue{
 				Key: HeaderErrorNoModelInRequest, RawValue: []byte(model)}}},
 			"no model in request body"), model, routingCtx, stream, term
+	}
+
+	if subAlgorithmValue, exists := jsonMap["subAlgorithm"]; exists {
+		if subAlgorithm, ok = subAlgorithmValue.(string); !ok {
+			klog.InfoS("subAlgorithm is not a string", "requestID", requestID, "value", subAlgorithmValue)
+			subAlgorithm = ""
+		}
+	} else {
+		subAlgorithm = ""
+		klog.V(4).InfoS("subAlgorithm not present in request. set it empty string", "requestID", requestID)
 	}
 
 	// early reject the request if model doesn't exist.
@@ -103,6 +114,8 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 		}
 		// klog.InfoS("Context state before pod selection", "requestID", requestID, "isDone", ctx.Err() != nil)
 		routingCtx = routingAlgorithm.NewContext(ctx, model, message, requestID)
+		routingCtx.SubAlgorithm = subAlgorithm
+
 		// klog.V(5).InfoS("New routing context created", "requestID", requestID, "isDone", routingCtx.Err() != nil)
 
 		if routingCtx != nil {
