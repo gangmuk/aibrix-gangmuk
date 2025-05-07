@@ -6,6 +6,72 @@ from sklearn.preprocessing import StandardScaler
 import os
 from datetime import datetime
 import argparse
+import sys
+
+
+def parse_json_columns(df, json_columns):
+        for col in json_columns:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+        return df
+
+def parse_log_file(file_path):
+    data = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Check if this is a metrics line
+            if "latency_metrics" not in line:
+                logger.error(f"Invalid line. {line}")
+                assert False
+            if "**@" in line:
+                line = line.split("**@latency_metrics@")[1]
+            parts = line.split('@')
+            row = {}
+            json_columns = list()
+            column_names = list()
+            for i in range(0, len(parts), 2):
+                column_name = parts[i]
+                column_names.append(column_name)
+                value = parts[i+1]
+                if value.startswith('{') and value.endswith('}'):
+                    try:
+                        json_columns.append(column_name)
+                        row[column_name] = json.loads(value) # this is going to be dictionary
+                    except json.JSONDecodeError:
+                        logger.error(f"Error decoding JSON: {value}")
+                else:
+                    try:
+                        row[column_name] = int(value)
+                    except ValueError:
+                        try:
+                            row[column_name] = float(value)
+                        except ValueError:
+                            row[column_name] = value
+            data.append(row)
+    df = pd.DataFrame(data, columns=column_names)
+    return df, json_columns
+
+def normalize_time(df):
+    cutoff_time=0
+    first_request_start_time = df['request_start_time'].min()
+    df['normalized_start_time'] = df['request_start_time'] - first_request_start_time
+    df['normalized_end_time'] = df['request_end_time'] - first_request_start_time
+    df['normalized_start_time'] /= 1_000_000
+    df['normalized_end_time'] /= 1_000_000
+    df['log_window_start_time'] = df['log_window_start_time'] - first_request_start_time
+    df['log_window_start_time'] /= 1_000_000
+    df['log_window_end_time'] = df['log_window_end_time'] - first_request_start_time
+    df['log_window_end_time'] /= 1_000_000
+    df = df[df['normalized_start_time'] > cutoff_time]
+    # df['normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
+    df.loc[:, 'normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
+    # df['normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
+    df.loc[:, 'normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
+    df = df.sort_values(by='normalized_start_time', ascending=True)
+    df['time_bucket'] = df['normalized_start_time'].astype(int)
+    df = df[['normalized_start_time', 'time_bucket', 'normalized_end_time'] + [col for col in df.columns if col != 'normalized_start_time' and col != 'normalized_end_time' and col != 'time_bucket']]
+    df.reset_index(drop=True, inplace=True)
+    return df
 
 def safe_parse_json(json_str):
     """Safely parse Python dictionary-like strings or JSON strings"""
@@ -221,35 +287,25 @@ def extract_key_pod_metrics(pod_metrics, pod_id):
     """Extract the most relevant metrics for a pod from the pod metrics"""
     if pod_id not in pod_metrics:
         return {
-            'avg_ttft_ms': 0,
-            'avg_tpot_ms': 0, 
-            'total_requests': 0,
-            'total_tokens': 0
+            'last_second_avg_ttft_ms': 0,
+            'last_second_avg_tpot_ms': 0, 
+            'last_second_p99_ttft_ms': 0,
+            'last_second_p99_tpot_ms': 0,
+            'last_second_total_requests': 0,
+            'last_second_total_tokens': 0
         }
     
     metrics = pod_metrics[pod_id]
     return {
-        'avg_ttft_ms': metrics.get('avg_ttft_ms', 0),
-        'avg_tpot_ms': metrics.get('avg_tpot_ms', 0),
-        'total_requests': metrics.get('total_requests', 0),
-        'total_tokens': metrics.get('total_tokens', 0)
+        'last_second_avg_ttft_ms': metrics.get('avg_ttft_ms', 0),
+        'last_second_avg_tpot_ms': metrics.get('avg_tpot_ms', 0),
+        'last_second_p99_ttft_ms': metrics.get('p99_ttft_ms', 0),
+        'last_second_p99_tpot_ms': metrics.get('p99_tpot_ms', 0),
+        'last_second_total_requests': metrics.get('total_requests', 0),
+        'last_second_total_tokens': metrics.get('total_tokens', 0)
     }
 
-def preprocess_dataset(input_file, output_file=None):
-    """
-    Preprocess the dataset for offline RL training
-    
-    Args:
-        input_file: Path to the input CSV file
-        output_file: Path to the output CSV file
-    
-    Returns:
-        Processed DataFrame and pod mapping information
-    """
-    print(f"Reading dataset from {input_file}...")
-    df = pd.read_csv(input_file)
-    
-
+def preprocess_dataset(df, output_file=None):
     all_pods_set = set()
     print("Collecting all unique pod IDs across the dataset...")
     for _, row in df.iterrows():
@@ -285,14 +341,30 @@ def preprocess_dataset(input_file, output_file=None):
         'numDecodeTokensForAllPods'
     ]
 
-    expected_pod_metrics_keys = [
-        'avg_ttft_ms', 'min_ttft_ms', 'max_ttft_ms', 'p50_ttft_ms', 
-        'p90_ttft_ms', 'p95_ttft_ms', 'p99_ttft_ms', 'ttft_samples', 
-        'avg_tpot_ms', 'min_tpot_ms', 'max_tpot_ms', 'p50_tpot_ms', 
-        'p90_tpot_ms', 'p95_tpot_ms', 'p99_tpot_ms', 'tpot_samples', 
-        'early_tokens_tpot_ms', 'mid_tokens_tpot_ms', 'late_tokens_tpot_ms', 
-        'total_requests', 'total_decode_tokens', 'total_prefill_tokens', 
-        'total_tokens'
+    expected_last_second_pod_metrics_keys = [
+        'last_second_avg_ttft_ms', 
+        'last_second_min_ttft_ms', 
+        'last_second_max_ttft_ms', 
+        'last_second_p50_ttft_ms', 
+        'last_second_p90_ttft_ms', 
+        'last_second_p95_ttft_ms', 
+        'last_second_p99_ttft_ms', 
+        'last_second_ttft_samples', 
+        'last_second_avg_tpot_ms', 
+        'last_second_min_tpot_ms', 
+        'last_second_max_tpot_ms', 
+        'last_second_p50_tpot_ms', 
+        'last_second_p90_tpot_ms', 
+        'last_second_p95_tpot_ms', 
+        'last_second_p99_tpot_ms', 
+        'last_second_tpot_samples', 
+        'last_second_early_tokens_tpot_ms', 
+        'last_second_mid_tokens_tpot_ms', 
+        'last_second_late_tokens_tpot_ms', 
+        'last_second_total_requests', 
+        'last_second_total_decode_tokens', 
+        'last_second_total_prefill_tokens', 
+        'last_second_total_tokens'
     ]
     
     # Check for missing expected columns
@@ -310,22 +382,23 @@ def preprocess_dataset(input_file, output_file=None):
     # Process first row to check podMetricsLastSecond structure
     if 'podMetricsLastSecond' in df.columns and len(df) > 0:
         first_row = df.iloc[0]
+        print(f"WARNING: We are using the first row only to check podMetricsLastSecond structure")
         pod_metrics = safe_parse_json(first_row['podMetricsLastSecond'])
-        
+        # print(f"features in pod_metrics: {pod_metrics.keys()}")
+        print(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
         if pod_metrics:
-            print(f"Checking podMetricsLastSecond structure...")
             # Check structure for each pod
             for pod_id, metrics in pod_metrics.items():
                 # print(f"Checking metrics for pod {pod_id}")
-                
+                print(f"metrics: {metrics}")
                 # Check for missing expected keys
-                missing_keys = [key for key in expected_pod_metrics_keys if key not in metrics]
+                missing_keys = [key for key in expected_last_second_pod_metrics_keys if key not in metrics]
                 if missing_keys:
                     print(f"Error: Missing expected keys in podMetricsLastSecond for pod {pod_id}: {missing_keys}")
                     assert False
                 
                 # Check for unknown keys
-                unknown_keys = [key for key in metrics.keys() if key not in expected_pod_metrics_keys]
+                unknown_keys = [key for key in metrics.keys() if key not in expected_last_second_pod_metrics_keys]
                 if unknown_keys:
                     print(f"Error: Found unknown keys in podMetricsLastSecond for pod {pod_id}: {unknown_keys}")
                     assert False
@@ -359,18 +432,6 @@ def preprocess_dataset(input_file, output_file=None):
                 print(f"  Unknown type: {type(sample_val)}")
                 # Try to parse anyway
                 df[col] = df[col].apply(safe_parse_json)
-    
-    # Get unique pods from the first row
-    first_row = df.iloc[0]
-    first_row_kv_cache = first_row['allPodsKvCacheHitRatios']
-    
-    if isinstance(first_row_kv_cache, dict):
-        all_pods = list(first_row_kv_cache.keys())
-    else:
-        # Try to parse it again
-        all_pods = list(safe_parse_json(first_row_kv_cache).keys())
-        
-    print(f"Identified {len(all_pods)} pods: {all_pods}")
     
     # Create a new list to store processed records
     processed_records = []
@@ -435,6 +496,16 @@ def preprocess_dataset(input_file, output_file=None):
     # Create a new DataFrame with processed records
     processed_df = pd.DataFrame(processed_records)
     
+    all_pod_ids = [pod_id.replace('.', '_') for pod_id in all_pods]
+    processed_df = create_essential_relative_features(
+        processed_df,
+        all_pod_ids,
+        drop_raw=False,
+        drop_pct=True,
+        drop_rank=True,
+        drop_norm_rank=True,
+    )
+
     # Remove rows with NaN values or replace them with default values
     processed_df = processed_df.fillna(0)
     
@@ -497,45 +568,116 @@ def preprocess_dataset(input_file, output_file=None):
     
     return processed_df, mapping_info
 
-def create_train_test_split(processed_df, train_ratio=0.8, output_dir=None):
-    """
-    Split the processed dataset into training and testing sets
-    """
-    if output_dir is None:
-        output_dir = '.'
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Shuffle the dataset
-    shuffled_df = processed_df.sample(frac=1, random_state=42)
-    
-    # Split into train and test
-    train_size = int(len(shuffled_df) * train_ratio)
-    train_df = shuffled_df[:train_size]
-    test_df = shuffled_df[train_size:]
-    
-    # Save the splits
-    train_file = os.path.join(output_dir, 'train_data.csv')
-    test_file = os.path.join(output_dir, 'test_data.csv')
-    
-    train_df.to_csv(train_file, index=False)
-    test_df.to_csv(test_file, index=False)
-    
-    print(f"Training set shape: {train_df.shape}, saved to {train_file}")
-    print(f"Testing set shape: {test_df.shape}, saved to {test_file}")
-    
-    return train_df, test_df
-
-def main(input_dir):
-    output_dir = input_dir
-    input_file = os.path.join(input_dir, "parsed-gateway-plugins.log.csv")
-    output_file = os.path.join(output_dir, "processed_dataset.csv")
-    try:
-        processed_df, mapping_info = preprocess_dataset(input_file, output_file)
+def create_essential_relative_features(df, pod_ids, drop_raw, drop_pct, drop_rank, drop_norm_rank, metrics=None):
+    if metrics is None:
+        # Detect metrics by finding columns that appear for multiple pods
+        all_cols = set(df.columns)
+        metrics = set()
         
-        # Create train-test split
-        train_df, test_df = create_train_test_split(processed_df, output_dir=output_dir)
+        for pod_id in pod_ids:
+            pod_prefix = f"pod_{pod_id}"
+            pod_cols = [col[len(pod_prefix)+1:] for col in all_cols if col.startswith(pod_prefix)]
+            
+            if not metrics:
+                metrics = set(pod_cols)
+            else:
+                metrics = metrics.intersection(pod_cols)
+        
+        metrics = list(metrics)
+        print(f"Detected {len(metrics)} common metrics across pods: {metrics}")
+    
+    # Track columns to potentially drop
+    columns_to_drop = []
+    
+    # Create dictionaries to hold new columns
+    new_columns = {}
+    
+    cluster_wise_total_features = []
+
+    # Process each metric
+    for metric in metrics:
+        # Get all pod columns for this metric
+        pod_metric_cols = [f"pod_{p}_{metric}" for p in pod_ids if f"pod_{p}_{metric}" in df.columns]
+        
+        if len(pod_metric_cols) <= 1:
+            continue  # Skip if not enough pods have this metric
+        
+        # Track raw columns for potential dropping
+        if drop_raw:
+            columns_to_drop.extend(pod_metric_cols)
+        
+        # Make sure all columns are numeric before calculations
+        for col in pod_metric_cols:
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                df[col] = df[col].fillna(0)
+        
+        # Calculate total value for this metric
+        cluster_wise_total_col_name = f"cluster_total_{metric}"
+        cluster_wise_total_features.append(cluster_wise_total_col_name)
+        new_columns[cluster_wise_total_col_name] = df[pod_metric_cols].sum(axis=1)
+        
+        # Calculate percentage columns
+        if not drop_pct:
+            for col in pod_metric_cols:
+                # Extract the pod ID
+                parts = col.split('_')
+                pod_id_parts = parts[1:-1]
+                pod_id = "_".join(pod_id_parts)
+                
+                pct_col_name = f"pct_{pod_id}_{metric}"
+                # Reference the total from new_columns to handle dependencies correctly
+                total_values = new_columns[cluster_wise_total_col_name]
+                new_columns[pct_col_name] = df[col] / (total_values + 1e-6)
+        
+        # Calculate ranks if needed
+        if not drop_rank or not drop_norm_rank:
+            ranks = df[pod_metric_cols].rank(axis=1)
+            
+            for col in pod_metric_cols:
+                # Extract the pod ID
+                parts = col.split('_')
+                pod_id_parts = parts[1:-1]
+                pod_id = "_".join(pod_id_parts)
+                
+                # Add rank column if needed
+                if not drop_rank:
+                    rank_col_name = f"rank_{pod_id}_{metric}"
+                    new_columns[rank_col_name] = ranks[col]
+                
+                # Add normalized rank if needed
+                if not drop_norm_rank:
+                    norm_rank_col_name = f"norm_rank_{pod_id}_{metric}"
+                    new_columns[norm_rank_col_name] = (ranks[col] - 1) / (len(pod_metric_cols) - 1)
+    
+    print(f"cluster_wise_total_features: {cluster_wise_total_features}")
+
+    # Create a new DataFrame with all the new columns at once
+    new_df = pd.DataFrame(new_columns, index=df.index)
+    
+    # Count columns by type for reporting
+    rank_columns = [col for col in new_df.columns if col.startswith('rank_')]
+    norm_rank_columns = [col for col in new_df.columns if col.startswith('norm_rank_')]
+    total_raw_columns = len(columns_to_drop) if drop_raw else 0
+    
+    # Report on dropping columns
+    if columns_to_drop or drop_pct or drop_rank or drop_norm_rank:
+        print(f"Dropping {total_raw_columns} columns: {len(rank_columns)} ranks, "
+              f"{len(norm_rank_columns)} norm_ranks, {total_raw_columns} raw metrics")
+        
+    # Drop columns from original DataFrame if requested
+    if columns_to_drop:
+        df = df.drop(columns=columns_to_drop)
+    
+    # Combine original DataFrame (minus dropped columns) with new columns
+    result_df = pd.concat([df, new_df], axis=1)
+    
+    return result_df
+
+def main(df, output_file):
+    
+    try:
+        processed_df, mapping_info = preprocess_dataset(df, output_file)
         print("\nPod mapping (for action space):")
         for pod, idx in mapping_info['pod_to_index'].items():
             print(f"  Pod {pod} -> Action {idx}")
@@ -545,18 +687,32 @@ def main(input_dir):
         assert False
 
 if __name__ == "__main__":
-    import sys
+    global avg_tpot_slo_threshold, avg_ttft_slo_threshold
+    avg_tpot_slo_threshold = 25
+    avg_ttft_slo_threshold = 500
+
     if len(sys.argv) < 2:
         print("Usage: python reorg.py <input_dir>")
         sys.exit(1)
+
     input_dir = sys.argv[1]
     if not os.path.exists(input_dir):
         print("Input dir does not exist. exiting...")
         exit()
 
-    global avg_tpot_slo_threshold, avg_ttft_slo_threshold
-    avg_tpot_slo_threshold = 25
-    avg_ttft_slo_threshold = 500
-    main(input_dir)
+    input_file =f"{input_dir}/filtered_gateway_plugins.log.csv"
+    if not os.path.exists(input_file):
+        print("Input file does not exist. exiting...")
+        exit()
+
+    df, json_columns = parse_log_file(input_file)
+    if len(df) == 0:
+        logger.error("No data found in the log file.")
+
+    df = parse_json_columns(df, json_columns)
+    df = normalize_time(df)
+    output_file = os.path.join(input_dir, "processed_dataset.csv")
+    main(df, output_file)
+
     print(f"* avg_tpot_slo_threshold: {avg_tpot_slo_threshold} ms")
     print(f"* avg_ttft_slo_threshold: {avg_ttft_slo_threshold} ms")

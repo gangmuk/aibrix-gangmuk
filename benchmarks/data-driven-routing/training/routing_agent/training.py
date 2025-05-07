@@ -20,11 +20,38 @@ class Config:
         self.learning_rate = 0.0003
         self.gamma = 0.99  # Discount factor
         self.batch_size = 256
-        self.num_epochs = 200
-        self.alpha = 0.1  # CQL regularization parameter - higher more conservative
+        self.num_epochs = 500
+        self.alpha = 0.01  # CQL regularization parameter - higher more conservative
         self.tau = 0.005  # Target network update rate
         self.input_dir = input_dir
         self.model_save_path = f"{input_dir}/models/cql_model.pt"
+
+def create_train_test_split(processed_df, train_ratio, output_dir):
+    """
+    Split the processed dataset into training and testing sets
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Shuffle the dataset
+    shuffled_df = processed_df.sample(frac=1, random_state=42)
+    
+    # Split into train and test
+    train_size = int(len(shuffled_df) * train_ratio)
+    train_df = shuffled_df[:train_size]
+    test_df = shuffled_df[train_size:]
+    
+    # Save the splits
+    train_file = os.path.join(output_dir, 'train_data.csv')
+    test_file = os.path.join(output_dir, 'test_data.csv')
+    
+    train_df.to_csv(train_file, index=False)
+    test_df.to_csv(test_file, index=False)
+    
+    print(f"Training set shape: {train_df.shape}, saved to {train_file}")
+    print(f"Testing set shape: {test_df.shape}, saved to {test_file}")
+    
+    return train_file, test_file, train_df, test_df
 
 def create_essential_relative_features(df, pod_ids, metrics=None):
     """
@@ -95,56 +122,32 @@ def load_and_preprocess_data(data_path, mapping_path, config):
     with open(mapping_path, 'r') as f:
         mapping_info = json.load(f)
     
-    print(f"Dataset shape before feature engineering: {df.shape}")
+    print(f"Dataset shape: {df.shape}")
     
     # Extract pod IDs from the mapping info
     pod_ids = list(mapping_info['pod_to_index'].keys())
     print(f"Found {len(pod_ids)} pods from mapping")
     
-    # Create relative features
-    df = create_essential_relative_features(df, pod_ids)
-    
-    print(f"Dataset shape after feature engineering: {df.shape}")
-    
     # Define which columns are features and which are metadata
     metadata_cols = ['request_id', 'request_start_time', 'request_end_time', 
-                     'selected_pod', 'action', 'reward', 'ttft_reward', 'tpot_reward',
-                     'avg_tpot_slo_satisfied', 'avg_ttft_slo_satisfied', 
-                     'ttft_normalized', 'tpot_normalized']
+                     'selected_pod', 'input_tokens', 'output_tokens', 'total_tokens',
+                     'ttft', 'avg_tpot', 'e2e_latency', 'action', 'reward', 
+                     'ttft_reward', 'tpot_reward', 'avg_tpot_slo_satisfied', 
+                     'avg_ttft_slo_satisfied', 'ttft_normalized', 'tpot_normalized']
     
-    # Identify GPU model columns
-    gpu_model_cols = [col for col in df.columns if 'gpu_model' in col]
+    # Identify columns by patterns based on the new structure
+    pct_cols = [col for col in df.columns if col.startswith('pct_')]
+    total_cols = [col for col in df.columns if col.startswith('total_') and col != 'total_tokens']
     
-    # Numeric feature columns (exclude metadata and handle GPU model columns as before)
-    numeric_feature_cols = [col for col in df.columns if col not in metadata_cols and col not in gpu_model_cols]
+    # All feature columns (excluding metadata)
+    feature_cols = pct_cols + total_cols
     
-    # Handle one-hot encoding of GPU models as in your original code
-    unique_gpu_models = set()
-    for col in gpu_model_cols:
-        unique_gpu_models.update(df[col].unique())
-    
-    # One-hot encode GPU models
-    encoded_gpu_features = {}
-    for col in gpu_model_cols:
-        pod_id = col.replace('_gpu_model', '')
-        for gpu_model in unique_gpu_models:
-            feature_name = f"{pod_id}_gpu_{gpu_model.replace('-', '_')}"
-            encoded_gpu_features[feature_name] = (df[col] == gpu_model).astype(int)
-    
-    # Create a DataFrame with encoded GPU features
-    encoded_df = pd.DataFrame(encoded_gpu_features)
-    
-    # Combine with numeric features
-    combined_df = pd.concat([df[numeric_feature_cols], encoded_df], axis=1)
-    
-    # Get list of all feature columns after one-hot encoding
-    all_feature_cols = list(combined_df.columns)
-    
-    print(f"Using {len(numeric_feature_cols)} numeric features and {len(encoded_gpu_features)} encoded GPU features")
+    print(f"Using {len(feature_cols)} feature columns")
+    print(f"Feature columns sample: {feature_cols[:5]}")
     
     # Scale the features
     scaler = StandardScaler()
-    X = scaler.fit_transform(combined_df.values)
+    X = scaler.fit_transform(df[feature_cols].values)
     
     # Set state and action dimensions
     config.state_dim = X.shape[1]
@@ -164,7 +167,7 @@ def load_and_preprocess_data(data_path, mapping_path, config):
     
     print(f"Data shapes - States: {states.shape}, Actions: {actions.shape}, Rewards: {rewards.shape}")
     
-    return states, actions, rewards, mapping_info, all_feature_cols, scaler
+    return states, actions, rewards, mapping_info, feature_cols, scaler
 
 # Q-Network model
 class QNetwork(nn.Module):
@@ -398,33 +401,6 @@ def analyze_feature_importance(agent, scaler, feature_names):
                                                  reverse=True)}
     
     return feature_importance
-def analyze_feature_correlations(states, feature_names):
-    """Analyze correlations between features"""
-    # Convert to numpy for correlation calculation
-    states_np = states.cpu().numpy()
-    
-    # Calculate correlation matrix
-    corr_matrix = np.corrcoef(states_np.T)
-    
-    # Find highly correlated features with pod_10_0_0_4_prefill_tokens
-    # First, find the index of this feature
-    target_feature = "pod_10_0_0_4_prefill_tokens"
-    if target_feature in feature_names:
-        target_idx = feature_names.index(target_feature)
-        
-        # Get correlations with this feature
-        correlations = []
-        for i, name in enumerate(feature_names):
-            if i != target_idx:
-                correlations.append((name, corr_matrix[target_idx, i]))
-        
-        # Sort by absolute correlation
-        correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-        
-        # Return top correlations
-        return correlations[:10]
-    else:
-        return "Target feature not found"
 
 def improved_feature_importance(agent, states, actions, feature_names):
     """Permutation-based feature importance analysis"""
@@ -467,26 +443,16 @@ def improved_feature_importance(agent, states, actions, feature_names):
 # Main function
 def main(input_dir):
     # Data paths
-    train_data_path = f"{input_dir}/train_data.csv"
-    test_data_path = f"{input_dir}/test_data.csv"
-    mapping_path = f"{input_dir}/processed_dataset_mapping.json"
+    processed_df = pd.read_csv(f"{input_dir}/processed_dataset.csv")
+    train_data_path, test_data_path, _, _ = create_train_test_split(processed_df, train_ratio=0.8, output_dir=input_dir)
     
     config = Config(input_dir)
 
     # Load and preprocess data
+    mapping_path = f"{input_dir}/processed_dataset_mapping.json"
     train_states, train_actions, train_rewards, mapping_info, feature_cols, scaler = load_and_preprocess_data(train_data_path, mapping_path, config)
     test_states, test_actions, test_rewards, _, _, _ = load_and_preprocess_data(test_data_path, mapping_path, config)
 
-    # Analyze feature correlations before training
-    print("\nAnalyzing feature correlations:")
-    correlations = analyze_feature_correlations(train_states, feature_cols)
-    if isinstance(correlations, list):
-        print("Top correlations with pod_10_0_0_4_prefill_tokens:")
-        for feature, corr in correlations:
-            print(f"  {feature}: {corr:.4f}")
-    else:
-        print(correlations)
-    
     # Initialize agent
     agent = CQLAgent(config)
     

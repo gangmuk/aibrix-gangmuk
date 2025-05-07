@@ -10,70 +10,6 @@ import json
 import logging
 import time
 
-def parse_json_columns(df, json_columns):
-        for col in json_columns:
-            if col in df.columns:
-                df[col] = df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
-        return df
-
-def parse_log_file(file_path):
-    data = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            # Check if this is a metrics line
-            if "latency_metrics" not in line:
-                logger.error(f"Invalid line. {line}")
-                assert False
-            if "**@" in line:
-                line = line.split("**@latency_metrics@")[1]
-            parts = line.split('@')
-            row = {}
-            json_columns = list()
-            column_names = list()
-            for i in range(0, len(parts), 2):
-                column_name = parts[i]
-                column_names.append(column_name)
-                value = parts[i+1]
-                if value.startswith('{') and value.endswith('}'):
-                    try:
-                        json_columns.append(column_name)
-                        row[column_name] = json.loads(value) # this is going to be dictionary
-                    except json.JSONDecodeError:
-                        logger.error(f"Error decoding JSON: {value}")
-                else:
-                    try:
-                        row[column_name] = int(value)
-                    except ValueError:
-                        try:
-                            row[column_name] = float(value)
-                        except ValueError:
-                            row[column_name] = value
-            data.append(row)
-    df = pd.DataFrame(data, columns=column_names)
-    return df, json_columns
-
-def normalize_time(df):
-    cutoff_time=0
-    first_request_start_time = df['request_start_time'].min()
-    df['normalized_start_time'] = df['request_start_time'] - first_request_start_time
-    df['normalized_end_time'] = df['request_end_time'] - first_request_start_time
-    df['normalized_start_time'] /= 1_000_000
-    df['normalized_end_time'] /= 1_000_000
-    df['log_window_start_time'] = df['log_window_start_time'] - first_request_start_time
-    df['log_window_start_time'] /= 1_000_000
-    df['log_window_end_time'] = df['log_window_end_time'] - first_request_start_time
-    df['log_window_end_time'] /= 1_000_000
-    df = df[df['normalized_start_time'] > cutoff_time]
-    # df['normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
-    df.loc[:, 'normalized_start_time'] = df['normalized_start_time'] - df['normalized_start_time'].min()
-    # df['normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
-    df.loc[:, 'normalized_end_time'] = df['normalized_end_time'] - df['normalized_start_time'].min()
-    df = df.sort_values(by='normalized_start_time', ascending=True)
-    df['time_bucket'] = df['normalized_start_time'].astype(int)
-    df = df[['normalized_start_time', 'time_bucket', 'normalized_end_time'] + [col for col in df.columns if col != 'normalized_start_time' and col != 'normalized_end_time' and col != 'time_bucket']]
-    df.reset_index(drop=True, inplace=True)
-    return df
-
 
 def analyze_llm_inference_logs(df):
     if df.empty:
@@ -376,9 +312,9 @@ def create_pod_latency_bar_charts(df):
     num_pods = len(pod_ids)
     colors = plt.cm.viridis(np.linspace(0, 0.9, num_pods))
     
-    if 'selected_pod_avg_ttft_ms' in df.columns:
+    if 'selected_pod_last_second_avg_ttft_ms' in df.columns:
         ax = axes[0]
-        ttft_by_pod = df.groupby('selectedpod')['selected_pod_avg_ttft_ms'].mean().sort_values(ascending=False)
+        ttft_by_pod = df.groupby('selectedpod')['selected_pod_last_second_avg_ttft_ms'].mean().sort_values(ascending=False)
         
         # Create the bar chart
         bars = ax.bar(ttft_by_pod.index, ttft_by_pod.values, color=colors)
@@ -398,9 +334,9 @@ def create_pod_latency_bar_charts(df):
         ax.tick_params(axis='x', rotation=45)
         ax.grid(axis='y', alpha=0.3)
     
-    if 'selected_pod_p99_ttft_ms' in df.columns:
+    if 'selected_pod_last_second_p99_ttft_ms' in df.columns:
         ax = axes[1]
-        p99_ttft_by_pod = df.groupby('selectedpod')['selected_pod_p99_ttft_ms'].mean().sort_values(ascending=False)
+        p99_ttft_by_pod = df.groupby('selectedpod')['selected_pod_last_second_p99_ttft_ms'].mean().sort_values(ascending=False)
         
         # Create the bar chart
         bars = ax.bar(p99_ttft_by_pod.index, p99_ttft_by_pod.values, color=colors)
@@ -419,9 +355,9 @@ def create_pod_latency_bar_charts(df):
         ax.tick_params(axis='x', rotation=45)
         ax.grid(axis='y', alpha=0.3)
 
-    if 'selected_pod_avg_tpot_ms' in df.columns:
+    if 'selected_pod_last_second_avg_tpot_ms' in df.columns:
         ax = axes[2]
-        tpot_by_pod = df.groupby('selectedpod')['selected_pod_avg_tpot_ms'].mean().sort_values(ascending=False)
+        tpot_by_pod = df.groupby('selectedpod')['selected_pod_last_second_avg_tpot_ms'].mean().sort_values(ascending=False)
         
         # Create the bar chart
         bars = ax.bar(tpot_by_pod.index, tpot_by_pod.values, color=colors)
@@ -439,9 +375,9 @@ def create_pod_latency_bar_charts(df):
         ax.set_ylabel('Average TPOT (ms)', fontsize=12)
         ax.tick_params(axis='x', rotation=45)
         ax.grid(axis='y', alpha=0.3)
-    if 'selected_pod_p99_tpot_ms' in df.columns:
+    if 'selected_pod_last_second_p99_tpot_ms' in df.columns:
         ax = axes[3]
-        p99_tpot_by_pod = df.groupby('selectedpod')['selected_pod_p99_tpot_ms'].mean().sort_values(ascending=False)
+        p99_tpot_by_pod = df.groupby('selectedpod')['selected_pod_last_second_p99_tpot_ms'].mean().sort_values(ascending=False)
         
         # Create the bar chart
         bars = ax.bar(p99_tpot_by_pod.index, p99_tpot_by_pod.values, color=colors)
@@ -987,10 +923,10 @@ def create_pod_metrics_distribution_plots(df):
     
     # Plot 1: TTFT distribution over time with percentiles
     ax = axes[0]  # Changed indexing from axes[0, 0]
-    ax.plot(df['normalized_start_time'], df['selected_pod_avg_ttft_ms'], label='Avg TTFT', color='blue')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p50_ttft_ms'], label='P50 TTFT', color='green', linestyle='--')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p90_ttft_ms'], label='P90 TTFT', color='orange', linestyle='--')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p99_ttft_ms'], label='P99 TTFT', color='red', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_avg_ttft_ms'], label='Avg TTFT', color='blue')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p50_ttft_ms'], label='P50 TTFT', color='green', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p90_ttft_ms'], label='P90 TTFT', color='orange', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p99_ttft_ms'], label='P99 TTFT', color='red', linestyle='--')
     ax.set_title('TTFT Distribution Over Time')
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('TTFT (ms)')
@@ -999,10 +935,10 @@ def create_pod_metrics_distribution_plots(df):
     
     # Plot 2: TPOT distribution over time with percentiles
     ax = axes[1]  # Changed indexing from axes[0, 1]
-    ax.plot(df['normalized_start_time'], df['selected_pod_avg_tpot_ms'], label=f'Avg TPOT', color='blue')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p50_tpot_ms'], label='P50 TPOT', color='green', linestyle='--')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p90_tpot_ms'], label='P90 TPOT', color='orange', linestyle='--')
-    ax.plot(df['normalized_start_time'], df['selected_pod_p99_tpot_ms'], label='P99 TPOT', color='red', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_avg_tpot_ms'], label=f'Avg TPOT', color='blue')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p50_tpot_ms'], label='P50 TPOT', color='green', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p90_tpot_ms'], label='P90 TPOT', color='orange', linestyle='--')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_p99_tpot_ms'], label='P99 TPOT', color='red', linestyle='--')
     ax.set_title('TPOT Distribution Over Time')
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('TPOT (ms)')
@@ -1011,9 +947,9 @@ def create_pod_metrics_distribution_plots(df):
     
     # Plot 3: TPOT by token position (early, mid, late)
     ax = axes[2]  # Changed indexing from axes[1, 0]
-    ax.plot(df['normalized_start_time'], df['selected_pod_early_tokens_tpot_ms'], label='Early Tokens TPOT', color='green')
-    ax.plot(df['normalized_start_time'], df['selected_pod_mid_tokens_tpot_ms'], label='Mid Tokens TPOT', color='blue')
-    ax.plot(df['normalized_start_time'], df['selected_pod_late_tokens_tpot_ms'], label='Late Tokens TPOT', color='purple')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_early_tokens_tpot_ms'], label='Early Tokens TPOT', color='green')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_mid_tokens_tpot_ms'], label='Mid Tokens TPOT', color='blue')
+    ax.plot(df['normalized_start_time'], df['selected_pod_last_second_late_tokens_tpot_ms'], label='Late Tokens TPOT', color='purple')
     ax.set_title('TPOT by Token Position')
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('TPOT (ms)')
@@ -1039,50 +975,50 @@ def create_pod_metrics_correlation_plots(df):
     # Define the correlation plots we want to create
     correlation_plots = []
 
-    # ['avg_ttft_ms', 'min_ttft_ms', 'max_ttft_ms', 'p50_ttft_ms', 'p90_ttft_ms', 'p95_ttft_ms', 'p99_ttft_ms', 'ttft_samples', 'avg_tpot_ms', 'min_tpot_ms', 'max_tpot_ms', 'p50_tpot_ms', 'p90_tpot_ms', 'p95_tpot_ms', 'p99_tpot_ms', 'tpot_samples', 'early_tokens_tpot_ms', 'mid_tokens_tpot_ms', 'late_tokens_tpot_ms', 'total_requests', 'total_decode_tokens']
+    # ['last_second_avg_ttft_ms', 'last_second_min_ttft_ms', 'last_second_max_ttft_ms', 'last_second_p50_ttft_ms', 'last_second_p90_ttft_ms', 'last_second_p95_ttft_ms', 'last_second_p99_ttft_ms', 'last_second_ttft_samples', 'last_second_avg_tpot_ms', 'last_second_min_tpot_ms', 'last_second_max_tpot_ms', 'last_second_p50_tpot_ms', 'last_second_p90_tpot_ms', 'last_second_p95_tpot_ms', 'last_second_p99_tpot_ms', 'last_second_tpot_samples', 'last_second_early_tokens_tpot_ms', 'last_second_mid_tokens_tpot_ms', 'last_second_late_tokens_tpot_ms', 'last_second_total_requests', 'last_second_total_decode_tokens']
     
     #####################################################################
     # Avg TTFT and total requests
-    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
+    if 'selected_pod_last_second_avg_ttft_ms' in df.columns and 'selected_pod_last_second_total_requests' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_requests',
-            'y': 'selected_pod_avg_ttft_ms',
+            'x': 'selected_pod_last_second_total_requests',
+            'y': 'selected_pod_last_second_avg_ttft_ms',
             'title': 'Num Running Request vs TTFT',
-            'xlabel': 'selected_pod_total_requests',
-            'ylabel': 'selected_pod_avg_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_requests',
+            'ylabel': 'selected_pod_last_second_avg_ttft_ms',
             'xlim': (0, None)
         })
     
     # Avg TTFT and total tokens
-    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_ttft_ms' in df.columns and 'selected_pod_last_second_total_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_tokens',
-            'y': 'selected_pod_avg_ttft_ms',
+            'x': 'selected_pod_last_second_total_tokens',
+            'y': 'selected_pod_last_second_avg_ttft_ms',
             'title': '#Running Tokens vs Avg TTFT',
-            'xlabel': 'selected_pod_total_tokens',
-            'ylabel': 'selected_pod_avg_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_tokens',
+            'ylabel': 'selected_pod_last_second_avg_ttft_ms',
             'xlim': (0, None)
         })
 
     # Avg TTFT and total prefill tokens
-    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_ttft_ms' in df.columns and 'selected_pod_last_second_total_prefill_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_avg_ttft_ms',
+            'x': 'selected_pod_last_second_total_prefill_tokens',
+            'y': 'selected_pod_last_second_avg_ttft_ms',
             'title': '#Running Prefill Tokens vs Avg TTFT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_avg_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_prefill_tokens',
+            'ylabel': 'selected_pod_last_second_avg_ttft_ms',
             'xlim': (0, None)
         })
     
     # Avg TTFT and total decode tokens
-    if 'selected_pod_avg_ttft_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_ttft_ms' in df.columns and 'selected_pod_last_second_total_decode_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_decode_tokens',
-            'y': 'selected_pod_avg_ttft_ms',
+            'x': 'selected_pod_last_second_total_decode_tokens',
+            'y': 'selected_pod_last_second_avg_ttft_ms',
             'title': '#Running Tokens vs Avg TTFT',
-            'xlabel': 'selected_pod_total_decode_tokens',
-            'ylabel': 'selected_pod_avg_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_decode_tokens',
+            'ylabel': 'selected_pod_last_second_avg_ttft_ms',
             'xlim': (0, None)
         })
     #####################################################################
@@ -1091,93 +1027,93 @@ def create_pod_metrics_correlation_plots(df):
     #####################################################################
     # P99 TTFT and total prefill tokens
 
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
+    if 'selected_pod_last_second_p99_ttft_ms' in df.columns and 'selected_pod_last_second_total_requests' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_requests',
-            'y': 'selected_pod_p99_ttft_ms',
+            'x': 'selected_pod_last_second_total_requests',
+            'y': 'selected_pod_last_second_p99_ttft_ms',
             'title': 'Num Running Request vs p99 TTFT',
-            'xlabel': 'selected_pod_total_requests',
-            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_requests',
+            'ylabel': 'selected_pod_last_second_p99_ttft_ms',
             'xlim': (0, None)
         })
 
     # P99 TTFT and total tokens
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_ttft_ms' in df.columns and 'selected_pod_last_second_total_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_tokens',
-            'y': 'selected_pod_p99_ttft_ms',
+            'x': 'selected_pod_last_second_total_tokens',
+            'y': 'selected_pod_last_second_p99_ttft_ms',
             'title': '#Running Tokens vs p99 TTFT',
-            'xlabel': 'selected_pod_total_tokens',
-            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_tokens',
+            'ylabel': 'selected_pod_last_second_p99_ttft_ms',
             'xlim': (0, None)
         })
 
     # P99 TTFT and total prefill tokens
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_ttft_ms' in df.columns and 'selected_pod_last_second_total_prefill_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_p99_ttft_ms',
+            'x': 'selected_pod_last_second_total_prefill_tokens',
+            'y': 'selected_pod_last_second_p99_ttft_ms',
             'title': '#Running Input Tokens vs p99 TTFT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_prefill_tokens',
+            'ylabel': 'selected_pod_last_second_p99_ttft_ms',
             'xlim': (0, None)
         })
     
 
     # P99 TTFT and total decode tokens
-    if 'selected_pod_p99_ttft_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_ttft_ms' in df.columns and 'selected_pod_last_second_total_decode_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_decode_tokens',
-            'y': 'selected_pod_p99_ttft_ms',
+            'x': 'selected_pod_last_second_total_decode_tokens',
+            'y': 'selected_pod_last_second_p99_ttft_ms',
             'title': 'Running Decode Tokens vs p99 TTFT',
-            'xlabel': 'selected_pod_total_decode_tokens',
-            'ylabel': 'selected_pod_p99_ttft_ms',
+            'xlabel': 'selected_pod_last_second_total_decode_tokens',
+            'ylabel': 'selected_pod_last_second_p99_ttft_ms',
             'xlim': (0, None)
         })
     #####################################################################
 
     #####################################################################
     # Avg TPOT and total requests
-    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
+    if 'selected_pod_last_second_avg_tpot_ms' in df.columns and 'selected_pod_last_second_total_requests' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_requests',
-            'y': 'selected_pod_avg_tpot_ms',
+            'x': 'selected_pod_last_second_total_requests',
+            'y': 'selected_pod_last_second_avg_tpot_ms',
             'title': 'Num Running Request vs TPOT',
-            'xlabel': 'selected_pod_total_requests',
-            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_requests',
+            'ylabel': 'selected_pod_last_second_avg_tpot_ms',
             'xlim': (0, None)
         })
     
     # Avg TPOT and total tokens
-    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_tpot_ms' in df.columns and 'selected_pod_last_second_total_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_tokens',
-            'y': 'selected_pod_avg_tpot_ms',
+            'x': 'selected_pod_last_second_total_tokens',
+            'y': 'selected_pod_last_second_avg_tpot_ms',
             'title': 'Running Tokens vs Avg TPOT',
-            'xlabel': 'selected_pod_total_tokens',
-            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_tokens',
+            'ylabel': 'selected_pod_last_second_avg_tpot_ms',
             'xlim': (0, None)
         })
 
     # Avg TPOT and total prefill tokens
-    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_tpot_ms' in df.columns and 'selected_pod_last_second_total_prefill_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_avg_tpot_ms',
+            'x': 'selected_pod_last_second_total_prefill_tokens',
+            'y': 'selected_pod_last_second_avg_tpot_ms',
             'title': 'Running Prefill Tokens vs Avg TPOT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_prefill_tokens',
+            'ylabel': 'selected_pod_last_second_avg_tpot_ms',
             'xlim': (0, None)
         })
 
     # Avg TPOT and total decode tokens
-    if 'selected_pod_avg_tpot_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
+    if 'selected_pod_last_second_avg_tpot_ms' in df.columns and 'selected_pod_last_second_total_decode_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_decode_tokens',
-            'y': 'selected_pod_avg_tpot_ms',
+            'x': 'selected_pod_last_second_total_decode_tokens',
+            'y': 'selected_pod_last_second_avg_tpot_ms',
             'title': 'Running Decode Tokens vs Avg TPOT',
-            'xlabel': 'selected_pod_total_decode_tokens',
-            'ylabel': 'selected_pod_avg_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_decode_tokens',
+            'ylabel': 'selected_pod_last_second_avg_tpot_ms',
             'xlim': (0, None)
         })
 
@@ -1185,74 +1121,52 @@ def create_pod_metrics_correlation_plots(df):
     
     #####################################################################
     # P99 TPOT and total requests
-    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_requests' in df.columns:
+    if 'selected_pod_last_second_p99_tpot_ms' in df.columns and 'selected_pod_last_second_total_requests' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_requests',
-            'y': 'selected_pod_p99_tpot_ms',
+            'x': 'selected_pod_last_second_total_requests',
+            'y': 'selected_pod_last_second_p99_tpot_ms',
             'title': 'Num Running Request vs p99 TPOT',
-            'xlabel': 'selected_pod_total_requests',
-            'ylabel': 'selected_pod_p99_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_requests',
+            'ylabel': 'selected_pod_last_second_p99_tpot_ms',
             'xlim': (0, None)
         })
 
     # P99 TPOT and total tokens
-    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_tpot_ms' in df.columns and 'selected_pod_last_second_total_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_tokens',
-            'y': 'selected_pod_p99_tpot_ms',
+            'x': 'selected_pod_last_second_total_tokens',
+            'y': 'selected_pod_last_second_p99_tpot_ms',
             'title': 'Running Tokens vs p99 TPOT',
-            'xlabel': 'selected_pod_total_tokens',
-            'ylabel': 'selected_pod_p99_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_tokens',
+            'ylabel': 'selected_pod_last_second_p99_tpot_ms',
             'xlim': (0, None)
         })
 
     # P99 TPOT and total decode tokens
-    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_decode_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_tpot_ms' in df.columns and 'selected_pod_last_second_total_decode_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_decode_tokens',
-            'y': 'selected_pod_p99_tpot_ms',
+            'x': 'selected_pod_last_second_total_decode_tokens',
+            'y': 'selected_pod_last_second_p99_tpot_ms',
             'title': 'Running Decode Tokens vs p99 TPOT',
-            'xlabel': 'selected_pod_total_decode_tokens',
-            'ylabel': 'selected_pod_p99_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_decode_tokens',
+            'ylabel': 'selected_pod_last_second_p99_tpot_ms',
             'xlim': (0, None)
         })
 
     # P99 TPOT and total prefill tokens
-    if 'selected_pod_p99_tpot_ms' in df.columns and 'selected_pod_total_prefill_tokens' in df.columns:
+    if 'selected_pod_last_second_p99_tpot_ms' in df.columns and 'selected_pod_last_second_total_prefill_tokens' in df.columns:
         correlation_plots.append({
-            'x': 'selected_pod_total_prefill_tokens',
-            'y': 'selected_pod_p99_tpot_ms',
+            'x': 'selected_pod_last_second_total_prefill_tokens',
+            'y': 'selected_pod_last_second_p99_tpot_ms',
             'title': 'Running Prefill Tokens vs p99 TPOT',
-            'xlabel': 'selected_pod_total_prefill_tokens',
-            'ylabel': 'selected_pod_p99_tpot_ms',
+            'xlabel': 'selected_pod_last_second_total_prefill_tokens',
+            'ylabel': 'selected_pod_last_second_p99_tpot_ms',
             'xlim': (0, None)
         })
 
 
     ###################################################################################
 
-    
-    # Plot 5: TTFT P99/P50 Ratio Over Time
-    df['ttft_p99_p50_ratio'] = df['selected_pod_p99_ttft_ms'] / df['selected_pod_p50_ttft_ms']
-    correlation_plots.append({
-        'x': 'normalized_start_time',
-        'y': 'ttft_p99_p50_ratio',
-        'title': 'TTFT P99/P50 Ratio Over Time',
-        'xlabel': 'Time (s)',
-        'ylabel': 'P99/P50 Ratio',
-        'xlim': (0, None)
-    })
-    
-    # Plot 6: TPOT P99/P50 Ratio Over Time
-    df['tpot_p99_p50_ratio'] = df['selected_pod_p99_tpot_ms'] / df['selected_pod_p50_tpot_ms']
-    correlation_plots.append({
-        'x': 'normalized_start_time',
-        'y': 'tpot_p99_p50_ratio',
-        'title': 'TPOT P99/P50 Ratio Over Time',
-        'xlabel': 'Time (s)',
-        'ylabel': 'P99/P50 Ratio',
-        'xlim': (0, None)
-    })
     
     # If no correlation plots are available, return
     if not correlation_plots:
@@ -1316,7 +1230,7 @@ def create_pod_metrics_histograms(df):
     
     # Plot 1: TTFT P50 histogram
     ax = axes[0, 0]
-    ax.hist(df['selected_pod_p50_ttft_ms'].dropna(), bins=20, alpha=0.7)
+    ax.hist(df['selected_pod_last_second_p50_ttft_ms'].dropna(), bins=20, alpha=0.7)
     ax.set_title('TTFT P50 Distribution')
     ax.set_xlabel('TTFT P50 (ms)')
     ax.set_ylabel('Frequency')
@@ -1324,7 +1238,7 @@ def create_pod_metrics_histograms(df):
     
     # Plot 2: TTFT P99 histogram
     ax = axes[0, 1]
-    ax.hist(df['selected_pod_p99_ttft_ms'].dropna(), bins=20, alpha=0.7)
+    ax.hist(df['selected_pod_last_second_p99_ttft_ms'].dropna(), bins=20, alpha=0.7)
     ax.set_title('TTFT P99 Distribution')
     ax.set_xlabel('TTFT P99 (ms)')
     ax.set_ylabel('Frequency')
@@ -1332,7 +1246,7 @@ def create_pod_metrics_histograms(df):
     
     # Plot 3: TPOT P50 histogram
     ax = axes[1, 0]
-    ax.hist(df['selected_pod_p50_tpot_ms'].dropna(), bins=20, alpha=0.7)
+    ax.hist(df['selected_pod_last_second_p50_tpot_ms'].dropna(), bins=20, alpha=0.7)
     ax.set_title('TPOT P50 Distribution')
     ax.set_xlabel('TPOT P50 (ms)')
     ax.set_ylabel('Frequency')
@@ -1340,7 +1254,7 @@ def create_pod_metrics_histograms(df):
     
     # Plot 4: TPOT P99 histogram
     ax = axes[1, 1]
-    ax.hist(df['selected_pod_p99_tpot_ms'].dropna(), bins=20, alpha=0.7)
+    ax.hist(df['selected_pod_last_second_p99_tpot_ms'].dropna(), bins=20, alpha=0.7)
     ax.set_title('TPOT P99 Distribution')
     ax.set_xlabel('TPOT P99 (ms)')
     ax.set_ylabel('Frequency')

@@ -639,36 +639,35 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 // PodDetailedMetrics provides detailed statistics for a pod's performance
 type PodDetailedMetrics struct {
 	// TTFT metrics
-	AvgTTFT     float64 `json:"avg_ttft_ms"`
-	MinTTFT     int64   `json:"min_ttft_ms"`
-	MaxTTFT     int64   `json:"max_ttft_ms"`
-	P50TTFT     int64   `json:"p50_ttft_ms"` // Median TTFT
-	P90TTFT     int64   `json:"p90_ttft_ms"` // 90th percentile TTFT
-	P95TTFT     int64   `json:"p95_ttft_ms"` // 95th percentile TTFT
-	P99TTFT     int64   `json:"p99_ttft_ms"` // 99th percentile TTFT
-	TTFTSamples int     `json:"ttft_samples"`
+	AvgTTFT     float64 `json:"last_second_avg_ttft_ms"`
+	MinTTFT     int64   `json:"last_second_min_ttft_ms"`
+	MaxTTFT     int64   `json:"last_second_max_ttft_ms"`
+	P50TTFT     int64   `json:"last_second_p50_ttft_ms"` // Median TTFT
+	P90TTFT     int64   `json:"last_second_p90_ttft_ms"` // 90th percentile TTFT
+	P95TTFT     int64   `json:"last_second_p95_ttft_ms"` // 95th percentile TTFT
+	P99TTFT     int64   `json:"last_second_p99_ttft_ms"` // 99th percentile TTFT
+	TTFTSamples int     `json:"last_second_ttft_samples"`
 
 	// TPOT metrics
-	AvgTPOT     float64 `json:"avg_tpot_ms"`
-	MinTPOT     int64   `json:"min_tpot_ms"`
-	MaxTPOT     int64   `json:"max_tpot_ms"`
-	P50TPOT     int64   `json:"p50_tpot_ms"` // Median TPOT
-	P90TPOT     int64   `json:"p90_tpot_ms"` // 90th percentile TPOT
-	P95TPOT     int64   `json:"p95_tpot_ms"` // 95th percentile TPOT
-	P99TPOT     int64   `json:"p99_tpot_ms"` // 99th percentile TPOT
-	TPOTSamples int     `json:"tpot_samples"`
+	AvgTPOT     float64 `json:"last_second_avg_tpot_ms"`
+	MinTPOT     int64   `json:"last_second_min_tpot_ms"`
+	MaxTPOT     int64   `json:"last_second_max_tpot_ms"`
+	P50TPOT     int64   `json:"last_second_p50_tpot_ms"` // Median TPOT
+	P90TPOT     int64   `json:"last_second_p90_tpot_ms"` // 90th percentile TPOT
+	P95TPOT     int64   `json:"last_second_p95_tpot_ms"` // 95th percentile TPOT
+	P99TPOT     int64   `json:"last_second_p99_tpot_ms"` // 99th percentile TPOT
+	TPOTSamples int     `json:"last_second_tpot_samples"`
 
 	// // Token position-based TPOT metrics (average TPOT for tokens 2-10)
-	EarlyTokensTPOT float64 `json:"early_tokens_tpot_ms"`
-	MidTokensTPOT   float64 `json:"mid_tokens_tpot_ms"`
-	LateTokensTPOT  float64 `json:"late_tokens_tpot_ms"`
+	EarlyTokensTPOT float64 `json:"last_second_early_tokens_tpot_ms"`
+	MidTokensTPOT   float64 `json:"last_second_mid_tokens_tpot_ms"`
+	LateTokensTPOT  float64 `json:"last_second_late_tokens_tpot_ms"`
 
 	// Overall metrics
-	TotalRequests int `json:"total_requests"`
-
-	TotalDecodeTokens  int `json:"total_decode_tokens"`
-	TotalPrefillTokens int `json:"total_prefill_tokens"`
-	TotalTokens        int `json:"total_tokens"`
+	TotalRequests      int `json:"last_second_total_requests"`
+	TotalDecodeTokens  int `json:"last_second_total_decode_tokens"`
+	TotalPrefillTokens int `json:"last_second_total_prefill_tokens"`
+	TotalTokens        int `json:"last_second_total_tokens"`
 }
 
 func percentile(sortedValues []int64, p int) int64 {
