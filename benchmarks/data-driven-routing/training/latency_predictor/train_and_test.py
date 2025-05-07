@@ -16,10 +16,81 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, mean_absolute_percentage_error
 from xgboost import XGBRegressor
+import matplotlib.pyplot as plt
+from xgboost import plot_tree
+import os
+import graphviz
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
+    import os
+    import re
+    import graphviz
+    import numpy as np
+    
+    if hasattr(model, 'named_steps'):  # sklearn Pipeline
+        xgb_model = model.named_steps['model']
+        preprocessor = model.named_steps['preprocessor']
+    else:
+        xgb_model = model
+        preprocessor = None
+    
+    trees_dir = os.path.join(output_dir, 'tree_visualizations')
+    os.makedirs(trees_dir, exist_ok=True)
+    
+    booster = xgb_model.get_booster()
+    
+    fmap_filename = os.path.join(trees_dir, 'feature_map.txt')
+    with open(fmap_filename, 'w') as f:
+        for i, feature_name in enumerate(feature_names):
+            f.write(f'{i}\t{feature_name}\tq\n')
+    
+    print(f"** Created feature map file with {len(feature_names)} feature names")
+    
+    for i in range(min(num_trees, xgb_model.n_estimators)):
+        dot_data = booster.get_dump(dump_format='dot', 
+                                    fmap=fmap_filename,
+                                    with_stats=True)[i]
+        
+        for j, name in enumerate(feature_names):
+            dot_data = dot_data.replace(f'f{j} ', f'"{name}" ')
+        
+        if preprocessor:
+            try:
+                numeric_cols = [col for col in feature_names if col not in preprocessor.transformers_[1][2]]
+                
+                for feature_idx, feature in enumerate(numeric_cols):
+                    if hasattr(preprocessor.transformers_[0][1], 'named_steps') and 'scaler' in preprocessor.transformers_[0][1].named_steps:
+                        scaler = preprocessor.transformers_[0][1].named_steps['scaler']
+                        feature_mean = scaler.mean_[feature_idx]
+                        feature_std = scaler.scale_[feature_idx]
+                        
+                        pattern = f'{feature}<(-?\d+\.\d+)'
+                        matches = re.findall(pattern, dot_data)
+                        
+                        for match in matches:
+                            scaled_value = float(match)
+                            original_value = scaled_value * feature_std + feature_mean
+                            dot_data = dot_data.replace(f'{feature}<{match}', f'{feature}<{int(original_value)}')
+            except Exception as e:
+                print(f"Could not convert to original scale: {e}")
+        
+        g = graphviz.Source(dot_data)
+        pdf_file = os.path.join(trees_dir, f'{target_name}_tree_{i}_vector')
+        g.format = 'pdf'
+        g.engine = 'dot'
+        g.render(filename=pdf_file, cleanup=True)
+        print(f"** Saved {target_name} tree visualization as PDF: {pdf_file}.pdf")
+    
+    try:
+        os.remove(fmap_filename)
+    except:
+        pass
+    
 
 def parse_args():
     """Parse command line arguments."""
@@ -273,6 +344,18 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
         # Store model
         result['models'][target] = pipeline
         
+
+        # Visualize trees (only if plots are enabled)
+        if not no_plots:
+            visualize_trees(
+                model=pipeline,
+                feature_names=numeric_cols + categorical_cols,
+                output_dir=output_dir,
+                target_name=target,
+                num_trees=3  # Visualize first 3 trees
+            )
+
+
         # Extract feature importances
         if hasattr(pipeline.named_steps['model'], 'feature_importances_'):
             # Get feature names (this is a simplification)
