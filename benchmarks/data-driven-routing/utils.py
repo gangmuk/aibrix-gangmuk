@@ -213,16 +213,17 @@ def check_deployment_ready_kubernetes(deployment_name, namespace):
 def restart_deploy(deployment_name, namespace):
     run_command(f"kubectl rollout restart deploy {deployment_name} -n {namespace}")
 
-def collect_k8s_logs(namespace, deployment_name, output_file, keyword=None):
+
+def collect_k8s_logs(namespace, deployment_name, output_dir, keyword=None):
     try:
         logger.info(f"Collecting logs from {deployment_name} in namespace {namespace}")
-
+        
         # Get the pod name directly using the deployment name (more reliable than labels)
         cmd = ["kubectl", "get", "pods", "-n", namespace, "-l", "app=gateway-plugins", "-o", "jsonpath={.items[0].metadata.name}"]
         logger.info(f"Executing command: {' '.join(cmd)}")
         pod_name = subprocess.check_output(cmd)
         pod_name = pod_name.decode('utf-8').strip()
-
+        
         if not pod_name:
             logger.error(f"No pod found for deployment {deployment_name} in namespace {namespace}")
             # Fallback: try to get the pod name directly using the deployment name
@@ -236,42 +237,44 @@ def collect_k8s_logs(namespace, deployment_name, output_file, keyword=None):
                 return False
             # Take the first pod name and remove the "pod/" prefix
             pod_name = pods[0].replace("pod/", "")
-
+        
         logger.info(f"Found pod: {pod_name}")
-
+        
         # Get logs from the pod
         cmd = ["kubectl", "logs", "-n", namespace, pod_name]
         logger.info(f"Executing command: {' '.join(cmd)}")
         logs = subprocess.check_output(cmd)
         logs_str = logs.decode('utf-8')
-
+        
         # Process logs based on keyword filter
         if keyword:
             logger.info(f"Filtering logs for lines containing keyword: '{keyword}'")
             filtered_lines = []
             total_lines = 0
             filtered_count = 0
-
+            
             for line in logs_str.splitlines():
                 total_lines += 1
                 if keyword in line:
                     filtered_lines.append(line)
                     filtered_count += 1
-
+            
             filtered_output_content = '\n'.join(filtered_lines)
             logger.info(f"Filtered {filtered_count} lines containing keyword from {total_lines} total lines")
-
+        
         # Write filtered logs to file
-        with open(output_file, 'w', encoding='utf-8') as f:
+        filtered_log_output_file = f"{output_dir}/filtered_gateway_plugins.log.csv"
+        with open(filtered_log_output_file, 'w', encoding='utf-8') as f:
             f.write(filtered_output_content)
-        all_log_output_file = "./all_gateway_plugin_logs.txt"
+        all_log_output_file = f"{output_dir}/all_gateway_plugins.log.txt"
         with open(all_log_output_file, 'w', encoding='utf-8') as f:
             f.write(logs_str)
-
+        
         output_size = len(filtered_output_content) / 1024  # Size in KB
-        logger.info(f"Logs saved to {output_file} ({output_size:.2f} KB)")
+        logger.info(f"Unfiltered Logs saved to {all_log_output_file} ({output_size:.2f} KB)")
+        logger.info(f"Filtered Logs saved to {filtered_log_output_file} ({output_size:.2f} KB)")
         return True
-
+    
     except subprocess.CalledProcessError as e:
         logger.error(f"Error executing kubectl command: {e}")
         logger.error(f"Command output: {e.output.decode('utf-8') if hasattr(e, 'output') else 'No output'}")

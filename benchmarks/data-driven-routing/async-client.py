@@ -100,6 +100,7 @@ async def send_request_streaming(client, model, prompt, output_file, request_id,
         extra_headers = {}
         if routing_strategy:
             extra_headers["routing-strategy"] = routing_strategy
+        extra_headers["request-id"] = str(request_id)
         
         # Patch the client to capture headers
         transport = patch_openai_client(client)
@@ -112,7 +113,8 @@ async def send_request_streaming(client, model, prompt, output_file, request_id,
             temperature=temperature,
             stream=True,
             stream_options={"include_usage": True},
-            extra_headers=extra_headers
+            extra_headers=extra_headers,
+            extra_body={"subAlgorithm": args.subAlgorithm},
         )
         
         # Extract headers
@@ -611,11 +613,13 @@ async def send_request_batch(client, model, prompt, output_file, request_id,
         try:
             # Send request using the OpenAI client
             response = await client.chat.completions.create(
+                subAlgorithm=args.subAlgorithm,
                 model=model,
                 messages=prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                extra_headers=extra_headers
+                extra_headers=extra_headers,
+                extra_body={"subAlgorithm": args.subAlgorithm},
             )
             
             # Validate response
@@ -694,11 +698,13 @@ async def send_request_batch(client, model, prompt, output_file, request_id,
                     
                     # Retry with simplified format
                     response = await client.chat.completions.create(
+                        subAlgorithm=args.subAlgorithm,
                         model=model,
                         messages=simple_prompt,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        extra_headers=extra_headers
+                        extra_headers=extra_headers,
+                        extra_body={"subAlgorithm": args.subAlgorithm},
                     )
                     
                     # Process response as before
@@ -1013,10 +1019,12 @@ if __name__ == "__main__":
     parser.add_argument('--output_file_path', type=str, default="output.jsonl", help="Output file path for JSON results.")
     parser.add_argument("--streaming", action="store_true", help="Use streaming client.")
     parser.add_argument("--routing_strategy", type=str, default="random", help="Routing strategy to use.")
+    parser.add_argument("--subAlgorithm", type=str, default="random", help="Sub Routing strategy that will be used for flexible prefix cache.")
     parser.add_argument("--max_tokens", type=int, default=2048, help="Max tokens for the request.")
     parser.add_argument("--temperature", type=float, default=0.0, help="Temperature for the request.")
     parser.add_argument("--timeout", type=float, default=300.0, help="Request timeout in seconds.")
     parser.add_argument("--max_retries", type=int, default=0, help="Maximum number of retries for failed requests.")
+    parser.add_argument("--output_dir", type=str, default="./", help="output dir")
     args = parser.parse_args()
 
     utils.restart_deploy('aibrix-gateway-plugins', 'aibrix-system')
@@ -1024,18 +1032,14 @@ if __name__ == "__main__":
     time.sleep(3)
     utils.check_deployment_ready_kubernetes('aibrix-gateway-plugins', 'aibrix-system')
     utils.check_deployment_ready_kubernetes('llama-3-8b-instruct', 'default')
-
+    time.sleep(2)
     asyncio.run(main(args))
-    
-    workload_name = args.workload_path.split("/")[-1].split(".")[0]
-    output_dir = f'output/{workload_name}-maxtokens{args.max_tokens}-{utils.get_current_pdt_time()}'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    config_file = write_experiment_config_to_file(output_dir, args)
-    gatway_log_file_name = f'{output_dir}/gateway-plugins.log.csv'
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    config_file = write_experiment_config_to_file(args.output_dir, args)
     success = utils.collect_k8s_logs(
         namespace='aibrix-system',
         deployment_name='aibrix-gateway-plugins',
-        output_file=gatway_log_file_name,
+        output_dir=args.output_dir,
         keyword='**@latency_metrics'
     )
