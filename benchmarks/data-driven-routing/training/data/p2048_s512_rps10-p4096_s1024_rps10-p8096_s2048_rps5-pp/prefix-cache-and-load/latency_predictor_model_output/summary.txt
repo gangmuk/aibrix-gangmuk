@@ -1,0 +1,62 @@
+LLM Latency Prediction Model Summary
+========================================
+
+Total samples: 1199
+Training samples: 959
+Test samples: 240
+Target variables: avg_tpot, ttft
+
+Model Parameters:
+----------------------------------------
+n_estimators: 100
+max_depth: 5
+learning_rate: 0.1
+
+Cross-Validation Results:
+----------------------------------------
+
+avg_tpot:
+  RMSE: 3.4262 ± 0.6812
+  Stability: Stable (CV variation ratio: 0.20)
+
+ttft:
+  RMSE: 210.3205 ± 30.1530
+  Stability: Stable (CV variation ratio: 0.14)
+
+Test Results:
+----------------------------------------
+
+avg_tpot:
+  mse: 8.7749
+  rmse: 2.9622
+  mae: 1.5376
+  r2: 0.9417
+  mape: 4.0764
+  Quality: Excellent - Model explains >90% of variance
+  No signs of overfitting detected
+
+ttft:
+  mse: 57570.1172
+  rmse: 239.9377
+  mae: 122.4899
+  r2: 0.6028
+  mape: 29.4547
+  Quality: Marginal - Model explains 60-70% of variance
+  No signs of overfitting detected
+
+Top Features:
+----------------------------------------
+
+avg_tpot:
+  decode_tokens: 0.4960
+  last_second_avg_tpot_ms: 0.1597
+  last_second_total_tokens: 0.0525
+  kv_hit_ratio: 0.0521
+  last_second_p99_ttft_ms: 0.0371
+
+ttft:
+  kv_hit_ratio: 0.2932
+  input_tokens: 0.1334
+  waiting_requests: 0.1051
+  decode_tokens: 0.1021
+  last_second_avg_tpot_ms: 0.0622

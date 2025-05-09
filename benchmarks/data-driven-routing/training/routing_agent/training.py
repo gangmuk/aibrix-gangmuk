@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 # Configuration
 class Config:
-    def __init__(self, input_dir):
+    def __init__(self, output_dir):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.state_dim = None  # Will be set after data loading
         self.action_dim = None  # Will be set after data loading
@@ -20,11 +20,130 @@ class Config:
         self.learning_rate = 0.0003
         self.gamma = 0.99  # Discount factor
         self.batch_size = 256
-        self.num_epochs = 500
+        self.num_epochs = 200
         self.alpha = 0.01  # CQL regularization parameter - higher more conservative
         self.tau = 0.005  # Target network update rate
-        self.input_dir = input_dir
-        self.model_save_path = f"{input_dir}/models/cql_model.pt"
+        self.output_dir = output_dir
+        self.model_save_path = f"{output_dir}/models/cql_model.pt"
+
+def create_essential_relative_features(df, pod_ids, metrics=None, include_raw=True, 
+                                      include_pct=True, include_rank=True, 
+                                      include_rank_norm=True):
+    if metrics is None:
+        # Detect metrics by finding columns that appear for multiple pods
+        all_cols = set(df.columns)
+        metrics = set()
+
+        print(f"all_cols: {all_cols}")
+        
+        for pod_id in pod_ids:
+            pod_prefix = f"pod_{pod_id}-"
+            pod_cols = [col[len(pod_prefix):] for col in all_cols if col.startswith(pod_prefix)]
+            print(f"pod_id: {pod_id}, pod_cols: {pod_cols}")
+            if not metrics:
+                metrics = set(pod_cols)
+            else:
+                metrics = metrics.intersection(pod_cols)
+        
+        metrics = list(metrics)
+        print(f"Detected {len(metrics)} common metrics across pods: {metrics}")
+    
+    # Keep track of columns to drop if not including raw values
+    raw_cols_to_drop = set()
+    if not include_raw:
+        for pod_id in pod_ids:
+            for metric in metrics:
+                col = f"pod_{pod_id}-{metric}"
+                if col in df.columns:
+                    raw_cols_to_drop.add(col)
+    
+    # Process each metric
+    for metric in metrics:
+        # Get all pod columns for this metric
+        pod_metric_cols = [f"pod_{p}-{metric}" for p in pod_ids if f"pod_{p}-{metric}" in df.columns]
+        print(f"metric: {metric}, pod_metric_cols: {pod_metric_cols}")
+        
+        if len(pod_metric_cols) <= 1:
+            continue  # Skip if not enough pods have this metric
+        
+        # Check if the metric contains string values
+        sample_value = df[pod_metric_cols[0]].iloc[0] if not df.empty else None
+        is_string_metric = isinstance(sample_value, str)
+        
+        print(f"{'string' if is_string_metric else 'numeric'} metric: {metric}")
+        
+        if is_string_metric:
+            # For string metrics, don't try to create percentages or ranks
+            print(f"Warning: Skipping metric {metric} for pct and rank as it contains string values.")
+            continue
+
+        # Calculate total value for this metric across all pods
+        df[f"total-{metric}"] = df[pod_metric_cols].sum(axis=1)
+        
+        # Create percentage-based features if requested
+        if include_pct:
+            for col in pod_metric_cols:
+                pod_id = col.split("-")[0]
+                # print(f"Processing pod_id: {pod_id}, col: {col}")
+                # print(f"target col: {col}, metric: {metric}")
+                df[f"pct-{pod_id}-{metric}"] = df[col] / (df[f"total-{metric}"] + 1e-6)
+                # print(f"new percentage column: pct-{pod_id}-{metric}")
+
+
+        df.drop(columns=[f'total-{metric}'], inplace=True)
+
+
+        # Create rank-based features if requested
+        if include_rank or include_rank_norm:
+            ranks = df[pod_metric_cols].rank(axis=1)
+            
+            for col in pod_metric_cols:
+                pod_id = col.split("_")[1]
+                
+                # Basic rank features (1 = lowest value)
+                if include_rank:
+                    df[f"rank-{pod_id}-{metric}"] = ranks[col]
+                
+                # Normalized rank features (0-1 scale)
+                if include_rank_norm:
+                    if include_rank:
+                        # Use the already computed rank
+                        df[f"norm_rank-{pod_id}-{metric}"] = (df[f"rank-{pod_id}-{metric}"] - 1) / (len(pod_metric_cols) - 1)
+                    else:
+                        # Calculate normalized rank directly
+                        df[f"norm_rank-{pod_id}-{metric}"] = (ranks[col] - 1) / (len(pod_metric_cols) - 1)
+    
+    # Drop raw columns if not requested
+    if not include_raw and raw_cols_to_drop:
+        df = df.drop(columns=list(raw_cols_to_drop))
+    
+    return df
+
+def load_and_preprocess_data(data_path, mapping_path):
+    """
+    Load and preprocess the data but don't create tensors yet
+    """
+    print(f"Loading data from {data_path}")
+    df = pd.read_csv(data_path)
+    
+    # Load the pod mapping
+    with open(mapping_path, 'r') as f:
+        mapping_info = json.load(f)
+    
+    print(f"Dataset shape: {df.shape}")
+    
+    # Extract pod IDs from the mapping info
+    pod_ids = list(mapping_info['pod_to_index'].keys())
+    pod_ids = [pod_id.replace(".", "_") for pod_id in pod_ids]  # Replace '.' with '_' for compatibility
+    print(f"Found {len(pod_ids)} pods from mapping")
+
+    # Create relative features
+    df = create_essential_relative_features(df, pod_ids, include_raw=False, 
+                                      include_pct=True, include_rank=False, 
+                                      include_rank_norm=False)
+    print(f"Created relative features, new shape: {df.shape}")
+    
+    return df, mapping_info, pod_ids
 
 def create_train_test_split(processed_df, train_ratio, output_dir):
     """
@@ -53,81 +172,10 @@ def create_train_test_split(processed_df, train_ratio, output_dir):
     
     return train_file, test_file, train_df, test_df
 
-def create_essential_relative_features(df, pod_ids, metrics=None):
+def prepare_model_input(df, mapping_info, config):
     """
-    Create essential relative features for key metrics
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        Input dataframe with pod metrics
-    pod_ids : list
-        List of pod identifiers
-    metrics : list, optional
-        List of metrics to process. If None, will detect automatically.
-    
-    Returns:
-    --------
-    pandas.DataFrame
-        Dataframe with added relative features
+    Convert dataframe to model-ready tensors
     """
-    if metrics is None:
-        # Detect metrics by finding columns that appear for multiple pods
-        all_cols = set(df.columns)
-        metrics = set()
-        
-        for pod_id in pod_ids:
-            pod_prefix = f"pod_{pod_id}_"
-            pod_cols = [col[len(pod_prefix):] for col in all_cols if col.startswith(pod_prefix)]
-            
-            if not metrics:
-                metrics = set(pod_cols)
-            else:
-                metrics = metrics.intersection(pod_cols)
-        
-        metrics = list(metrics)
-        print(f"Detected {len(metrics)} common metrics across pods: {metrics}")
-    
-    # Process each metric
-    for metric in metrics:
-        # Get all pod columns for this metric
-        pod_metric_cols = [f"pod_{p}_{metric}" for p in pod_ids if f"pod_{p}_{metric}" in df.columns]
-        
-        if len(pod_metric_cols) <= 1:
-            continue  # Skip if not enough pods have this metric
-        
-        # Calculate total and normalized values (percentage of cluster total)
-        df[f"total_{metric}"] = df[pod_metric_cols].sum(axis=1)
-        
-        for col in pod_metric_cols:
-            pod_id = col.split("_")[1]
-            df[f"pct_{pod_id}_{metric}"] = df[col] / (df[f"total_{metric}"] + 1e-6)
-        
-        # Calculate ranks (1 = lowest value, which is typically better for load metrics)
-        ranks = df[pod_metric_cols].rank(axis=1)
-        for col in pod_metric_cols:
-            pod_id = col.split("_")[1]
-            df[f"rank_{pod_id}_{metric}"] = ranks[col]
-            
-            # Normalized rank (0-1 scale)
-            df[f"norm_rank_{pod_id}_{metric}"] = (df[f"rank_{pod_id}_{metric}"] - 1) / (len(pod_metric_cols) - 1)
-    
-    return df
-
-def load_and_preprocess_data(data_path, mapping_path, config):
-    print(f"Loading data from {data_path}")
-    df = pd.read_csv(data_path)
-    
-    # Load the pod mapping
-    with open(mapping_path, 'r') as f:
-        mapping_info = json.load(f)
-    
-    print(f"Dataset shape: {df.shape}")
-    
-    # Extract pod IDs from the mapping info
-    pod_ids = list(mapping_info['pod_to_index'].keys())
-    print(f"Found {len(pod_ids)} pods from mapping")
-    
     # Define which columns are features and which are metadata
     metadata_cols = ['request_id', 'request_start_time', 'request_end_time', 
                      'selected_pod', 'input_tokens', 'output_tokens', 'total_tokens',
@@ -135,10 +183,13 @@ def load_and_preprocess_data(data_path, mapping_path, config):
                      'ttft_reward', 'tpot_reward', 'avg_tpot_slo_satisfied', 
                      'avg_ttft_slo_satisfied', 'ttft_normalized', 'tpot_normalized']
     
-    # Identify columns by patterns based on the new structure
-    pct_cols = [col for col in df.columns if col.startswith('pct_')]
-    total_cols = [col for col in df.columns if col.startswith('total_') and col != 'total_tokens']
+    # Identify columns by patterns
+    pct_cols = [col for col in df.columns if col.startswith('pct-')]
+    total_cols = [col for col in df.columns if col.startswith('total-') and col != 'total_tokens']
     
+    print(f"pct_cols: {pct_cols}")
+    print(f"total_cols: {total_cols}")
+
     # All feature columns (excluding metadata)
     feature_cols = pct_cols + total_cols
     
@@ -167,7 +218,7 @@ def load_and_preprocess_data(data_path, mapping_path, config):
     
     print(f"Data shapes - States: {states.shape}, Actions: {actions.shape}, Rewards: {rewards.shape}")
     
-    return states, actions, rewards, mapping_info, feature_cols, scaler
+    return states, actions, rewards, feature_cols, scaler
 
 # Q-Network model
 class QNetwork(nn.Module):
@@ -328,7 +379,7 @@ def train_cql(agent, states, actions, rewards, config):
     plt.ylabel('Loss')
     
     plt.tight_layout()
-    plt.savefig(f'{config.input_dir}/training_curves.pdf')
+    plt.savefig(f'{config.output_dir}/training_curves.pdf')
     plt.show()
     
     return losses, td_losses, cql_losses
@@ -374,34 +425,6 @@ def evaluate(agent, states, actions, rewards, mapping_info, config):
             'improvement': improvement
         }
 
-# Feature importance analysis
-def analyze_feature_importance(agent, scaler, feature_names):
-    # Get weights from the first layer
-    weights = agent.q_network.fc1.weight.data.cpu().numpy()
-    
-    # Calculate feature importance based on the absolute sum of weights for each feature
-    importance = np.abs(weights).sum(axis=0)
-    
-    # Scale importance relative to feature scales (if applicable)
-    if scaler is not None and hasattr(scaler, 'scale_') and len(scaler.scale_) == len(importance):
-        # Get feature scales (standard deviations)
-        feature_scales = scaler.scale_
-        # Adjust importance by feature scale
-        importance = importance * feature_scales
-    
-    # Normalize to sum to 100%
-    importance = 100.0 * (importance / importance.sum())
-    
-    # Create a dictionary of feature importance
-    feature_importance = {name: imp for name, imp in zip(feature_names, importance)}
-    
-    # Sort by importance
-    feature_importance = {k: v for k, v in sorted(feature_importance.items(), 
-                                                 key=lambda item: item[1], 
-                                                 reverse=True)}
-    
-    return feature_importance
-
 def improved_feature_importance(agent, states, actions, feature_names):
     """Permutation-based feature importance analysis"""
     # Get baseline performance
@@ -441,36 +464,33 @@ def improved_feature_importance(agent, states, actions, feature_names):
     return dict(sorted_importance)  # Return as dictionary
 
 # Main function
-def main(input_dir):
-    # Data paths
-    processed_df = pd.read_csv(f"{input_dir}/processed_dataset.csv")
-    train_data_path, test_data_path, _, _ = create_train_test_split(processed_df, train_ratio=0.8, output_dir=input_dir)
+def main(training_input_file, input_dir, output_dir):
+    # Configure output directories
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     
-    config = Config(input_dir)
-
-    # Load and preprocess data
+    config = Config(output_dir)
+    
+    # 1. Load and preprocess data
     mapping_path = f"{input_dir}/processed_dataset_mapping.json"
-    train_states, train_actions, train_rewards, mapping_info, feature_cols, scaler = load_and_preprocess_data(train_data_path, mapping_path, config)
-    test_states, test_actions, test_rewards, _, _, _ = load_and_preprocess_data(test_data_path, mapping_path, config)
+    processed_df, mapping_info, pod_ids = load_and_preprocess_data(training_input_file, mapping_path)
 
-    # Initialize agent
+    processed_df.to_csv(f"{output_dir}/data.csv", index=False)
+    
+    # 2. Split train/test data
+    train_file, test_file, train_df, test_df = create_train_test_split(processed_df, train_ratio=0.8, output_dir=output_dir)
+    
+    # 3. Prepare model inputs for training and testing
+    train_states, train_actions, train_rewards, feature_cols, scaler = prepare_model_input(train_df, mapping_info, config)
+    test_states, test_actions, test_rewards, _, _ = prepare_model_input(test_df, mapping_info, config)
+    
+    # 4. Initialize agent
     agent = CQLAgent(config)
     
-    # Train agent
+    # 5. Train agent
     train_cql(agent, train_states, train_actions, train_rewards, config)
     
-    # Evaluate agent
-    print("\nEvaluating on training data:")
-    train_results = evaluate(agent, train_states, train_actions, train_rewards, mapping_info, config)
-    print(f"Deviation rate: {train_results['deviation_rate']:.4f}")
-    print(f"Expected rewards: {train_results['expected_rewards']:.4f}")
-    print(f"Actual rewards: {train_results['actual_rewards']:.4f}")
-    print(f"Potential improvement: {train_results['improvement']:.4f}")
-    
-    print("\nPod selection distribution:")
-    for pod, count in list(train_results['pod_selections'].items())[:5]:
-        print(f"  {pod}: {count} ({count/len(train_states)*100:.2f}%)")
-    
+    # 6. Evaluate agent
     print("\nEvaluating on test data:")
     test_results = evaluate(agent, test_states, test_actions, test_rewards, mapping_info, config)
     print(f"Deviation rate: {test_results['deviation_rate']:.4f}")
@@ -478,25 +498,13 @@ def main(input_dir):
     print(f"Actual rewards: {test_results['actual_rewards']:.4f}")
     print(f"Potential improvement: {test_results['improvement']:.4f}")
     
-    # # Standard feature importance
-    # print("\nStandard feature importance analysis:")
-    # feature_importance = analyze_feature_importance(agent, scaler, feature_cols)
-    # for feature, importance in list(feature_importance.items())[:10]:
-    #     print(f"  {feature}: {importance:.2f}%")
-    # # Standard importance
-    # plt.subplot(2, 1, 1)
-    # top_features = dict(list(feature_importance.items())[:20])
-    # plt.barh(list(top_features.keys()), list(top_features.values()))
-    # plt.xlabel('Importance (%)')
-    # plt.title('Top 20 Feature Importance (Standard Method)')
-    
-    # Improved feature importance
+    # 7. Improved feature importance
     print("\nImproved permutation-based feature importance:")
     improved_importance = improved_feature_importance(agent, train_states.to(config.device), train_actions.to(config.device), feature_cols)
     for feature, importance in list(improved_importance.items())[:10]:
         print(f"  {feature}: {importance:.2f}%")
     
-    # Visualize feature importance (using both methods)
+    # 8. Visualize feature importance
     plt.figure(figsize=(12, 6))
     improved_top_features = dict(list(improved_importance.items())[:20])
     plt.barh(list(improved_top_features.keys()), list(improved_top_features.values()))
@@ -504,7 +512,7 @@ def main(input_dir):
     plt.title('Top 20 Feature Importance (Permutation Method)')
     
     plt.tight_layout()
-    plt.savefig(f'{config.input_dir}/feature_importance_comparison.pdf')
+    plt.savefig(f'{config.output_dir}/feature_importance_comparison.pdf')
     plt.show()
     
     print("\nTraining and evaluation complete!")
@@ -512,7 +520,17 @@ def main(input_dir):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
-        print("Usage: python training.py <input_dir>")
+        print("Usage: python training.py <training_input_file>")
         sys.exit(1)
-    input_dir = sys.argv[1]
-    main(input_dir)
+    training_input_file = sys.argv[1]
+    if not os.path.exists(training_input_file):
+        print(f"Training input file {training_input_file} does not exist.")
+        sys.exit(1)
+    input_dir = os.path.dirname(training_input_file)
+    output_dir = f"{input_dir}/routing_model_output"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    if not os.path.exists(output_dir):
+        print(f"Output directory {output_dir} does not exist.")
+        sys.exit(1)
+    main(training_input_file, input_dir, output_dir)

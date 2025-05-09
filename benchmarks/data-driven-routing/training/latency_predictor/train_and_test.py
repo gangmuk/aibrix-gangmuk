@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from xgboost import plot_tree
 import os
 import graphviz
+from sklearn.preprocessing import OneHotEncoder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -35,21 +36,38 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
     if hasattr(model, 'named_steps'):  # sklearn Pipeline
         xgb_model = model.named_steps['model']
         preprocessor = model.named_steps['preprocessor']
+        
+        # Get the actual feature names after preprocessing
+        # This handles one-hot encoded features
+        if hasattr(preprocessor, 'get_feature_names_out'):
+            transformed_feature_names = preprocessor.get_feature_names_out()
+        else:
+            # Fallback for older scikit-learn versions
+            transformed_feature_names = []
+            for name, trans, cols in preprocessor.transformers_:
+                if hasattr(trans, 'get_feature_names_out'):
+                    transformed_names = trans.get_feature_names_out(cols)
+                else:
+                    # For non-transforming steps or if get_feature_names_out is not available
+                    transformed_names = cols
+                transformed_feature_names.extend(transformed_names)
     else:
         xgb_model = model
         preprocessor = None
+        transformed_feature_names = feature_names
     
     trees_dir = os.path.join(output_dir, 'tree_visualizations')
     os.makedirs(trees_dir, exist_ok=True)
     
     booster = xgb_model.get_booster()
     
+    # Use the transformed feature names
     fmap_filename = os.path.join(trees_dir, 'feature_map.txt')
     with open(fmap_filename, 'w') as f:
-        for i, feature_name in enumerate(feature_names):
+        for i, feature_name in enumerate(transformed_feature_names):
             f.write(f'{i}\t{feature_name}\tq\n')
     
-    print(f"** Created feature map file with {len(feature_names)} feature names")
+    print(f"** Created feature map file with {len(transformed_feature_names)} feature names")
     
     for i in range(min(num_trees, xgb_model.n_estimators)):
         dot_data = booster.get_dump(dump_format='dot', 
@@ -69,7 +87,7 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
                         feature_mean = scaler.mean_[feature_idx]
                         feature_std = scaler.scale_[feature_idx]
                         
-                        pattern = f'{feature}<(-?\d+\.\d+)'
+                        pattern = fr'{feature}<(-?\d+\.\d+)'
                         matches = re.findall(pattern, dot_data)
                         
                         for match in matches:
@@ -98,7 +116,7 @@ def parse_args():
     
     parser.add_argument('input_file', type=str,
                         help='Path to the CSV file with pod-specific features')
-    parser.add_argument('--output_dir', type=str, default='model_output',
+    parser.add_argument('--output_dir', type=str, default='latency_predictor_model_output',
                         help='Directory to save model and test results')
     parser.add_argument('--test_size', type=float, default=0.2,
                         help='Fraction of data to use for testing (default: 0.2)')
@@ -151,7 +169,7 @@ def preprocess_and_extract_features(input_file, target_performance_metrics):
         for col in df.columns:
             if col.startswith(pod_prefix):
                 # Get the feature name without the pod prefix
-                feature_name = col.replace(f"{pod_prefix}_", "")
+                feature_name = col.replace(f"{pod_prefix}-", "")
                 pod_features[feature_name] = row[col]
         
         # print(f"Pod features: {pod_features}")
@@ -193,6 +211,7 @@ def preprocess_and_extract_features(input_file, target_performance_metrics):
     trainig_df[numeric_cols] = trainig_df[numeric_cols].fillna(0)
     
     categorical_cols = trainig_df.select_dtypes(include=['object']).columns
+    print(f"Categorical columns: {categorical_cols}")
     trainig_df[categorical_cols] = trainig_df[categorical_cols].fillna('unknown')
     
     trainig_df.drop(columns=['selected_pod'], inplace=True, errors='ignore')
@@ -263,7 +282,7 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
     for target in available_targets:
         test_df[target] = y_test[target]
     test_df['set'] = 'test'  # Mark as test set
-    test_file = 'test_dataset.csv'
+    test_file = f'{output_dir}/test_dataset.csv'
     test_df.to_csv(test_file, index=False)
     logger.info(f"Saved test dataset to {test_file}")
     
@@ -277,7 +296,8 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
                 ('scaler', StandardScaler())
             ]), numeric_cols),
             ('cat', Pipeline([
-                ('imputer', SimpleImputer(strategy='constant', fill_value='unknown'))
+                ('imputer', SimpleImputer(strategy='constant', fill_value='unknown')),
+                ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
             ]), categorical_cols)
         ]
     )
@@ -407,12 +427,13 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
             plt.scatter(y_test[target], y_pred, alpha=0.5)
             plt.plot([y_test[target].min(), y_test[target].max()], 
                     [y_test[target].min(), y_test[target].max()], 'r--')
-            plt.xlabel('Actual')
-            plt.ylabel('Predicted')
-            plt.title(f'{target} - Actual vs Predicted (R² = {metrics["r2"]:.4f})')
+            plt.xlabel('Actual', fontsize=20)
+            plt.ylabel('Predicted', fontsize=20)
+            plt.title(f'{target} - Actual vs Predicted (R² = {metrics["r2"]:.4f})', fontsize=24)
             plt.grid(True, alpha=0.3)
             fn = f'{output_dir}/{target}_predictions.pdf'
             plt.savefig(fn)
+            plt.show()
             print(f"** Saved {target} prediction plot: {fn}")
             plt.close()
             
@@ -556,15 +577,18 @@ def main():
     target_performance_metrics = ['avg_tpot', 'ttft']
     training_df = preprocess_and_extract_features(args.input_file, target_performance_metrics)
     input_dir = '/'.join(args.input_file.split('/')[:-1])
-    print(f"Input dir: {input_dir}")
-    training_file = f"{input_dir}/pod_specific_data.csv"
-    training_df.to_csv(training_file, index=False)
-    logger.info(f"Saved extracted features to {training_file}")
+
+
     if training_df is None:
         logger.error("Feature extraction failed. Exiting.")
         sys.exit(1)
     output_dir = f"{input_dir}/{args.output_dir}"
     os.makedirs(output_dir, exist_ok=True)
+
+    training_file = f"{output_dir}/pod_specific_data.csv"
+    training_df.to_csv(training_file, index=False)
+    logger.info(f"Saved extracted features to {training_file}")
+
     result = train_and_evaluate(
         df=training_df,
         output_dir=output_dir,
