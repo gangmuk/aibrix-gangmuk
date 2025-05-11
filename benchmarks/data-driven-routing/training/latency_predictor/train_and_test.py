@@ -162,7 +162,7 @@ def preprocess_and_extract_features(input_file, target_performance_metrics):
     for _, row in df.iterrows():
         # Get the selected pod for this request
         selected_pod = row['selected_pod']
-        pod_prefix = f"pod_{selected_pod.replace('.', '_')}"
+        pod_prefix = f"pod_{selected_pod}"
         
         # Extract pod-specific features
         pod_features = {}
