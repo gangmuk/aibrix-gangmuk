@@ -61,8 +61,8 @@ def normalize_time(df):
     df['normalized_end_time'] = df['request_end_time'] - first_request_start_time
     df['normalized_start_time'] /= 1_000_000
     df['normalized_end_time'] /= 1_000_000
-    df['log_window_start_time'] = df['log_window_start_time'] - first_request_start_time
-    df['log_window_start_time'] /= 1_000_000
+    # df['log_window_start_time'] = df['log_window_start_time'] - first_request_start_time
+    # df['log_window_start_time'] /= 1_000_000
     df['log_window_end_time'] = df['log_window_end_time'] - first_request_start_time
     df['log_window_end_time'] /= 1_000_000
     df = df[df['normalized_start_time'] > cutoff_time]
@@ -299,7 +299,7 @@ def extract_key_pod_metrics(pod_metrics, pod_id):
         #     'last_second_total_requests': 0,
         #     'last_second_total_tokens': 0
         # }
-    print(f"pod_metrics[{pod_id}]: {pod_metrics[pod_id].keys()}")
+    # print(f"pod_metrics[{pod_id}]: {pod_metrics[pod_id].keys()}")
     return {
         'last_second_avg_ttft_ms': pod_metrics[pod_id]['last_second_avg_ttft_ms'],
         'last_second_avg_tpot_ms': pod_metrics[pod_id]['last_second_avg_tpot_ms'],
@@ -307,6 +307,8 @@ def extract_key_pod_metrics(pod_metrics, pod_id):
         'last_second_p99_tpot_ms': pod_metrics[pod_id]['last_second_p99_tpot_ms'],
         'last_second_total_requests': pod_metrics[pod_id]['last_second_total_requests'],
         'last_second_total_tokens': pod_metrics[pod_id]['last_second_total_tokens'],
+        'last_second_total_decode_tokens': pod_metrics[pod_id]['last_second_total_decode_tokens'],
+        'last_second_total_prefill_tokens': pod_metrics[pod_id]['last_second_total_prefill_tokens'],
     }
 
 def preprocess_dataset(df, output_file=None):
@@ -340,7 +342,7 @@ def preprocess_dataset(df, output_file=None):
         'allPodsKvCacheHitRatios', 'numInflightRequestsAllPods',
         'vllmGPUKVCacheUsage', 'vllmCPUKVCacheUsage',
         'vllmNumRequestsRunning', 'vllmNumRequestsWaiting',
-        'podMetricsLastSecond', 'log_window_start_time',
+        'podMetricsLastSecond',
         'log_window_end_time', 'numPrefillTokensForAllPods',
         'numDecodeTokensForAllPods'
     ]
@@ -491,7 +493,7 @@ def preprocess_dataset(df, output_file=None):
         
         # Add pod features with prefixed column names
         for pod_id, features in pod_features.items():
-            pod_prefix = f"pod_{pod_id.replace('.', '_')}"
+            pod_prefix = f"pod_{pod_id}"
             for feature_name, feature_value in features.items():
                 record[f"{pod_prefix}-{feature_name}"] = feature_value
         
@@ -500,7 +502,8 @@ def preprocess_dataset(df, output_file=None):
     # Create a new DataFrame with processed records
     processed_df = pd.DataFrame(processed_records)
     
-    all_pod_ids = [pod_id.replace('.', '_') for pod_id in all_pods]
+    # all_pod_ids = [pod_id.replace('.', '_') for pod_id in all_pods]
+    all_pod_ids = all_pods
     # processed_df = create_essential_relative_features(
     #     processed_df,
     #     all_pod_ids,
