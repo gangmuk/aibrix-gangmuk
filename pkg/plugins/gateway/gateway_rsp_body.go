@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -72,8 +71,8 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 				timing.lastTokenTime = currentTime
 				ttftMs := currentTime.Sub(timing.startTime).Milliseconds()
 				if ttftMs > 0 {
-					s.metricsTracker.AddPodMetric(selectedPodIP, PodMetric{
-						requestID:       requestID,
+					s.metricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
+						RequestID:       requestID,
 						Timestamp:       currentTime,
 						TTFT:            ttftMs,
 						TPOT:            0,
@@ -106,8 +105,8 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 
 				timeSincePrevToken := currentTime.Sub(timing.lastTokenTime).Milliseconds()
 				if timeSincePrevToken > 0 {
-					s.metricsTracker.AddPodMetric(selectedPodIP, PodMetric{
-						requestID:       requestID,
+					s.metricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
+						RequestID:       requestID,
 						Timestamp:       currentTime,
 						TTFT:            0,
 						TPOT:            timeSincePrevToken,
@@ -242,6 +241,7 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			// if routerCtx.Algorithm == "prefix-cache-and-load" {
 			ret := utils.DecrementNumDecodeTokensForPod(routerCtx.TargetAddressWithoutPort(), int(timing.totalTokenCount))
 			klog.V(5).Infof("DecrementNumDecodeTokensForPod(%s) by %d, %d", routerCtx.TargetAddressWithoutPort(), timing.totalTokenCount, ret)
+			klog.Infof("Calling calculateTimingMetrics, requestID: %s, timing.decodeTokenCount: %d, timing.prefillTokenCount: %d", requestID, timing.decodeTokenCount, timing.prefillTokenCount)
 			timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
 			headers = append(headers, timingHeaders...)
 			// }
@@ -601,12 +601,17 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	}
 
 	// 7. Pod detailed metrics
-	log_window_end_time := time.Now()
-	log_window_start_time := time.Now().Add(-s.metricsTracker.windowSize)
-	podDetailedMetrics := s.metricsTracker.GetDetailedMetrics(log_window_start_time, numInputTokens, numOutputTokens, numTotalTokens)
-	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics, &s.metricsTracker.mutex)
+	// log_window_start_time := time.Now().Add(-s.metricsTracker.windowSize)
+	// log_window_end_time := time.Now()
+	// podDetailedMetrics := s.metricsTracker.GetDetailedMetrics(log_window_start_time, numInputTokens, numOutputTokens, numTotalTokens)
 
-	klog.Infof("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@log_window_start_time@%d@log_window_end_time@%d@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s",
+	ts := time.Now()
+	podDetailedMetrics := utils.GetAndCleanupRequestPodMetrics(requestID)
+	duration := time.Since(ts)
+	klog.Infof("GetAndCleanupRequestPodMetrics took %d, %s, %s", duration.Milliseconds(), requestID, selectedPodIP)
+	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics, s.metricsTracker.GetMutex())
+
+	klog.Infof("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s",
 		requestID,
 		timing.startTime.UnixMicro(),
 		currentTime.UnixMicro(),
@@ -625,8 +630,6 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		jsonStrings["vllmNumRequestsRunning"],
 		jsonStrings["vllmNumRequestWaiting"],
 		jsonStrings["podMetricsLastSecond"],
-		log_window_start_time.UnixMicro(),
-		log_window_end_time.UnixMicro(),
 		jsonStrings["numPrefillTokensForAllPods"],
 		jsonStrings["numDecodeTokensForAllPods"],
 	)
@@ -634,186 +637,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	return headers
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-// PodDetailedMetrics provides detailed statistics for a pod's performance
-type PodDetailedMetrics struct {
-	// TTFT metrics
-	AvgTTFT     float64 `json:"last_second_avg_ttft_ms"`
-	MinTTFT     int64   `json:"last_second_min_ttft_ms"`
-	MaxTTFT     int64   `json:"last_second_max_ttft_ms"`
-	P50TTFT     int64   `json:"last_second_p50_ttft_ms"` // Median TTFT
-	P90TTFT     int64   `json:"last_second_p90_ttft_ms"` // 90th percentile TTFT
-	P95TTFT     int64   `json:"last_second_p95_ttft_ms"` // 95th percentile TTFT
-	P99TTFT     int64   `json:"last_second_p99_ttft_ms"` // 99th percentile TTFT
-	TTFTSamples int     `json:"last_second_ttft_samples"`
-
-	// TPOT metrics
-	AvgTPOT     float64 `json:"last_second_avg_tpot_ms"`
-	MinTPOT     int64   `json:"last_second_min_tpot_ms"`
-	MaxTPOT     int64   `json:"last_second_max_tpot_ms"`
-	P50TPOT     int64   `json:"last_second_p50_tpot_ms"` // Median TPOT
-	P90TPOT     int64   `json:"last_second_p90_tpot_ms"` // 90th percentile TPOT
-	P95TPOT     int64   `json:"last_second_p95_tpot_ms"` // 95th percentile TPOT
-	P99TPOT     int64   `json:"last_second_p99_tpot_ms"` // 99th percentile TPOT
-	TPOTSamples int     `json:"last_second_tpot_samples"`
-
-	// // Token position-based TPOT metrics (average TPOT for tokens 2-10)
-	EarlyTokensTPOT float64 `json:"last_second_early_tokens_tpot_ms"`
-	MidTokensTPOT   float64 `json:"last_second_mid_tokens_tpot_ms"`
-	LateTokensTPOT  float64 `json:"last_second_late_tokens_tpot_ms"`
-
-	// Overall metrics
-	TotalRequests      int `json:"last_second_total_requests"`
-	TotalDecodeTokens  int `json:"last_second_total_decode_tokens"`
-	TotalPrefillTokens int `json:"last_second_total_prefill_tokens"`
-	TotalTokens        int `json:"last_second_total_tokens"`
-}
-
-func percentile(sortedValues []int64, p int) int64 {
-	if len(sortedValues) == 0 {
-		return 0
-	}
-
-	if len(sortedValues) == 1 {
-		return sortedValues[0]
-	}
-
-	// Calculate the rank
-	rank := float64(p) / 100.0 * float64(len(sortedValues)-1)
-	rankInt := int(rank)
-
-	// If rank is an integer, return that value
-	if rank == float64(rankInt) {
-		return sortedValues[rankInt]
-	}
-
-	// Otherwise, interpolate between two values
-	fraction := rank - float64(rankInt)
-	return int64(float64(sortedValues[rankInt]) + fraction*(float64(sortedValues[rankInt+1])-float64(sortedValues[rankInt])))
-}
-
-func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) map[string]PodDetailedMetrics {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	result := make(map[string]PodDetailedMetrics)
-	for podIP, metrics := range t.podMetrics {
-		// podMetrics should have all pods in its entry
-		// Init here to record all pods even if one does not have metrics after log_window_start_time
-		detailedMetrics := PodDetailedMetrics{
-			TotalRequests:      -1,
-			TotalDecodeTokens:  -1,
-			TotalPrefillTokens: -1,
-			TotalTokens:        -1,
-			TTFTSamples:        -1,
-			TPOTSamples:        -1,
-			AvgTTFT:            -1,
-			MinTTFT:            -1,
-			MaxTTFT:            -1,
-			P50TTFT:            -1,
-			P90TTFT:            -1,
-			P95TTFT:            -1,
-			P99TTFT:            -1,
-			AvgTPOT:            -1,
-			MinTPOT:            -1,
-			MaxTPOT:            -1,
-			P50TPOT:            -1,
-			P90TPOT:            -1,
-			P95TPOT:            -1,
-			P99TPOT:            -1,
-		}
-
-		var validMetrics []PodMetric
-		for _, m := range metrics {
-			if m.Timestamp.After(log_window_start_time) {
-				validMetrics = append(validMetrics, m)
-			}
-		}
-		var ttftValues []int64
-		var tpotValues []int64
-		var ttftSum, tpotSum int64
-		var earlyTokensTPOT, midTokensTPOT, lateTokensTPOT []int64
-		uniqueRequests := make(map[string]bool)
-		totalDecodeTokens := 0
-		totalPrefillTokens := 0
-		for _, m := range validMetrics {
-			if m.TTFT > 0 {
-				ttftValues = append(ttftValues, m.TTFT)
-				ttftSum += m.TTFT
-				uniqueKey := fmt.Sprintf("%s-%d", podIP, m.Timestamp.UnixNano())
-				uniqueRequests[uniqueKey] = true
-				totalPrefillTokens += int(m.PrefillTokenNum)
-			}
-			if m.TPOT > 0 {
-				tpotValues = append(tpotValues, m.TPOT)
-				tpotSum += m.TPOT
-				totalDecodeTokens++
-				early_token_index := numOutputTokens / 3
-				mid_token_index := (numOutputTokens / 3) * 2
-				switch {
-				case m.DecodeTokenNum <= early_token_index:
-					earlyTokensTPOT = append(earlyTokensTPOT, m.TPOT)
-				case m.DecodeTokenNum > early_token_index && m.DecodeTokenNum <= mid_token_index:
-					midTokensTPOT = append(midTokensTPOT, m.TPOT)
-				case m.DecodeTokenNum > mid_token_index:
-					lateTokensTPOT = append(lateTokensTPOT, m.TPOT)
-				}
-			}
-		}
-		sort.Slice(ttftValues, func(i, j int) bool { return ttftValues[i] < ttftValues[j] })
-		sort.Slice(tpotValues, func(i, j int) bool { return tpotValues[i] < tpotValues[j] })
-
-		detailedMetrics.TotalRequests = len(uniqueRequests)
-		detailedMetrics.TotalDecodeTokens = totalDecodeTokens
-		detailedMetrics.TotalPrefillTokens = totalPrefillTokens
-		detailedMetrics.TotalTokens = totalDecodeTokens + totalPrefillTokens
-		detailedMetrics.TTFTSamples = len(ttftValues)
-		detailedMetrics.TPOTSamples = len(tpotValues)
-		if len(ttftValues) > 0 {
-			detailedMetrics.AvgTTFT = float64(ttftSum) / float64(len(ttftValues))
-			detailedMetrics.MinTTFT = ttftValues[0]
-			detailedMetrics.MaxTTFT = ttftValues[len(ttftValues)-1]
-			detailedMetrics.P50TTFT = percentile(ttftValues, 50)
-			detailedMetrics.P90TTFT = percentile(ttftValues, 90)
-			detailedMetrics.P95TTFT = percentile(ttftValues, 95)
-			detailedMetrics.P99TTFT = percentile(ttftValues, 99)
-		}
-		if len(tpotValues) > 0 {
-			detailedMetrics.AvgTPOT = float64(tpotSum) / float64(len(tpotValues))
-			detailedMetrics.MinTPOT = tpotValues[0]
-			detailedMetrics.MaxTPOT = tpotValues[len(tpotValues)-1]
-			detailedMetrics.P50TPOT = percentile(tpotValues, 50)
-			detailedMetrics.P90TPOT = percentile(tpotValues, 90)
-			detailedMetrics.P95TPOT = percentile(tpotValues, 95)
-			detailedMetrics.P99TPOT = percentile(tpotValues, 99)
-		}
-
-		if len(earlyTokensTPOT) > 0 {
-			var sum int64
-			for _, v := range earlyTokensTPOT {
-				sum += v
-			}
-			detailedMetrics.EarlyTokensTPOT = float64(sum) / float64(len(earlyTokensTPOT))
-		}
-		if len(midTokensTPOT) > 0 {
-			var sum int64
-			for _, v := range midTokensTPOT {
-				sum += v
-			}
-			detailedMetrics.MidTokensTPOT = float64(sum) / float64(len(midTokensTPOT))
-		}
-		if len(lateTokensTPOT) > 0 {
-			var sum int64
-			for _, v := range lateTokensTPOT {
-				sum += v
-			}
-			detailedMetrics.LateTokensTPOT = float64(sum) / float64(len(lateTokensTPOT))
-		}
-
-		result[podIP] = detailedMetrics
-	}
-	return result
-}
+///////////////////////////////////////////////////////////////////////////
 
 // Helper functions for metrics tracking
 // IsMetricsEnabled returns whether metrics collection is enabled

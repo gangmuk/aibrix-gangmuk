@@ -27,7 +27,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	// "github.com/vllm-project/aibrix/pkg/utils/kvcache"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/client-go/kubernetes"
@@ -54,48 +53,6 @@ type RequestTiming struct {
 	IsPrefill            bool
 }
 
-// **NOTE**: the name PodMetric is very confusing. one PodMetric instance is one response token (first token will create one PodMetric and also one decode response(token) will create one PodMetric instance).
-type PodMetric struct {
-	requestID       string
-	Timestamp       time.Time
-	TTFT            int64 // Time to first token
-	TPOT            int64 // Time per output token (for single token)
-	PrefillTokenNum int64 // number of tokens in the decode phase
-	DecodeTokenNum  int64 // number of decoded tokens generated up to Timestamp
-}
-
-func CreatePodMetric() PodMetric {
-	return PodMetric{
-		requestID:       "",
-		Timestamp:       time.Now(),
-		TTFT:            0,
-		TPOT:            0,
-		PrefillTokenNum: 0,
-		DecodeTokenNum:  0,
-	}
-}
-
-type PodMetricsTracker struct {
-	mutex      sync.RWMutex
-	podMetrics map[string][]PodMetric // Map of pod IP -> slice of metrics
-	windowSize time.Duration          // How long to keep metrics
-}
-
-// cleanupOldMetrics removes metrics that are older than the window size
-func (t *PodMetricsTracker) cleanupOldMetrics(podIP string, now time.Time) {
-	cutoff := now.Add(-t.windowSize)
-	metrics := t.podMetrics[podIP]
-
-	var newMetrics []PodMetric
-	for _, m := range metrics {
-		if m.Timestamp.After(cutoff) {
-			newMetrics = append(newMetrics, m)
-		}
-	}
-
-	t.podMetrics[podIP] = newMetrics
-}
-
 type Server struct {
 	redisClient         *redis.Client
 	ratelimiter         ratelimiter.RateLimiter
@@ -112,88 +69,9 @@ type Server struct {
 	routingContexts sync.Map // Map to store routing contexts for each request: requestID -> *types.RoutingContext
 
 	// New fields for metrics tracking
-	metricsTracker   *PodMetricsTracker // Track timing metrics for pods
-	metricsEnabled   atomic.Bool        // Flag to enable/disable metrics collection
-	metricsLogTicker *time.Ticker       // Ticker for periodic metrics logging
-}
-
-func (t *PodMetricsTracker) InitPodKey(podIP string) {
-	// Trim port from podIP if present
-	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
-		podIP = podIP[:colonIndex]
-	}
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	if _, exists := t.podMetrics[podIP]; !exists {
-		t.podMetrics[podIP] = []PodMetric{CreatePodMetric()}
-		klog.Infof("Initialized pod metrics for pod %s", podIP)
-	}
-}
-
-func (t *PodMetricsTracker) AddPodMetric(podIP string, metric PodMetric) {
-	// Trim port from podIP if present
-	if colonIndex := len(podIP) - 1; podIP[colonIndex] == ':' {
-		podIP = podIP[:colonIndex]
-	}
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	// Add the new metric
-	t.podMetrics[podIP] = append(t.podMetrics[podIP], metric)
-
-	// Clean up old metrics outside our window
-	t.cleanupOldMetrics(podIP, time.Now())
-}
-
-// GetAverages calculates the average TTFT and TPOT for all pods over the window
-func (t *PodMetricsTracker) GetAverages() map[string]map[string]float64 {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-
-	now := time.Now()
-	cutoff := now.Add(-t.windowSize)
-	result := make(map[string]map[string]float64)
-
-	for podIP, metrics := range t.podMetrics {
-		var ttftSum, tpotSum int64
-		var ttftCount, tpotCount int
-
-		// Calculate sums of valid metrics
-		for _, m := range metrics {
-			if m.Timestamp.After(cutoff) {
-				if m.TTFT > 0 {
-					ttftSum += m.TTFT
-					ttftCount++
-				}
-				if m.TPOT > 0 {
-					tpotSum += m.TPOT
-					tpotCount++
-				}
-			}
-		}
-
-		// Calculate averages
-		podAvg := make(map[string]float64)
-		if ttftCount > 0 {
-			podAvg["avg_ttft"] = float64(ttftSum) / float64(ttftCount)
-		}
-		if tpotCount > 0 {
-			podAvg["avg_tpot"] = float64(tpotSum) / float64(tpotCount)
-		}
-		podAvg["sample_count"] = float64(len(metrics))
-
-		result[podIP] = podAvg
-	}
-
-	return result
-}
-
-// NewPodMetricsTracker creates a new metrics tracker with the specified window size
-func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
-	return &PodMetricsTracker{
-		podMetrics: make(map[string][]PodMetric),
-		windowSize: windowSize,
-	}
+	metricsTracker   *utils.PodMetricsTracker // Track timing metrics for pods
+	metricsEnabled   atomic.Bool              // Flag to enable/disable metrics collection
+	metricsLogTicker *time.Ticker             // Ticker for periodic metrics logging
 }
 
 func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
@@ -212,7 +90,7 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 		client:              client,
 		requestCountTracker: map[string]int{},
 		cache:               c,
-		metricsTracker:      NewPodMetricsTracker(1 * time.Second),
+		metricsTracker:      utils.NewPodMetricsTracker(1 * time.Second),
 	}
 	// Enable metrics collection by default
 	server.metricsEnabled.Store(true)
@@ -236,33 +114,6 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 	// Start periodic metrics logging
 	server.metricsLogTicker = time.NewTicker(10 * time.Second)
 	return server
-}
-
-func (t *PodMetricsTracker) CleanupAllMetrics() {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	now := time.Now()
-	cutoff := now.Add(-t.windowSize)
-
-	for podIP, metrics := range t.podMetrics {
-		var newMetrics []PodMetric
-		for _, m := range metrics {
-			if m.Timestamp.After(cutoff) {
-				newMetrics = append(newMetrics, m)
-			}
-		}
-
-		// Always keep the pod entry, even if it has no valid metrics
-		t.podMetrics[podIP] = newMetrics
-
-		// Optionally, if you want to maintain at least one entry
-		// to mark that the pod exists, you could add a placeholder:
-		if len(newMetrics) == 0 {
-			// Add a placeholder metric with zero values
-			t.podMetrics[podIP] = []PodMetric{CreatePodMetric()}
-		}
-	}
 }
 
 func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
@@ -298,7 +149,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 
 		case *extProcPb.ProcessingRequest_RequestHeaders:
 			requestID = getRequestID(v.RequestHeaders.Headers.Headers)
-			klog.Infof("Before HandleRequestHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
+			klog.V(5).Infof("Before HandleRequestHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, user, rpm, routingAlgorithm = s.HandleRequestHeaders(ctx, requestID, req)
 
 		case *extProcPb.ProcessingRequest_RequestBody:
@@ -313,7 +164,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			}
 
 		case *extProcPb.ProcessingRequest_ResponseHeaders:
-			klog.Infof("Before HandleResponseHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
+			klog.V(5).Infof("Before HandleResponseHeaders, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, isRespError, respErrorCode = s.HandleResponseHeaders(ctx, requestID, model, req)
 			if isRespError {
 				klog.Errorf("Response headers processing error %d, requestID: %s, selectedPod: %s, model: %s", respErrorCode, requestID, routerCtx.TargetAddress(), model)
@@ -342,9 +193,13 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 }
 
 func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) (string, error) {
-	klog.Infof("selectTargetPod context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
+	klog.Infof("selectTargetPod starts. context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 	defer func() {
-		klog.InfoS("Exiting selectTargetPod", "requestID", ctx.RequestID, "ctxDone", ctx.Err() != nil)
+		if ctx.Err() != nil {
+			klog.ErrorS(ctx.Err(), "Exiting selectTargetPod, Context error", "requestID", ctx.RequestID)
+		} else {
+			klog.V(5).InfoS("Exiting selectTargetPod, Context is not done successfully", "requestID", ctx.RequestID)
+		}
 	}()
 
 	router, err := routing.Select(ctx.Algorithm)(ctx)
@@ -366,17 +221,21 @@ func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) 
 			return ctx.TargetAddress(), nil
 		}
 	}
+
 	for _, pod := range readyPods {
 		s.metricsTracker.InitPodKey(pod.Status.PodIP)
 	}
+	klog.Infof("selectTargetPod, done with InitPodKey. context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
+
 	ts := time.Now()
-	route_ret, err := router.Route(ctx, &utils.PodArray{Pods: readyPods})
-	klog.Infof("Routing took %s", time.Since(ts))
+	selectedPodAddress, err := router.Route(ctx, &utils.PodArray{Pods: readyPods})
+
+	klog.Infof("selectTargetPod. Routing took %s, selectedPodAddress: %s", time.Since(ts), selectedPodAddress)
 	if err != nil {
 		klog.ErrorS(err, "Routing failed", "requestID", ctx.RequestID)
 		return "", err
 	}
-	return route_ret, nil
+	return selectedPodAddress, nil
 }
 
 func NewHealthCheckServer() *HealthServer {

@@ -131,9 +131,17 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 		//////////////////////////////////////////////////////////
 		targetPodIP, err := s.selectTargetPod(routingCtx, podsArr)
 		s.selectedPodIP.Store(requestID, targetPodIP)
-		//////////////////////////////////////////////////////////
-		targetPodIPWithPort := routingCtx.TargetAddressWithoutPort()
+		//////////////////////////////////////////////////////////'
 
+		targetPodIPWithPort := routingCtx.TargetAddressWithoutPort()
+		readyPods := utils.FilterRoutablePods(podsArr.All())
+		utils.StoreRequestToPodIP(routingCtx.RequestID, targetPodIPWithPort)
+		// for all ready pod
+		ts := time.Now()
+		detailedpodmetrics := s.metricsTracker.GetDetailedMetrics(time.Now().Add(-s.metricsTracker.WindowSize))
+		utils.AddRequestPodMetrics(routingCtx.RequestID, detailedpodmetrics)
+		duration := time.Since(ts)
+		klog.Infof("AddRequestPodMetrics took %d, %s", duration, routingCtx.RequestID)
 		utils.SetNumPrefillTokensForRequest(routingCtx.RequestID, len(prefill_tokens))
 		klog.Infof("SetNumPrefillTokensForRequest, %s, %d", routingCtx.RequestID, len(prefill_tokens))
 		ret := utils.IncrementNumPrefillTokensForPod(targetPodIPWithPort, len(prefill_tokens))
@@ -146,7 +154,6 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			decodeTokenCount:  0,
 			IsPrefill:         true,
 		})
-		utils.StoreRequestToPodIP(routingCtx.RequestID, targetPodIPWithPort)
 		utils.IncrementNumInflightForPod(routingCtx.RequestID)
 		utils.StoreInflightRequestsForTheRequest(routingCtx.RequestID)
 		targetMetrics := [...]string{
@@ -156,7 +163,6 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			utils.MetricNumRequestsWaiting,
 		}
 		var wg sync.WaitGroup
-		readyPods := utils.FilterRoutablePods(podsArr.All())
 		for _, pod := range readyPods {
 			wg.Add(1)
 			go func(pod *v1.Pod) {
