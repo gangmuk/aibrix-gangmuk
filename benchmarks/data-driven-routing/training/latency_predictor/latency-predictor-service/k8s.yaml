@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: latency-predictor-service
+  namespace: default
+spec:
+  selector:
+    app: latency-predictor-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: latency-predictor-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: latency-predictor-service
+  template:
+    metadata:
+      labels:
+        app: latency-predictor-service
+    spec:
+      containers:
+      - name: predictor
+        image:  aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gangmuk-latency-predictor:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MODEL_PATH
+          value: "/app/latency_predictor.joblib"  # Path inside the container where the model is copied
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "500Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
