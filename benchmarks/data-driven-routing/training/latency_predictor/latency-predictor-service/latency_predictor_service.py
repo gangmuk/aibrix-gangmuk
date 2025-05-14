@@ -449,28 +449,191 @@ def process_pod_prediction(pod, models):
 #     return ORJSONResponse(content={"predictions": predictions})
 
 
+
+
+
+
+
+
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
-    ts = time.time()
+    request_id = request.pods[0].request_id
+    ts_start = time.time()
+    logger.info(f"requestID: {request_id}, TS_START: {ts_start:.6f}, starting batch prediction request")
     
-    # Use direct threading without asyncio
-    with ThreadPoolExecutor(max_workers=16) as executor:
-        # Submit all tasks
-        future_to_pod = {
-            executor.submit(process_pod_prediction, pod, models): pod.selected_pod
-            for pod in request.pods
+    # Phase 1: Record creation
+    ts_before_records = time.time()
+    logger.info(f"requestID: {request_id}, TS_BEFORE_RECORDS: {ts_before_records:.6f}, delta: {(ts_before_records-ts_start)*1000:.2f}ms")
+    
+    records = []
+    pod_map = {}  # To track which index maps to which pod
+    
+    for i, pod in enumerate(request.pods):
+        pod_ip = pod.selected_pod
+        pod_map[i] = pod_ip
+        
+        record = {
+            'selected_pod': pod_ip,
+            'input_tokens': pod.input_tokens,
+            'output_tokens': pod.output_tokens,
+            'total_tokens': pod.total_tokens,
         }
         
-        # Collect results as they complete
-        predictions = {}
-        for future in concurrent.futures.as_completed(future_to_pod):
-            pod_ip, pod_predictions = future.result()
-            predictions[pod_ip] = pod_predictions
+        # Add all optional fields if they exist
+        if pod.kv_hit_ratio is not None:
+            record['kv_hit_ratio'] = pod.kv_hit_ratio
+        if pod.inflight_requests is not None:
+            record['inflight_requests'] = pod.inflight_requests
+        if pod.gpu_kv_cache is not None:
+            record['gpu_kv_cache'] = pod.gpu_kv_cache
+        if pod.cpu_kv_cache is not None:
+            record['cpu_kv_cache'] = pod.cpu_kv_cache
+        if pod.running_requests is not None:
+            record['running_requests'] = pod.running_requests
+        if pod.waiting_requests is not None:
+            record['waiting_requests'] = pod.waiting_requests
+        if pod.prefill_tokens is not None:
+            record['prefill_tokens'] = pod.prefill_tokens
+        if pod.decode_tokens is not None:
+            record['decode_tokens'] = pod.decode_tokens
+        if pod.gpu_model is not None:
+            record['gpu_model'] = pod.gpu_model
+        if pod.last_second_avg_ttft_ms is not None:
+            record['last_second_avg_ttft_ms'] = pod.last_second_avg_ttft_ms
+        if pod.last_second_avg_tpot_ms is not None:
+            record['last_second_avg_tpot_ms'] = pod.last_second_avg_tpot_ms
+        if pod.last_second_p99_ttft_ms is not None:
+            record['last_second_p99_ttft_ms'] = pod.last_second_p99_ttft_ms
+        if pod.last_second_p99_tpot_ms is not None:
+            record['last_second_p99_tpot_ms'] = pod.last_second_p99_tpot_ms
+        if pod.last_second_total_requests is not None:
+            record['last_second_total_requests'] = pod.last_second_total_requests
+        if pod.last_second_total_tokens is not None:
+            record['last_second_total_tokens'] = pod.last_second_total_tokens
+        if pod.last_second_total_decode_tokens is not None:
+            record['last_second_total_decode_tokens'] = pod.last_second_total_decode_tokens
+        if pod.last_second_total_prefill_tokens is not None:
+            record['last_second_total_prefill_tokens'] = pod.last_second_total_prefill_tokens
+        
+        records.append(record)
     
-    elapsed = int((time.time() - ts) * 1000)
-    logger.info(f"requestID: {request.pods[0].request_id}, parallel predictions took {elapsed}ms")
+    ts_after_records = time.time()
+    logger.info(f"requestID: {request_id}, TS_AFTER_RECORDS: {ts_after_records:.6f}, delta: {(ts_after_records-ts_before_records)*1000:.2f}ms, created {len(records)} records")
+    
+    # Phase 2: DataFrame creation
+    ts_before_df = time.time()
+    logger.info(f"requestID: {request_id}, TS_BEFORE_DF: {ts_before_df:.6f}, delta: {(ts_before_df-ts_after_records)*1000:.2f}ms")
+    
+    batch_df = pd.DataFrame(records)
+    
+    ts_after_df = time.time()
+    logger.info(f"requestID: {request_id}, TS_AFTER_DF: {ts_after_df:.6f}, delta: {(ts_after_df-ts_before_df)*1000:.2f}ms, DataFrame shape: {batch_df.shape}")
+    
+    # Phase 3: Create DMatrix (optional, depending on model)
+    ts_before_dmatrix = time.time()
+    logger.info(f"requestID: {request_id}, TS_BEFORE_DMATRIX: {ts_before_dmatrix:.6f}, delta: {(ts_before_dmatrix-ts_after_df)*1000:.2f}ms")
+    
+    try:
+        from xgboost import DMatrix
+        dmatrix = DMatrix(batch_df, device='cuda:0')
+        use_dmatrix = True
+        logger.info(f"requestID: {request_id}, Created CUDA DMatrix for batch prediction")
+    except Exception as e:
+        use_dmatrix = False
+        logger.info(f"requestID: {request_id}, Unable to create CUDA DMatrix: {str(e)}, falling back to DataFrame")
+    
+    ts_after_dmatrix = time.time()
+    logger.info(f"requestID: {request_id}, TS_AFTER_DMATRIX: {ts_after_dmatrix:.6f}, delta: {(ts_after_dmatrix-ts_before_dmatrix)*1000:.2f}ms")
+    
+    # Phase 4: Initialize results dict
+    ts_before_init = time.time()
+    logger.info(f"requestID: {request_id}, TS_BEFORE_INIT: {ts_before_init:.6f}, delta: {(ts_before_init-ts_after_dmatrix)*1000:.2f}ms")
+    
+    predictions = {pod_ip: {} for pod_ip in pod_map.values()}
+    
+    ts_after_init = time.time()
+    logger.info(f"requestID: {request_id}, TS_AFTER_INIT: {ts_after_init:.6f}, delta: {(ts_after_init-ts_before_init)*1000:.2f}ms")
+    
+    # Phase 5: Batch prediction for each target
+    for target, model in models.items():
+        ts_before_target = time.time()
+        logger.info(f"requestID: {request_id}, TS_BEFORE_TARGET_{target}: {ts_before_target:.6f}")
+        
+        try:
+            # Choose prediction method based on model type and DMatrix availability
+            if model_types.get(target) == 'Pipeline':
+                # For Pipeline models, use the standard prediction method
+                batch_predictions = model.predict(batch_df)
+                logger.info(f"requestID: {request_id}, Used Pipeline predict for {target}")
+            else:
+                # For direct XGBoost models
+                if use_dmatrix and hasattr(model, 'get_booster'):
+                    booster = model.get_booster()
+                    batch_predictions = booster.predict(dmatrix)
+                    logger.info(f"requestID: {request_id}, Used GPU DMatrix predict for {target}")
+                else:
+                    batch_predictions = model.predict(batch_df)
+                    logger.info(f"requestID: {request_id}, Used standard predict for {target}")
+            
+            # Distribute results to corresponding pods
+            for i, pred in enumerate(batch_predictions):
+                pod_ip = pod_map[i]
+                predictions[pod_ip][target] = float(pred)
+            
+            ts_after_target = time.time()
+            target_time = (ts_after_target - ts_before_target) * 1000
+            logger.info(f"requestID: {request_id}, TS_AFTER_TARGET_{target}: {ts_after_target:.6f}, delta: {target_time:.2f}ms, predicted {len(batch_predictions)} values")
+            
+        except Exception as e:
+            ts_after_target = time.time()
+            logger.error(f"requestID: {request_id}, Error in batch prediction for {target}: {str(e)}")
+            logger.error(f"requestID: {request_id}, DataFrame columns: {batch_df.columns.tolist()}")
+            
+            # Set default prediction value for error cases
+            for i in range(len(records)):
+                pod_ip = pod_map[i]
+                predictions[pod_ip][target] = -1
+            
+            logger.info(f"requestID: {request_id}, TS_AFTER_TARGET_{target}_ERROR: {ts_after_target:.6f}, delta: {(ts_after_target-ts_before_target)*1000:.2f}ms")
+    
+    # Phase 6: Finalization
+    ts_before_final = time.time()
+    logger.info(f"requestID: {request_id}, TS_BEFORE_FINAL: {ts_before_final:.6f}, delta: {(ts_before_final-ts_after_target)*1000:.2f}ms")
+    
+    # Any final processing here
+    
+    ts_after_final = time.time()
+    logger.info(f"requestID: {request_id}, TS_AFTER_FINAL: {ts_after_final:.6f}, delta: {(ts_after_final-ts_before_final)*1000:.2f}ms")
+    
+    # Phase 7: Response creation
+    elapsed = int((time.time() - ts_start) * 1000)
+    logger.info(f"requestID: {request_id}, TS_END: {time.time():.6f}, batch predictions completed in {elapsed}ms for {len(request.pods)} pods")
     
     return {"predictions": predictions}
+
+# @app.post("/predict", response_model=PredictionResponse)
+# def predict(request: PredictionRequest):
+#     ts = time.time()
+    
+#     # Use direct threading without asyncio
+#     with ThreadPoolExecutor(max_workers=16) as executor:
+#         # Submit all tasks
+#         future_to_pod = {
+#             executor.submit(process_pod_prediction, pod, models): pod.selected_pod
+#             for pod in request.pods
+#         }
+        
+#         # Collect results as they complete
+#         predictions = {}
+#         for future in concurrent.futures.as_completed(future_to_pod):
+#             pod_ip, pod_predictions = future.result()
+#             predictions[pod_ip] = pod_predictions
+    
+#     elapsed = int((time.time() - ts) * 1000)
+#     logger.info(f"requestID: {request.pods[0].request_id}, parallel predictions took {elapsed}ms")
+    
+#     return {"predictions": predictions}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
