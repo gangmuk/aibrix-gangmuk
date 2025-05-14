@@ -1,3 +1,5 @@
+import orjson
+from fastapi.responses import ORJSONResponse
 from fastapi import FastAPI, HTTPException
 import joblib
 import pandas as pd
@@ -7,19 +9,59 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional, Any, Union
 import os
 import logging
+import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import grpc
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Improved Latency Predictor Service")
+thread_pool = ThreadPoolExecutor(max_workers=8)  # Adjust worker count based on your CPU cores
+
+
+# Check for GPU availability 
+try:
+    import torch
+    if torch.cuda.is_available():
+        logger.info(f"CUDA is available. Using GPU: {torch.cuda.get_device_name(0)}")
+        logger.info(f"GPU count: {torch.cuda.device_count()}")
+        # Set this environment variable to enable GPU acceleration in XGBoost
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    else:
+        logger.info("CUDA is not available. Using CPU only.")
+except ImportError:
+    logger.info("PyTorch not available. Unable to check for GPU support.")
+
+# Import XGBoost with potential GPU support
+try:
+    import xgboost as xgb
+    logger.info(f"XGBoost version: {xgb.__version__}")
+    # Check if XGBoost is built with GPU support
+    try:
+        xgb_params = {'tree_method': 'gpu_hist', 'gpu_id': 0}
+        dummy_model = xgb.XGBRegressor(**xgb_params)
+        logger.info("XGBoost is configured to use GPU acceleration.")
+    except Exception as e:
+        logger.warning(f"XGBoost GPU test failed: {e}. Will use CPU version.")
+except ImportError:
+    logger.warning("XGBoost import failed.")
+
+# app = FastAPI(title="GPU-Accelerated Latency Predictor Service")
+app = FastAPI(
+    title="GPU-Accelerated Latency Predictor Service",
+    default_response_class=ORJSONResponse
+)
 
 # Global variables for loaded model
 model_data = None
 models = {}
+model_types = {}  # Track model types to apply correct GPU acceleration
 
 class PodFeatures(BaseModel):
     # Required fields
+    request_id: str
     selected_pod: str  # This is the pod IP
     input_tokens: int
     output_tokens: int
@@ -55,9 +97,9 @@ class PredictionResponse(BaseModel):
 
 @app.on_event("startup")
 async def load_model():
-    global model_data, models
+    global model_data, models, model_types
     
-    model_path = "./latency_predictor.joblib"
+    model_path = os.environ.get("MODEL_PATH", "./latency_predictor.joblib")
     
     try:
         logger.info(f"Loading model from {model_path}")
@@ -70,6 +112,30 @@ async def load_model():
             
         logger.info(f"Loaded models for targets: {list(models.keys())}")
         
+        # Determine model types and configure GPU acceleration if possible
+        for target, model in models.items():
+            model_type = type(model).__name__
+            model_types[target] = model_type
+            logger.info(f"Model for target '{target}' is type: {model_type}")
+            
+            # For Pipeline models, check the final estimator
+            if model_type == 'Pipeline':
+                steps = model.steps
+                final_estimator_name, final_estimator = steps[-1]
+                final_estimator_type = type(final_estimator).__name__
+                logger.info(f"Pipeline for '{target}' has final estimator: {final_estimator_type}")
+                
+                # If the final estimator is XGBoost, enable GPU
+                if 'XGB' in final_estimator_type:
+                    try:
+                        if hasattr(final_estimator, 'get_booster'):
+                            booster = final_estimator.get_booster()
+                            # Try to set tree_method and predictor to use GPU
+                            booster.set_param({'predictor': 'gpu_predictor'})
+                            logger.info(f"Enabled GPU acceleration for {target} XGBoost estimator")
+                    except Exception as e:
+                        logger.warning(f"Could not configure GPU for {target} XGBoost estimator: {e}")
+            
     except Exception as e:
         logger.error(f"Error loading model: {e}")
 
@@ -77,88 +143,187 @@ async def load_model():
 async def health_check():
     if not models:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "healthy", "models": list(models.keys())}
+    
+    # Check GPU status with detailed metrics
+    gpu_info = {"available": False}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            # Get current GPU utilization
+            gpu_info = {
+                "available": True,
+                "name": torch.cuda.get_device_name(0),
+                "count": torch.cuda.device_count(),
+                "memory": {
+                    "allocated": f"{torch.cuda.memory_allocated(0) / (1024**2):.2f} MB",
+                    "reserved": f"{torch.cuda.memory_reserved(0) / (1024**2):.2f} MB",
+                    "max": f"{torch.cuda.get_device_properties(0).total_memory / (1024**2):.2f} MB"
+                }
+            }
+            
+            # Try to get NVIDIA GPU utilization if possible
+            try:
+                import subprocess
+                result = subprocess.run(['nvidia-smi', '--query-gpu=utilization.gpu,utilization.memory', '--format=csv,noheader,nounits'], 
+                                      capture_output=True, text=True, check=True)
+                gpu_util, mem_util = result.stdout.strip().split(',')
+                gpu_info["utilization"] = {
+                    "gpu": f"{gpu_util.strip()}%",
+                    "memory": f"{mem_util.strip()}%"
+                }
+            except:
+                pass
+    except:
+        pass
+        
+    return {
+        "status": "healthy", 
+        "models": list(models.keys()),
+        "model_types": model_types,
+        "gpu": gpu_info
+    }
+
+@app.get("/benchmark")
+async def benchmark():
+    """Run a performance test to compare CPU vs GPU inference"""
+    if not models:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    # Create a sample batch of requests
+    batch_size = 1000
+    sample_records = []
+    
+    # Create sample data similar to your production data
+    for i in range(batch_size):
+        record = {
+            'selected_pod': f'pod-{i}',
+            'input_tokens': 100 + i % 500,
+            'output_tokens': 50 + i % 200,
+            'total_tokens': 150 + i % 700,
+            # Add other necessary fields...
+        }
+        sample_records.append(record)
+    
+    sample_df = pd.DataFrame(sample_records)
+    
+    results = {}
+    for target, model in models.items():
+        start_time = time.time()
+        predictions = model.predict(sample_df)
+        elapsed = time.time() - start_time
+        
+        results[target] = {
+            "batch_size": batch_size,
+            "prediction_time_ms": elapsed * 1000,
+            "predictions_per_second": batch_size / elapsed,
+            "avg_prediction_ms": (elapsed * 1000) / batch_size
+        }
+    
+    return {
+        "benchmark_results": results,
+        "gpu_info": {
+            "available": torch.cuda.is_available() if 'torch' in sys.modules else False,
+            "device": torch.cuda.get_device_name(0) if 'torch' in sys.modules and torch.cuda.is_available() else "None"
+        }
+    }
+
+# Function to process a single pod prediction in a separate thread
+def process_pod_prediction(pod, models):
+    request_id = pod.request_id
+    pod_ip = pod.selected_pod
+    pod_predictions = {}
+    
+    record = {
+        'selected_pod': pod_ip,
+        'input_tokens': pod.input_tokens,
+        'output_tokens': pod.output_tokens,
+        'total_tokens': pod.total_tokens,
+    }
+    
+    # Add all optional fields if they exist
+    if pod.kv_hit_ratio is not None:
+        record['kv_hit_ratio'] = pod.kv_hit_ratio
+    if pod.inflight_requests is not None:
+        record['inflight_requests'] = pod.inflight_requests
+    if pod.gpu_kv_cache is not None:
+        record['gpu_kv_cache'] = pod.gpu_kv_cache
+    if pod.cpu_kv_cache is not None:
+        record['cpu_kv_cache'] = pod.cpu_kv_cache
+    if pod.running_requests is not None:
+        record['running_requests'] = pod.running_requests
+    if pod.waiting_requests is not None:
+        record['waiting_requests'] = pod.waiting_requests
+    if pod.prefill_tokens is not None:
+        record['prefill_tokens'] = pod.prefill_tokens
+    if pod.decode_tokens is not None:
+        record['decode_tokens'] = pod.decode_tokens
+    if pod.gpu_model is not None:
+        record['gpu_model'] = pod.gpu_model
+    if pod.last_second_avg_ttft_ms is not None:
+        record['last_second_avg_ttft_ms'] = pod.last_second_avg_ttft_ms
+    if pod.last_second_avg_tpot_ms is not None:
+        record['last_second_avg_tpot_ms'] = pod.last_second_avg_tpot_ms
+    if pod.last_second_p99_ttft_ms is not None:
+        record['last_second_p99_ttft_ms'] = pod.last_second_p99_ttft_ms
+    if pod.last_second_p99_tpot_ms is not None:
+        record['last_second_p99_tpot_ms'] = pod.last_second_p99_tpot_ms
+    if pod.last_second_total_requests is not None:
+        record['last_second_total_requests'] = pod.last_second_total_requests
+    if pod.last_second_total_tokens is not None:
+        record['last_second_total_tokens'] = pod.last_second_total_tokens
+    if pod.last_second_total_decode_tokens is not None:
+        record['last_second_total_decode_tokens'] = pod.last_second_total_decode_tokens
+    if pod.last_second_total_prefill_tokens is not None:
+        record['last_second_total_prefill_tokens'] = pod.last_second_total_prefill_tokens
+    
+    df = pd.DataFrame([record])
+    logger.debug(f"Prediction features for pod {pod_ip}: {record}")
+    
+    for target, model in models.items():
+        try:
+            pred = model.predict(df)[0]  # Get first row value
+            pod_predictions[target] = float(pred)
+            logger.info(f"SUCCESS - prediction - requestID: {request_id}, Pod features for: {pod_ip} target {target}. prediction: {int(pred)}ms")
+        except Exception as e:
+            logger.error(f"FAIL - Error predicting - requestID: {request_id}, Pod features for: {pod_ip}. target {target}. error: {e}")
+            logger.error(f"DataFrame columns: {df.columns.tolist()}")
+            pod_predictions[target] = -1
+    
+    return pod_ip, pod_predictions
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
+    ts = time.time()
+
+    # For testing
+    await asyncio.sleep(0.1)  # 100ms delay
+
+
     if not models:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     # Result dictionary: pod_ip -> {target -> prediction}
     predictions = {}
     
+    # Submit all pod prediction tasks to the thread pool
+    tasks = []
+    request_id = request.pods[0].request_id
     for pod in request.pods:
-        pod_ip = pod.selected_pod
-        predictions[pod_ip] = {}
-        
-        # Create a record with all pod features
-        record = {
-            'selected_pod': pod_ip,
-            'input_tokens': pod.input_tokens,
-            'output_tokens': pod.output_tokens,
-            'total_tokens': pod.total_tokens,
-        }
-        
-        # Add all optional fields if they exist
-        if pod.kv_hit_ratio is not None:
-            record['kv_hit_ratio'] = pod.kv_hit_ratio
-        if pod.inflight_requests is not None:
-            record['inflight_requests'] = pod.inflight_requests
-        if pod.gpu_kv_cache is not None:
-            record['gpu_kv_cache'] = pod.gpu_kv_cache
-        if pod.cpu_kv_cache is not None:
-            record['cpu_kv_cache'] = pod.cpu_kv_cache
-        if pod.running_requests is not None:
-            record['running_requests'] = pod.running_requests
-        if pod.waiting_requests is not None:
-            record['waiting_requests'] = pod.waiting_requests
-        if pod.prefill_tokens is not None:
-            record['prefill_tokens'] = pod.prefill_tokens
-        if pod.decode_tokens is not None:
-            record['decode_tokens'] = pod.decode_tokens
-        if pod.gpu_model is not None:
-            record['gpu_model'] = pod.gpu_model
-        if pod.last_second_avg_ttft_ms is not None:
-            record['last_second_avg_ttft_ms'] = pod.last_second_avg_ttft_ms
-        if pod.last_second_avg_tpot_ms is not None:
-            record['last_second_avg_tpot_ms'] = pod.last_second_avg_tpot_ms
-        if pod.last_second_p99_ttft_ms is not None:
-            record['last_second_p99_ttft_ms'] = pod.last_second_p99_ttft_ms
-        if pod.last_second_p99_tpot_ms is not None:
-            record['last_second_p99_tpot_ms'] = pod.last_second_p99_tpot_ms
-        if pod.last_second_total_requests is not None:
-            record['last_second_total_requests'] = pod.last_second_total_requests
-        if pod.last_second_total_tokens is not None:
-            record['last_second_total_tokens'] = pod.last_second_total_tokens
-        if pod.last_second_total_decode_tokens is not None:
-            record['last_second_total_decode_tokens'] = pod.last_second_total_decode_tokens
-        if pod.last_second_total_prefill_tokens is not None:
-            record['last_second_total_prefill_tokens'] = pod.last_second_total_prefill_tokens
-        
-        # Add any additional metrics
-        if pod.additional_metrics:
-            for key, value in pod.additional_metrics.items():
-                record[key] = value
-                
-        # Create a DataFrame with just this pod's data
-        df = pd.DataFrame([record])
-        
-        # Log what we're sending to the model
-        logger.info(f"Prediction features for pod {pod_ip}: {record}")
-        
-        # Make predictions for each target model
-        for target, model in models.items():
-            try:
-                # Predict using the model
-                pred = model.predict(df)[0]  # Get first row value
-                predictions[pod_ip][target] = float(pred)
-            except Exception as e:
-                logger.error(f"Error predicting {target} for pod {pod_ip}: {e}")
-                logger.error(f"DataFrame columns: {df.columns.tolist()}")
-                # Set to -1 to indicate prediction failure
-                predictions[pod_ip][target] = -1
+        # Use asyncio to run the prediction in a thread pool
+        task = asyncio.create_task(
+            asyncio.to_thread(process_pod_prediction, pod, models)
+        )
+        tasks.append(task)
     
-    return {"predictions": predictions}
+    # Wait for all predictions to complete
+    results = await asyncio.gather(*tasks)
+    
+    # Collect results
+    for pod_ip, pod_predictions in results:
+        predictions[pod_ip] = pod_predictions
+    
+    logger.info(f"requestID: {request_id}, parallel predictions took {int(time.time() - ts)*1000}ms")
+    return ORJSONResponse(content={"predictions": predictions})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

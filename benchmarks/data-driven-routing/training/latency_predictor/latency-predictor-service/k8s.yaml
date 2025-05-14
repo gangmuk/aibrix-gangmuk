@@ -26,6 +26,16 @@ spec:
       labels:
         app: latency-predictor-service
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: machine.cluster.vke.volcengine.com/gpu-name
+                operator: In
+                values:
+                - NVIDIA-L20
+                # - NVIDIA-A10
       containers:
       - name: predictor
         image:  aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gangmuk-latency-predictor:latest
@@ -43,9 +53,11 @@ spec:
           requests:
             cpu: "200m"
             memory: "500Mi"
+            nvidia.com/gpu: 1  # Request 1 GPU
           limits:
             cpu: "500m"
             memory: "1Gi"
+            nvidia.com/gpu: 1  # Request 1 GPU
         livenessProbe:
           httpGet:
             path: /health
