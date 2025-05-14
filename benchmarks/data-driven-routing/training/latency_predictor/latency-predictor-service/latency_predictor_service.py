@@ -14,6 +14,7 @@ import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import sys
+import concurrent.futures
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -387,65 +388,89 @@ def process_pod_prediction(pod, models):
     logger.info(f"process_pod_prediction, requestID: {request_id}, breakdown took - DataFrame: {int(df_time*1000)}ms, DMatrix: {int(dmatrix_time*1000)}ms, Total: {int(total_time*1000)}ms")
     return pod_ip, pod_predictions
 
+# @app.post("/predict", response_model=PredictionResponse)
+# async def predict(request: PredictionRequest):
+#     global pending_requests, active_requests, completed_requests
+    
+#     # Track a new request arrival
+#     with request_counter_lock:
+#         pending_requests += 1
+#         queue_position = pending_requests
+#         queue_depth = pending_requests - active_requests  # Actual queue (waiting, not processing)
+    
+#     ts = time.time()
+
+#     if not models:
+#         with request_counter_lock:
+#             pending_requests -= 1
+#             completed_requests += 1
+#         raise HTTPException(status_code=503, detail="Model not loaded")
+    
+
+#     request_id = request.pods[0].request_id
+#     logger.info(f"Request ID: {request_id}, Queue position: {queue_position}, Queue depth: {queue_depth}")
+    
+#     # Now mark this request as active (it's being processed, not just queued)
+#     with request_counter_lock:
+#         active_requests += 1
+
+#     # Result dictionary: pod_ip -> {target -> prediction}
+#     predictions = {}
+    
+#     # Submit all pod prediction tasks to the thread pool
+#     taskcreation_start = time.time()
+#     tasks = []
+#     request_id = request.pods[0].request_id
+#     for pod in request.pods:
+#         # Use asyncio to run the prediction in a thread pool
+#         task = asyncio.create_task(
+#             asyncio.to_thread(process_pod_prediction, pod, models)
+#         )
+#         tasks.append(task)
+#     task_creation_time = time.time() - taskcreation_start
+    
+#     # Wait for all predictions to complete
+#     gather_start = time.time()
+#     results = await asyncio.gather(*tasks)
+#     gather_time = time.time() - gather_start
+
+#     # Collect results
+#     for pod_ip, pod_predictions in results:
+#         predictions[pod_ip] = pod_predictions
+    
+#     with request_counter_lock:
+#         pending_requests -= 1
+#         active_requests -= 1
+#         completed_requests += 1
+#         current_queue_depth = pending_requests - active_requests
+
+#     logger.info(f"requestID: {request_id}, parallel predictions took {int((time.time() - ts)*1000)}ms, task creation took {int(task_creation_time*1000)}ms, gather took {int(gather_time*1000)}ms, current queue depth: {current_queue_depth}")
+
+#     return ORJSONResponse(content={"predictions": predictions})
+
+
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(request: PredictionRequest):
-    global pending_requests, active_requests, completed_requests
-    
-    # Track a new request arrival
-    with request_counter_lock:
-        pending_requests += 1
-        queue_position = pending_requests
-        queue_depth = pending_requests - active_requests  # Actual queue (waiting, not processing)
-    
+def predict(request: PredictionRequest):
     ts = time.time()
-
-    if not models:
-        with request_counter_lock:
-            pending_requests -= 1
-            completed_requests += 1
-        raise HTTPException(status_code=503, detail="Model not loaded")
     
-
-    request_id = request.pods[0].request_id
-    logger.info(f"Request ID: {request_id}, Queue position: {queue_position}, Queue depth: {queue_depth}")
+    # Use direct threading without asyncio
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        # Submit all tasks
+        future_to_pod = {
+            executor.submit(process_pod_prediction, pod, models): pod.selected_pod
+            for pod in request.pods
+        }
+        
+        # Collect results as they complete
+        predictions = {}
+        for future in concurrent.futures.as_completed(future_to_pod):
+            pod_ip, pod_predictions = future.result()
+            predictions[pod_ip] = pod_predictions
     
-    # Now mark this request as active (it's being processed, not just queued)
-    with request_counter_lock:
-        active_requests += 1
-
-    # Result dictionary: pod_ip -> {target -> prediction}
-    predictions = {}
+    elapsed = int((time.time() - ts) * 1000)
+    logger.info(f"requestID: {request.pods[0].request_id}, parallel predictions took {elapsed}ms")
     
-    # Submit all pod prediction tasks to the thread pool
-    taskcreation_start = time.time()
-    tasks = []
-    request_id = request.pods[0].request_id
-    for pod in request.pods:
-        # Use asyncio to run the prediction in a thread pool
-        task = asyncio.create_task(
-            asyncio.to_thread(process_pod_prediction, pod, models)
-        )
-        tasks.append(task)
-    task_creation_time = time.time() - taskcreation_start
-    
-    # Wait for all predictions to complete
-    gather_start = time.time()
-    results = await asyncio.gather(*tasks)
-    gather_time = time.time() - gather_start
-
-    # Collect results
-    for pod_ip, pod_predictions in results:
-        predictions[pod_ip] = pod_predictions
-    
-    with request_counter_lock:
-        pending_requests -= 1
-        active_requests -= 1
-        completed_requests += 1
-        current_queue_depth = pending_requests - active_requests
-
-    logger.info(f"requestID: {request_id}, parallel predictions took {int((time.time() - ts)*1000)}ms, task creation took {int(task_creation_time*1000)}ms, gather took {int(gather_time*1000)}ms, current queue depth: {current_queue_depth}")
-
-    return ORJSONResponse(content={"predictions": predictions})
+    return {"predictions": predictions}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

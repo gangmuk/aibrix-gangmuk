@@ -95,7 +95,7 @@ func (p flexiblePrefixCacheRouter) Route(ctx *types.RoutingContext, pods types.P
 	matchedPods, prefixHashes = p.prefixCacheIndexer.MatchPrefix(tokens, ctx.Model, readyPodsMap)
 
 	if ctx.SubAlgorithm == "random" {
-		targetPod, _ = selectRandomPod(pods.All(), rand.Intn)
+		targetPod, _ = selectRandomPod(readyPods, rand.Intn)
 		klog.Infof("random rouiting, request_id: %s, selectedPod: %s", ctx.RequestID, targetPod.Status.PodIP)
 	} else if ctx.SubAlgorithm == "prefix-cache" {
 		var isLoadImbalanced bool
@@ -103,7 +103,7 @@ func (p flexiblePrefixCacheRouter) Route(ctx *types.RoutingContext, pods types.P
 		if !isLoadImbalanced {
 			if len(matchedPods) > 0 {
 				targetPod = getTargetPodFromMatchedPods(p.cache, readyPods, matchedPods)
-				klog.Infof("prefix routing - prefix routing, request_id: %, selectedPod: %ss", ctx.RequestID, targetPod.Status.PodIP)
+				klog.Infof("prefix routing - prefix routing, request_id: %s, selectedPod: %ss", ctx.RequestID, targetPod.Status.PodIP)
 			}
 		}
 		if len(matchedPods) == 0 || targetPod == nil {

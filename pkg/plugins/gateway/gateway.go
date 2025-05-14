@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -57,21 +56,12 @@ type Server struct {
 	redisClient         *redis.Client
 	ratelimiter         ratelimiter.RateLimiter
 	client              kubernetes.Interface
-	requestCountTracker map[string]int
 	cache               cache.Cache
-
-	requestTimings      sync.Map // Map to track request timing information: requestID -> *RequestTiming
 	requestBuffers      sync.Map // Thread-safe map to track buffers per request
 	streamingUsageCache sync.Map // Map to store usage information from streaming responses
 	statusCode          sync.Map // Map to track status codes per request: requestID -> statusCode
 	selectedPodIP       sync.Map // Map to track target pod per request: requestID -> podIP
-
-	routingContexts sync.Map // Map to store routing contexts for each request: requestID -> *types.RoutingContext
-
-	// New fields for metrics tracking
-	metricsTracker   *utils.PodMetricsTracker // Track timing metrics for pods
-	metricsEnabled   atomic.Bool              // Flag to enable/disable metrics collection
-	metricsLogTicker *time.Ticker             // Ticker for periodic metrics logging
+	routingContexts     sync.Map // Map to store routing contexts for each request: requestID -> *types.RoutingContext
 }
 
 func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
@@ -85,34 +75,11 @@ func NewServer(redisClient *redis.Client, client kubernetes.Interface) *Server {
 	routing.Init()
 
 	server := &Server{
-		redisClient:         redisClient,
-		ratelimiter:         r,
-		client:              client,
-		requestCountTracker: map[string]int{},
-		cache:               c,
-		metricsTracker:      utils.NewPodMetricsTracker(1 * time.Second),
+		redisClient: redisClient,
+		ratelimiter: r,
+		client:      client,
+		cache:       c,
 	}
-	// Enable metrics collection by default
-	server.metricsEnabled.Store(true)
-
-	// Start metrics cleanup goroutine
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if server.metricsEnabled.Load() {
-					klog.V(4).Info("Running periodic metrics cleanup")
-					server.metricsTracker.CleanupAllMetrics()
-				}
-			}
-		}
-	}()
-
-	// Start periodic metrics logging
-	server.metricsLogTicker = time.NewTicker(10 * time.Second)
 	return server
 }
 
@@ -223,7 +190,7 @@ func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) 
 	}
 
 	for _, pod := range readyPods {
-		s.metricsTracker.InitPodKey(pod.Status.PodIP)
+		utils.MetricsTracker.InitPodKey(pod.Status.PodIP)
 	}
 	klog.Infof("selectTargetPod, done with InitPodKey. context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 

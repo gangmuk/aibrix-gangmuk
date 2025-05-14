@@ -42,7 +42,7 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 	lines := strings.Split(string(responseBody), "\n")
 	existingUsageRaw, _ := s.streamingUsageCache.LoadOrStore(requestID, openai.CompletionUsage{})
 	existingUsage := existingUsageRaw.(openai.CompletionUsage)
-	timingObj, exists := s.requestTimings.Load(requestID)
+	timingObj, exists := utils.RequestTimings.Load(requestID)
 	if !exists {
 		return existingUsage, false, nil
 	}
@@ -71,7 +71,8 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 				timing.lastTokenTime = currentTime
 				ttftMs := currentTime.Sub(timing.startTime).Milliseconds()
 				if ttftMs > 0 {
-					s.metricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
+					klog.V(5).Infof("First token received, requestID: %s, podIP: %s, ttft_ms: %d, AddPodMetric", requestID, selectedPodIP, ttftMs)
+					utils.MetricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
 						RequestID:       requestID,
 						Timestamp:       currentTime,
 						TTFT:            ttftMs,
@@ -79,6 +80,8 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 						PrefillTokenNum: int64(prefill_token_count),
 						DecodeTokenNum:  1,
 					})
+				} else {
+					klog.Errorf("Negative ttft_ms: %d, requestID: %s, podIP: %s", ttftMs, requestID, selectedPodIP)
 				}
 				klog.V(5).InfoS("First token received", "requestID", requestID, "ttft_ms", ttftMs)
 
@@ -105,7 +108,8 @@ func (s *Server) handleStreamingResponse(requestID string, responseBody []byte) 
 
 				timeSincePrevToken := currentTime.Sub(timing.lastTokenTime).Milliseconds()
 				if timeSincePrevToken > 0 {
-					s.metricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
+					klog.V(5).Infof("Decoded token received, requestID: %s, podIP: %s, tpot_ms: %d, AddPodMetric", requestID, selectedPodIP, timeSincePrevToken)
+					utils.MetricsTracker.AddPodMetric(selectedPodIP, utils.PodMetric{
 						RequestID:       requestID,
 						Timestamp:       currentTime,
 						TTFT:            0,
@@ -180,7 +184,7 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 	complete := hasCompleted
 	routerCtx, _ := ctx.(*types.RoutingContext)
 
-	timingObj, exists := s.requestTimings.Load(requestID)
+	timingObj, exists := utils.RequestTimings.Load(requestID)
 	var timing *RequestTiming
 	if exists {
 		timing = timingObj.(*RequestTiming)
@@ -245,7 +249,7 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
 			headers = append(headers, timingHeaders...)
 			// }
-			s.requestTimings.Delete(requestID)
+			utils.RequestTimings.Delete(requestID)
 			s.routingContexts.Delete(requestID)
 		}
 	}
@@ -547,7 +551,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	// 2. Inflight requests
 	numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(requestID)
 	headers, jsonStrings["numInflightRequestsAllPods"] = addMetricToHeaders(headers, HeaderNumInflightRequestsAllPods, numInflightRequestsAllPods, utils.GetrequestInflightMutex())
-	utils.DecrementNumInflightForPod(requestID)
+	utils.DecrementNumInflightForPod(requestID, routingCtx.TargetAddressWithoutPort())
 	utils.CleanupInflightRequests(requestID)
 
 	// 3. GPU KV cache usage
@@ -600,16 +604,10 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		selectedPodIP = routingCtx.TargetAddressWithoutPort()
 	}
 
-	// 7. Pod detailed metrics
-	// log_window_start_time := time.Now().Add(-s.metricsTracker.windowSize)
-	// log_window_end_time := time.Now()
-	// podDetailedMetrics := s.metricsTracker.GetDetailedMetrics(log_window_start_time, numInputTokens, numOutputTokens, numTotalTokens)
-
 	ts := time.Now()
 	podDetailedMetrics := utils.GetAndCleanupRequestPodMetrics(requestID)
-	duration := time.Since(ts)
-	klog.Infof("GetAndCleanupRequestPodMetrics took %d, %s, %s", duration.Milliseconds(), requestID, selectedPodIP)
-	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics, s.metricsTracker.GetMutex())
+	klog.Infof("GetAndCleanupRequestPodMetrics took %d, %s, %s", time.Since(ts).Milliseconds(), requestID, selectedPodIP)
+	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics, utils.MetricsTracker.GetMutex())
 
 	klog.Infof("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s",
 		requestID,
@@ -642,17 +640,17 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 // Helper functions for metrics tracking
 // IsMetricsEnabled returns whether metrics collection is enabled
 func (s *Server) IsMetricsEnabled() bool {
-	return s.metricsEnabled.Load()
+	return utils.MetricsEnabled.Load()
 }
 
 // EnableMetrics enables metrics collection
 func (s *Server) EnableMetrics() {
-	s.metricsEnabled.Store(true)
+	utils.MetricsEnabled.Store(true)
 	klog.Info("Metrics collection enabled")
 }
 
 // DisableMetrics disables metrics collection
 func (s *Server) DisableMetrics() {
-	s.metricsEnabled.Store(false)
+	utils.MetricsEnabled.Store(false)
 	klog.Info("Metrics collection disabled")
 }
