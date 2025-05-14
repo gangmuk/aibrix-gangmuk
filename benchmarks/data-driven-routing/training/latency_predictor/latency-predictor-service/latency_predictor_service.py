@@ -1,6 +1,7 @@
+import threading
 import orjson
 from fastapi.responses import ORJSONResponse
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 import joblib
 import pandas as pd
 import numpy as np
@@ -12,14 +13,17 @@ import logging
 import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import grpc
-
+import sys
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 thread_pool = ThreadPoolExecutor(max_workers=8)  # Adjust worker count based on your CPU cores
 
+pending_requests = 0  # Requests waiting + active
+active_requests = 0   # Currently processing
+completed_requests = 0  # Total completed for stats
+request_counter_lock = threading.Lock()
 
 # Check for GPU availability 
 try:
@@ -95,6 +99,34 @@ class PredictionRequest(BaseModel):
 class PredictionResponse(BaseModel):
     predictions: Dict[str, Dict[str, float]]
 
+
+def monitor_gpu_utilization():
+    """Background thread to monitor and print GPU utilization every second"""
+    logger.info("Starting GPU utilization monitoring thread")
+    
+    while True:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=utilization.gpu,utilization.memory', '--format=csv,noheader,nounits'],
+                capture_output=True, text=True, check=True
+            )
+            gpu_util, mem_util = result.stdout.strip().split(',')
+            logger.info(f"GPU Utilization: {gpu_util.strip()}%, Memory Utilization: {mem_util.strip()}%")
+        except Exception as e:
+            logger.error(f"Failed to get GPU utilization: {e}")
+        
+        # Sleep for one second
+        time.sleep(1)
+
+@app.on_event("startup")
+async def start_gpu_monitoring():
+    # Start GPU monitoring thread as a daemon (will exit when main thread exits)
+    gpu_thread = threading.Thread(target=monitor_gpu_utilization, daemon=True)
+    gpu_thread.start()
+    logger.info("GPU monitoring thread started")
+
+    
 @app.on_event("startup")
 async def load_model():
     global model_data, models, model_types
@@ -131,10 +163,19 @@ async def load_model():
                         if hasattr(final_estimator, 'get_booster'):
                             booster = final_estimator.get_booster()
                             # Try to set tree_method and predictor to use GPU
-                            booster.set_param({'predictor': 'gpu_predictor'})
+                            booster.set_param({'tree_method': 'hist', 'device': 'cuda'})
                             logger.info(f"Enabled GPU acceleration for {target} XGBoost estimator")
                     except Exception as e:
                         logger.warning(f"Could not configure GPU for {target} XGBoost estimator: {e}")
+            # Check for direct XGBoost models (not in a pipeline)
+            elif 'XGB' in model_type:
+                try:
+                    if hasattr(model, 'get_booster'):
+                        booster = model.get_booster()
+                        booster.set_param({'tree_method': 'hist', 'device': 'cuda'})
+                        logger.info(f"Enabled GPU acceleration for {target} XGBoost model")
+                except Exception as e:
+                    logger.warning(f"Could not configure GPU for {target} XGBoost model: {e}")
             
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -183,6 +224,21 @@ async def health_check():
         "gpu": gpu_info
     }
 
+
+@app.get("/gpu-status")
+async def gpu_status():
+    """Return GPU compute utilization"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, check=True
+        )
+        gpu_utilization = result.stdout.strip()
+        return {"gpu_utilization_percent": gpu_utilization}
+    except Exception as e:
+        return {"error": str(e), "gpu_available": False}
+
 @app.get("/benchmark")
 async def benchmark():
     """Run a performance test to compare CPU vs GPU inference"""
@@ -226,6 +282,15 @@ async def benchmark():
             "device": torch.cuda.get_device_name(0) if 'torch' in sys.modules and torch.cuda.is_available() else "None"
         }
     }
+
+@app.head("/")
+@app.head("/predict")
+async def head_endpoint():
+    try:
+        return Response(status_code=200)
+    except Exception as e:
+        logger.error(f"Error in HEAD endpoint: {e}")
+        return Response(status_code=500)
 
 # Function to process a single pod prediction in a separate thread
 def process_pod_prediction(pod, models):
@@ -278,7 +343,34 @@ def process_pod_prediction(pod, models):
     
     df = pd.DataFrame([record])
     logger.debug(f"Prediction features for pod {pod_ip}: {record}")
+    from xgboost import DMatrix
+    # Create a DMatrix with the device parameter
+    try:
+        dmatrix = DMatrix(df, device='cuda:0')
+        use_dmatrix = True
+    except Exception as e:
+        use_dmatrix = False
+        logger.debug(f"Unable to create CUDA DMatrix: {e}, falling back to DataFrame")
     
+    for target, model in models.items():
+        try:
+            # Try to get the underlying booster
+            if hasattr(model, 'get_booster'):
+                booster = model.get_booster()
+                if use_dmatrix:
+                    pred = booster.predict(dmatrix)[0]
+                else:
+                    pred = model.predict(df)[0]
+            else:
+                # Directly use the model as fallback
+                pred = model.predict(df)[0]
+                
+            pod_predictions[target] = float(pred)
+            logger.info(f"SUCCESS - prediction - requestID: {request_id}, Pod features for: {pod_ip} target {target}. prediction: {int(pred)}ms")
+        except Exception as e:
+            logger.error(f"FAIL - Error predicting - requestID: {request_id}, Pod features for: {pod_ip}. target {target}. error: {e}")
+            logger.error(f"DataFrame columns: {df.columns.tolist()}")
+            pod_predictions[target] = -1
     for target, model in models.items():
         try:
             pred = model.predict(df)[0]  # Get first row value
@@ -293,15 +385,30 @@ def process_pod_prediction(pod, models):
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
+    global pending_requests, active_requests, completed_requests
+    
+    # Track a new request arrival
+    with request_counter_lock:
+        pending_requests += 1
+        queue_position = pending_requests
+        queue_depth = pending_requests - active_requests  # Actual queue (waiting, not processing)
+    
     ts = time.time()
 
-    # For testing
-    await asyncio.sleep(0.1)  # 100ms delay
-
-
     if not models:
+        with request_counter_lock:
+            pending_requests -= 1
+            completed_requests += 1
         raise HTTPException(status_code=503, detail="Model not loaded")
     
+
+    request_id = request.pods[0].request_id
+    logger.info(f"Request ID: {request_id}, Queue position: {queue_position}, Queue depth: {queue_depth}")
+    
+    # Now mark this request as active (it's being processed, not just queued)
+    with request_counter_lock:
+        active_requests += 1
+
     # Result dictionary: pod_ip -> {target -> prediction}
     predictions = {}
     
@@ -322,7 +429,14 @@ async def predict(request: PredictionRequest):
     for pod_ip, pod_predictions in results:
         predictions[pod_ip] = pod_predictions
     
-    logger.info(f"requestID: {request_id}, parallel predictions took {int(time.time() - ts)*1000}ms")
+    with request_counter_lock:
+        pending_requests -= 1
+        active_requests -= 1
+        completed_requests += 1
+        current_queue_depth = pending_requests - active_requests
+
+    logger.info(f"requestID: {request_id}, parallel predictions took {int((time.time() - ts)*1000)}ms, queue depth: {current_queue_depth}")
+
     return ORJSONResponse(content={"predictions": predictions})
 
 if __name__ == "__main__":

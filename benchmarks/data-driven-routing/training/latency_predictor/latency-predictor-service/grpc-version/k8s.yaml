@@ -55,8 +55,8 @@ spec:
             memory: "500Mi"
             nvidia.com/gpu: 1  # Request 1 GPU
           limits:
-            cpu: "5000m"
-            memory: "2Gi"
+            cpu: "500m"
+            memory: "1Gi"
             nvidia.com/gpu: 1  # Request 1 GPU
         livenessProbe:
           httpGet:

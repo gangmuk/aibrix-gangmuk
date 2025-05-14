@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package prediction;
+
+option go_package = ".;routingalgorithms";
+
+service PredictionService {
+  rpc PredictLatency (PredictionRequest) returns (PredictionResponse);
+}
+
+message PodFeature {
+  string request_id = 1;
+  string selected_pod = 2;
+  int32 input_tokens = 3;
+  int32 output_tokens = 4;
+  int32 total_tokens = 5;
+  
+  int32 kv_hit_ratio = 6;
+  int32 inflight_requests = 7;
+  double gpu_kv_cache = 8;
+  double cpu_kv_cache = 9;
+  int32 running_requests = 10;
+  int32 waiting_requests = 11;
+  int32 prefill_tokens = 12;
+  int32 decode_tokens = 13;
+  string gpu_model = 14;
+  
+  double last_second_avg_ttft_ms = 15;
+  int32 last_second_p99_ttft_ms = 16;
+  double last_second_avg_tpot_ms = 17;
+  int32 last_second_p99_tpot_ms = 18;
+  
+  int32 last_second_total_requests = 19;
+  int32 last_second_total_tokens = 20;
+  int32 last_second_total_decode_tokens = 21;
+  int32 last_second_total_prefill_tokens = 22;
+}
+
+message PredictionRequest {
+  repeated PodFeature pods = 1;
+}
+
+message PodPrediction {
+  map<string, double> metrics = 1;  // target -> prediction value
+}
+
+message PredictionResponse {
+  map<string, PodPrediction> predictions = 1;  // pod_ip -> predictions
+}
