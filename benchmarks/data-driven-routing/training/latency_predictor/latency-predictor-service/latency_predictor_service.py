@@ -292,8 +292,8 @@ async def head_endpoint():
         logger.error(f"Error in HEAD endpoint: {e}")
         return Response(status_code=500)
 
-# Function to process a single pod prediction in a separate thread
 def process_pod_prediction(pod, models):
+    overall_ts = time.time()
     request_id = pod.request_id
     pod_ip = pod.selected_pod
     pod_predictions = {}
@@ -341,46 +341,50 @@ def process_pod_prediction(pod, models):
     if pod.last_second_total_prefill_tokens is not None:
         record['last_second_total_prefill_tokens'] = pod.last_second_total_prefill_tokens
     
+    # Create DataFrame for prediction
+    df_start = time.time()
     df = pd.DataFrame([record])
-    logger.debug(f"Prediction features for pod {pod_ip}: {record}")
-    from xgboost import DMatrix
-    # Create a DMatrix with the device parameter
+    df_time = time.time() - df_start
+    
+    # Try to create a GPU-backed DMatrix
+    dmatrix_start = time.time()
     try:
+        from xgboost import DMatrix
         dmatrix = DMatrix(df, device='cuda:0')
         use_dmatrix = True
+        logger.debug(f"Successfully created CUDA DMatrix for prediction")
     except Exception as e:
         use_dmatrix = False
-        logger.debug(f"Unable to create CUDA DMatrix: {e}, falling back to DataFrame")
-    
+        logger.debug(f"Unable to create CUDA DMatrix: {e}, falling back to CPU DataFrame")
+    dmatrix_time = time.time() - dmatrix_start
+
+    # SINGLE prediction loop for all targets
     for target, model in models.items():
+        pred_start = time.time()
         try:
-            # Try to get the underlying booster
-            if hasattr(model, 'get_booster'):
-                booster = model.get_booster()
-                if use_dmatrix:
+            # For Pipeline models, we need to use the pipeline's predict method
+            # which handles preprocessing steps
+            if model_types.get(target) == 'Pipeline':
+                # Pipelines need to use the standard predict method
+                pred = model.predict(df)[0]
+            else:
+                # For direct XGBoost models, we can try to use the GPU directly
+                if use_dmatrix and hasattr(model, 'get_booster'):
+                    booster = model.get_booster()
                     pred = booster.predict(dmatrix)[0]
                 else:
+                    # Fallback to standard prediction
                     pred = model.predict(df)[0]
-            else:
-                # Directly use the model as fallback
-                pred = model.predict(df)[0]
-                
             pod_predictions[target] = float(pred)
-            logger.info(f"SUCCESS - prediction - requestID: {request_id}, Pod features for: {pod_ip} target {target}. prediction: {int(pred)}ms")
+            pred_time = time.time() - pred_start
+            logger.info(f"SUCCESS - prediction - requestID: {request_id}, Pod: {pod_ip}, target: {target}, prediction: {int(pred)}ms, took {int(pred_time * 1000)}ms")
         except Exception as e:
-            logger.error(f"FAIL - Error predicting - requestID: {request_id}, Pod features for: {pod_ip}. target {target}. error: {e}")
-            logger.error(f"DataFrame columns: {df.columns.tolist()}")
-            pod_predictions[target] = -1
-    for target, model in models.items():
-        try:
-            pred = model.predict(df)[0]  # Get first row value
-            pod_predictions[target] = float(pred)
-            logger.info(f"SUCCESS - prediction - requestID: {request_id}, Pod features for: {pod_ip} target {target}. prediction: {int(pred)}ms")
-        except Exception as e:
-            logger.error(f"FAIL - Error predicting - requestID: {request_id}, Pod features for: {pod_ip}. target {target}. error: {e}")
+            logger.error(f"FAIL - Error predicting - requestID: {request_id}, Pod: {pod_ip}, target: {target}, error: {e}")
             logger.error(f"DataFrame columns: {df.columns.tolist()}")
             pod_predictions[target] = -1
     
+    total_time = time.time() - overall_ts
+    logger.info(f"process_pod_prediction, requestID: {request_id}, breakdown took - DataFrame: {int(df_time*1000)}ms, DMatrix: {int(dmatrix_time*1000)}ms, Total: {int(total_time*1000)}ms")
     return pod_ip, pod_predictions
 
 @app.post("/predict", response_model=PredictionResponse)
@@ -413,6 +417,7 @@ async def predict(request: PredictionRequest):
     predictions = {}
     
     # Submit all pod prediction tasks to the thread pool
+    taskcreation_start = time.time()
     tasks = []
     request_id = request.pods[0].request_id
     for pod in request.pods:
@@ -421,10 +426,13 @@ async def predict(request: PredictionRequest):
             asyncio.to_thread(process_pod_prediction, pod, models)
         )
         tasks.append(task)
+    task_creation_time = time.time() - taskcreation_start
     
     # Wait for all predictions to complete
+    gather_start = time.time()
     results = await asyncio.gather(*tasks)
-    
+    gather_time = time.time() - gather_start
+
     # Collect results
     for pod_ip, pod_predictions in results:
         predictions[pod_ip] = pod_predictions
@@ -435,7 +443,7 @@ async def predict(request: PredictionRequest):
         completed_requests += 1
         current_queue_depth = pending_requests - active_requests
 
-    logger.info(f"requestID: {request_id}, parallel predictions took {int((time.time() - ts)*1000)}ms, queue depth: {current_queue_depth}")
+    logger.info(f"requestID: {request_id}, parallel predictions took {int((time.time() - ts)*1000)}ms, task creation took {int(task_creation_time*1000)}ms, gather took {int(gather_time*1000)}ms, current queue depth: {current_queue_depth}")
 
     return ORJSONResponse(content={"predictions": predictions})
 
