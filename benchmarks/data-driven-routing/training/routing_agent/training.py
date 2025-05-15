@@ -39,7 +39,7 @@ def create_essential_relative_features(df, pod_ids, metrics=None, include_raw=Tr
         for pod_id in pod_ids:
             pod_prefix = f"pod_{pod_id}-"
             pod_cols = [col[len(pod_prefix):] for col in all_cols if col.startswith(pod_prefix)]
-            print(f"pod_id: {pod_id}, pod_cols: {pod_cols}")
+            print(f"pod_id: {pod_id}, pod_prefix: {pod_prefix}, pod_cols: {pod_cols}")
             if not metrics:
                 metrics = set(pod_cols)
             else:
@@ -134,7 +134,6 @@ def load_and_preprocess_data(data_path, mapping_path):
     
     # Extract pod IDs from the mapping info
     pod_ids = list(mapping_info['pod_to_index'].keys())
-    pod_ids = [pod_id.replace(".", "_") for pod_id in pod_ids]  # Replace '.' with '_' for compatibility
     print(f"Found {len(pod_ids)} pods from mapping")
 
     # Create relative features

@@ -19,7 +19,7 @@ import concurrent.futures
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-thread_pool = ThreadPoolExecutor(max_workers=8)  # Adjust worker count based on your CPU cores
+thread_pool = ThreadPoolExecutor(max_workers=32)  # Adjust worker count based on your CPU cores
 
 pending_requests = 0  # Requests waiting + active
 active_requests = 0   # Currently processing
