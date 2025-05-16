@@ -54,45 +54,45 @@ def handle_flush():
             logger.error(f"Failed at step 1 (writing to file): {str(e)}")
             raise
 
-        # Step 2: Parse log file
-        logger.info("Step 2: Parsing log file...")
-        try:
-            df, json_columns = preprocess.parse_log_file(raw_data)
-            logger.info(f"Successfully parsed log file, got DataFrame with {len(df)} rows and {len(json_columns)} JSON columns")
-        except Exception as e:
-            logger.error(f"Failed at step 2 (parsing log file): {str(e)}")
-            raise
+        # # Step 2: Parse log file
+        # logger.info("Step 2: Parsing log file...")
+        # try:
+        #     df, json_columns = preprocess.parse_log_file(raw_data)
+        #     logger.info(f"Successfully parsed log file, got DataFrame with {len(df)} rows and {len(json_columns)} JSON columns")
+        # except Exception as e:
+        #     logger.error(f"Failed at step 2 (parsing log file): {str(e)}")
+        #     raise
             
-        # Step 3: Parse JSON columns
-        logger.info("Step 3: Parsing JSON columns...")
-        try:
-            df = preprocess.parse_json_columns(df, json_columns)
-            logger.info(f"Successfully parsed JSON columns")
-        except Exception as e:
-            logger.error(f"Failed at step 3 (parsing JSON columns): {str(e)}")
-            raise
+        # # Step 3: Parse JSON columns
+        # logger.info("Step 3: Parsing JSON columns...")
+        # try:
+        #     df = preprocess.parse_json_columns(df, json_columns)
+        #     logger.info(f"Successfully parsed JSON columns")
+        # except Exception as e:
+        #     logger.error(f"Failed at step 3 (parsing JSON columns): {str(e)}")
+        #     raise
             
-        # Step 4: Normalize time
-        logger.info("Step 4: Normalizing time...")
-        try:
-            df = preprocess.normalize_time(df)
-            logger.info(f"Successfully normalized time, DataFrame now has {len(df)} rows")
-        except Exception as e:
-            logger.error(f"Failed at step 4 (normalizing time): {str(e)}")
-            raise
+        # # Step 4: Normalize time
+        # logger.info("Step 4: Normalizing time...")
+        # try:
+        #     df = preprocess.normalize_time(df)
+        #     logger.info(f"Successfully normalized time, DataFrame now has {len(df)} rows")
+        # except Exception as e:
+        #     logger.error(f"Failed at step 4 (normalizing time): {str(e)}")
+        #     raise
             
-        # Step 5: Preprocess dataset
-        logger.info("Step 5: Preprocessing dataset...")
-        preprocessed_file = f"processed_data_batch_{batch_id}.csv"
-        try:
-            df, mapping_info, all_pods = preprocess.preprocess_dataset(df)
-            logger.info(f"Successfully preprocessed dataset to {preprocessed_file}")
-            logger.info(f"Pod mapping: {mapping_info['pod_to_index']}")
-        except Exception as e:
-            logger.error(f"Failed at step 5 (preprocessing dataset): {str(e)}")
-            raise
+        # # Step 5: Preprocess dataset
+        # logger.info("Step 5: Preprocessing dataset...")
+        # preprocessed_file = f"processed_data_batch_{batch_id}.csv"
+        # try:
+        #     df, mapping_info, all_pods = preprocess.preprocess_dataset(df)
+        #     logger.info(f"Successfully preprocessed dataset to {preprocessed_file}")
+        #     logger.info(f"Pod mapping: {mapping_info['pod_to_index']}")
+        # except Exception as e:
+        #     logger.error(f"Failed at step 5 (preprocessing dataset): {str(e)}")
+        #     raise
 
-        # preprocess.main(raw_data)
+        df, preprocessed_file, all_pods = preprocess.main(raw_data)
         #########################################################
             
         # Step 6: Encoding data
