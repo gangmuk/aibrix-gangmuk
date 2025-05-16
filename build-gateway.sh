@@ -14,7 +14,7 @@ if [ "$build" == "local" ]; then
     ##############################
     ## for local docker registry only
     make docker-build-gateway-plugins
-    docker tag aibrix/gateway-plugins:nightly aibrix/gateway-plugins:$tag
+    docker tag aibrix/gateway-plugins:nightly aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gateway-plugins:$tag
 else
     ##############################
     ## Remote push

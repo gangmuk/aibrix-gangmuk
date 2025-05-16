@@ -120,7 +120,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			resp, user, rpm, routingAlgorithm = s.HandleRequestHeaders(ctx, requestID, req)
 
 		case *extProcPb.ProcessingRequest_RequestBody:
-			klog.Infof("Before HandleRequestBody, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
+			klog.V(5).Infof("Before HandleRequestBody, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 			resp, model, routerCtx, stream, traceTerm = s.HandleRequestBody(ctx, requestID, req, user, routingAlgorithm)
 			if routerCtx != nil {
 				if routerCtx.Err() != nil {
@@ -146,7 +146,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 				resp, completed = s.HandleResponseBody(ctx, requestID, req, user, rpm, model, stream, traceTerm, completed)
 			}
 		default:
-			klog.Infof("Unknown Request type %+v\n", v)
+			klog.Errorf("Unknown Request type %+v\n", v)
 		}
 
 		if err := srv.Send(resp); err != nil && len(model) > 0 {

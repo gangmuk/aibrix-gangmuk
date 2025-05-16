@@ -3,13 +3,14 @@ package routingalgorithms
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
-	"strings"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/vllm-project/aibrix/pkg/cache"
@@ -23,7 +24,6 @@ import (
 
 var (
 	predictorServiceURL = "http://latency-predictor-service.default.svc.cluster.local:8080/predict"
-	gpuStatServiceURL   = "http://latency-predictor-service.default.svc.cluster.local:8080/gpu-status"
 	requestTimeout      = 1000 * time.Millisecond
 	ttftWeight          = 0.4
 	tpotWeight          = 0.6
@@ -31,19 +31,16 @@ var (
 	// Enable HTTP/2
 	customTransport = &http.Transport{
 		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     180 * time.Second,
 		DisableCompression:  false,
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Millisecond,
+			Timeout:   200 * time.Millisecond,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		TLSHandshakeTimeout: 30 * time.Millisecond,
-		ForceAttemptHTTP2:   true, // Enable HTTP/2
-	}
-	gpuMonitoringClient = &http.Client{
-		Timeout:   5 * time.Second, // Longer timeout for GPU stats
-		Transport: customTransport,
+		TLSHandshakeTimeout:   200 * time.Millisecond,
+		ForceAttemptHTTP2:     true, // Enable HTTP/2
+		ResponseHeaderTimeout: 1 * time.Second,
 	}
 )
 
@@ -121,23 +118,42 @@ type latencyPredictionRouter struct {
 	tokenizer          tokenizer.Tokenizer
 }
 
-// warmupConnection sends a minimal request to keep the connection alive
-func warmupConnection(client *http.Client, url string) {
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		klog.V(4).Infof("Failed to create warmup request: %v", err)
-		return
-	}
+// // warmupConnection sends a minimal request to keep the connection alive
+// func warmupConnections(client *http.Client, url string, count int) {
+// 	var wg sync.WaitGroup
+// 	wg.Add(count)
 
-	resp, err := client.Do(req)
-	if err != nil {
-		klog.V(4).Infof("Warmup request failed: %v", err)
-		return
-	}
-	defer resp.Body.Close()
+// 	for i := 0; i < count; i++ {
+// 		go func(idx int) {
+// 			defer wg.Done()
+// 			req, err := http.NewRequest("HEAD", url, nil)
+// 			if err != nil {
+// 				klog.Infof("Failed to create warmup request %d: %v", idx, err)
+// 				return
+// 			}
 
-	klog.V(4).Infof("Connection warmup successful, status: %d", resp.StatusCode)
-}
+// 			// Add unique header to prevent response caching
+// 			req.Header.Add("X-Warmup-ID", fmt.Sprintf("%d-%d", time.Now().UnixNano(), idx))
+
+// 			resp, err := client.Do(req)
+// 			if err != nil {
+// 				klog.Infof("Warmup request %d failed: %v", idx, err)
+// 				return
+// 			}
+
+// 			// Check if the connection was reused
+// 			connReused := resp.Header.Get("X-Connection-Reused") == "1" ||
+// 				resp.Header.Get("Connection") == "keep-alive"
+
+// 			klog.Infof("Connection warmup %d successful, status: %d, reused: %v",
+// 				idx, resp.StatusCode, connReused)
+
+// 			resp.Body.Close()
+// 		}(i)
+// 	}
+
+// 	wg.Wait()
+// }
 
 // NewLatencyPredictionRouter creates a new latency prediction-based router
 func NewLatencyPredictionRouter() (types.Router, error) {
@@ -162,21 +178,21 @@ func NewLatencyPredictionRouter() (types.Router, error) {
 		Transport: customTransport,
 	}
 
-	// Set up connection warmup to avoid cold connection penalties
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
+	// go func() {
+	// 	ticker := time.NewTicker(5 * time.Second) // More frequent
+	// 	defer ticker.Stop()
 
-		warmupURL := predictorServiceURL
+	// 	warmupURL := predictorServiceURL
 
-		// Initial warmup
-		warmupConnection(httpClient, warmupURL)
+	// 	// Initial warmup - create multiple connections
+	// 	warmupConnections(httpClient, warmupURL, 10) // Create 10 connections
 
-		// Regular warmup
-		for range ticker.C {
-			warmupConnection(httpClient, warmupURL)
-		}
-	}()
+	// 	// Regular warmup
+	// 	for range ticker.C {
+	// 		// Keep refreshing multiple connections
+	// 		warmupConnections(httpClient, warmupURL, 5) // Refresh 5 connections
+	// 	}
+	// }()
 
 	klog.InfoS("Created latency prediction router",
 		"requestTimeout", requestTimeout,
@@ -197,23 +213,26 @@ func NewLatencyPredictionRouter() (types.Router, error) {
 
 // TimingResult contains detailed timing information for HTTP requests
 type TimingResult struct {
-	RequestID      string
-	DNSTime        time.Duration
-	ConnectionTime time.Duration
-	RequestTime    time.Duration
-	SendTime       time.Duration
-	ReadTime       time.Duration
-	ParseTime      time.Duration
-	TotalTime      time.Duration
-	Success        bool
-	Error          error
+	RequestID        string
+	DNSTime          time.Duration
+	ConnectionTime   time.Duration
+	RequestTime      time.Duration
+	SendTime         time.Duration
+	ReadTime         time.Duration
+	ParseTime        time.Duration
+	TotalTime        time.Duration
+	Success          bool
+	Error            error
+	ConnectionReused bool
 }
 
 // String returns a formatted string representation of the timing result
 func (tr TimingResult) String() string {
-	return fmt.Sprintf("DNS: %dms, Conn: %dms, Req: %dms, Send: %dms, Read: %dms, Parse: %dms, Total: %dms",
+	return fmt.Sprintf("Success:%v, DNS: %dms, Conn: %dms, ConnReuse: %v, Req: %dms, Send: %dms, Read: %dms, Parse: %dms, Total: %dms",
+		tr.Success,
 		tr.DNSTime.Milliseconds(),
 		tr.ConnectionTime.Milliseconds(),
+		tr.ConnectionReused,
 		tr.RequestTime.Milliseconds(),
 		tr.SendTime.Milliseconds(),
 		tr.ReadTime.Milliseconds(),
@@ -221,7 +240,6 @@ func (tr TimingResult) String() string {
 		tr.TotalTime.Milliseconds())
 }
 
-// SendRequestWithTiming performs an HTTP request with detailed timing measurements
 func SendRequestWithTiming(
 	client *http.Client,
 	url string,
@@ -239,50 +257,8 @@ func SendRequestWithTiming(
 
 	startTime := time.Now()
 
-	// 1. DNS Resolution
-	dnsStart := time.Now()
-	hostParts := strings.Split(url, "://")
-	var hostName string
-	if len(hostParts) > 1 {
-		hostWithPath := strings.Split(hostParts[1], "/")[0]
-		hostWithPort := strings.Split(hostWithPath, ":")
-		hostName = hostWithPort[0]
-	} else {
-		hostName = strings.Split(strings.Split(url, "/")[0], ":")[0]
-	}
-
-	hosts, dnsErr := net.LookupHost(hostName)
-	result.DNSTime = time.Since(dnsStart)
-
-	if dnsErr != nil {
-		klog.V(4).Infof("DNS lookup error for %s: %v", hostName, dnsErr)
-	}
-
-	// 2. Connection Test
-	result.ConnectionTime = 0
-	if len(hosts) > 0 {
-		connStart := time.Now()
-		// Extract port if included in URL
-		port := "80"
-		if strings.HasPrefix(url, "https://") {
-			port = "443"
-		}
-		if strings.Contains(hostName, ":") {
-			portParts := strings.Split(hostName, ":")
-			if len(portParts) > 1 {
-				port = portParts[1]
-			}
-		}
-
-		conn, dialErr := net.DialTimeout("tcp", hosts[0]+":"+port, timeout/2)
-		result.ConnectionTime = time.Since(connStart)
-
-		if dialErr != nil {
-			klog.V(4).Infof("Connection test error to %s:%s: %v", hosts[0], port, dialErr)
-		} else if conn != nil {
-			conn.Close()
-		}
-	}
+	// Variables for httptrace
+	var dnsStart, dnsEnd, connectStart, connectEnd, tlsStart, tlsEnd time.Time
 
 	// 3. Request Creation
 	reqStart := time.Now()
@@ -291,7 +267,8 @@ func SendRequestWithTiming(
 
 	if reqErr != nil {
 		result.Error = reqErr
-		result.TotalTime = time.Since(startTime)
+		klog.Errorf("requestID: %s - Failed to create request: %v", requestID, reqErr)
+		result.TotalTime = -1
 		return nil, result, reqErr
 	}
 
@@ -305,9 +282,70 @@ func SendRequestWithTiming(
 		req.Header.Set("X-Request-ID", requestID)
 	}
 
-	// Set context with timeout
+	// Create the HTTP trace before setting the timeout context
+	trace := &httptrace.ClientTrace{
+		// DNS timing
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			dnsStart = time.Now()
+			klog.Infof("requestID: %s - DNS lookup started for %s", requestID, info.Host)
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			dnsEnd = time.Now()
+			klog.Infof("requestID: %s - DNS lookup done for addresses: %v, error: %v, took: %v",
+				requestID, info.Addrs, info.Err, time.Since(dnsStart))
+		},
+
+		// Connection timing
+		ConnectStart: func(network, addr string) {
+			connectStart = time.Now()
+			klog.Infof("requestID: %s - TCP Connect started: network=%s, addr=%s",
+				requestID, network, addr)
+		},
+		ConnectDone: func(network, addr string, err error) {
+			connectEnd = time.Now()
+			klog.Infof("requestID: %s - TCP Connect done: network=%s, addr=%s, err=%v, took: %v",
+				requestID, network, addr, err, time.Since(connectStart))
+		},
+
+		// TLS timing
+		TLSHandshakeStart: func() {
+			tlsStart = time.Now()
+			klog.Infof("requestID: %s - TLS handshake started", requestID)
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			tlsEnd = time.Now()
+			klog.Infof("requestID: %s - TLS handshake done, version: %#x, error: %v, took: %v",
+				requestID, state.Version, err, time.Since(tlsStart))
+		},
+
+		// Connection reuse information
+		GotConn: func(info httptrace.GotConnInfo) {
+			klog.Infof("requestID: %s - Got connection: reused=%v, was_idle=%v, idle_time=%v",
+				requestID, info.Reused, info.WasIdle, info.IdleTime)
+
+			// Also log the connection details
+			klog.Infof("requestID: %s - Connection details: local=%v, remote=%v",
+				requestID, info.Conn.LocalAddr(), info.Conn.RemoteAddr())
+
+			result.ConnectionReused = info.Reused
+		},
+
+		// Request/response timing
+		WroteHeaders: func() {
+			klog.Infof("requestID: %s - Request headers written", requestID)
+		},
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			klog.Infof("requestID: %s - Request written, error: %v", requestID, info.Err)
+		},
+		GotFirstResponseByte: func() {
+			klog.Infof("requestID: %s - Got first response byte", requestID)
+		},
+	}
+
+	// Set context with timeout and trace
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	ctx = httptrace.WithClientTrace(ctx, trace)
 	req = req.WithContext(ctx)
 
 	// 4. Send Request
@@ -315,12 +353,32 @@ func SendRequestWithTiming(
 	resp, sendErr := client.Do(req)
 	result.SendTime = time.Since(sendStart)
 
+	// Update timing results based on httptrace data
+	if !dnsStart.IsZero() && !dnsEnd.IsZero() {
+		result.DNSTime = dnsEnd.Sub(dnsStart)
+	}
+
+	if !connectStart.IsZero() && !connectEnd.IsZero() {
+		result.ConnectionTime = connectEnd.Sub(connectStart)
+		if !tlsStart.IsZero() && !tlsEnd.IsZero() {
+			// Add TLS time to connection time
+			result.ConnectionTime += tlsEnd.Sub(tlsStart)
+		}
+	}
+
 	if sendErr != nil {
 		result.Error = sendErr
-		result.TotalTime = time.Since(startTime)
+		klog.Errorf("requestID: %s - Failed to send request: %v", requestID, sendErr)
+		result.TotalTime = -1
 		return nil, result, sendErr
 	}
 	defer resp.Body.Close()
+
+	// Check connection reuse info from headers as well
+	connectionHeader := resp.Header.Get("Connection")
+	if connectionHeader == "keep-alive" {
+		result.ConnectionReused = true
+	}
 
 	// 5. Read Response
 	readStart := time.Now()
@@ -329,15 +387,16 @@ func SendRequestWithTiming(
 
 	if readErr != nil {
 		result.Error = readErr
-		result.TotalTime = time.Since(startTime)
+		klog.Errorf("requestID: %s - Failed to read response: %v", requestID, readErr)
+		result.TotalTime = -1
 		return nil, result, readErr
 	}
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("non-200 status code: %d", resp.StatusCode)
+		err := fmt.Errorf("requestID: %s - non-200 status code: %d", requestID, resp.StatusCode)
 		result.Error = err
-		result.TotalTime = time.Since(startTime)
+		result.TotalTime = -1
 		return body, result, err
 	}
 
@@ -345,7 +404,7 @@ func SendRequestWithTiming(
 	result.ParseTime = 0
 	result.Success = true
 	result.TotalTime = time.Since(startTime)
-
+	klog.Infof("requestID: %s - Request completed successfully, total time took %dms", requestID, result.TotalTime.Milliseconds())
 	return body, result, nil
 }
 
@@ -616,7 +675,6 @@ func (r *latencyPredictionRouter) Route(ctx *types.RoutingContext, pods types.Po
 		r.httpClient.Timeout,
 	)
 
-	klog.Infof("requestID: %s - prediction_based, prediction took %dms", ctx.RequestID, timingResult.TotalTime.Milliseconds())
 	klog.Infof("requestID: %s -  Timing breakdown took, %s", ctx.RequestID, timingResult.String())
 
 	if err != nil {
@@ -627,7 +685,13 @@ func (r *latencyPredictionRouter) Route(ctx *types.RoutingContext, pods types.Po
 	}
 
 	if targetPod == nil {
-		targetPod = r.selectBestPod(ctx.RequestID, readyPods, predResponse.Predictions)
+		if ctx.SubAlgorithm == "least-request" {
+			targetPod, _ = selectRandomPod(readyPods, rand.Intn)
+		} else if ctx.SubAlgorithm == "random" {
+			targetPod, _ = r.fallbackRouting(ctx, readyPods)
+		} else {
+			targetPod = r.selectBestPod(ctx.RequestID, readyPods, predResponse.Predictions)
+		}
 		if targetPod != nil {
 			klog.Infof("success, requestID: %s, Selected pod %s based on latency predictions", ctx.RequestID, targetPod.Status.PodIP)
 		} else {

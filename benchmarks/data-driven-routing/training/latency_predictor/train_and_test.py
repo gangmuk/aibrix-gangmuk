@@ -22,6 +22,10 @@ import os
 import graphviz
 from sklearn.preprocessing import OneHotEncoder
 
+# I want to import library from parent dir 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import preprocess
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -35,16 +39,16 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
     
     if hasattr(model, 'named_steps'):  # sklearn Pipeline
         xgb_model = model.named_steps['model']
-        preprocessor = model.named_steps['preprocessor']
+        column_transformer = model.named_steps['column_transformer']
         
         # Get the actual feature names after preprocessing
         # This handles one-hot encoded features
-        if hasattr(preprocessor, 'get_feature_names_out'):
-            transformed_feature_names = preprocessor.get_feature_names_out()
+        if hasattr(column_transformer, 'get_feature_names_out'):
+            transformed_feature_names = column_transformer.get_feature_names_out()
         else:
             # Fallback for older scikit-learn versions
             transformed_feature_names = []
-            for name, trans, cols in preprocessor.transformers_:
+            for name, trans, cols in column_transformer.transformers_:
                 if hasattr(trans, 'get_feature_names_out'):
                     transformed_names = trans.get_feature_names_out(cols)
                 else:
@@ -53,7 +57,7 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
                 transformed_feature_names.extend(transformed_names)
     else:
         xgb_model = model
-        preprocessor = None
+        column_transformer = None
         transformed_feature_names = feature_names
     
     trees_dir = os.path.join(output_dir, 'tree_visualizations')
@@ -77,13 +81,13 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
         for j, name in enumerate(feature_names):
             dot_data = dot_data.replace(f'f{j} ', f'"{name}" ')
         
-        if preprocessor:
+        if column_transformer:
             try:
-                numeric_cols = [col for col in feature_names if col not in preprocessor.transformers_[1][2]]
+                numeric_cols = [col for col in feature_names if col not in column_transformer.transformers_[1][2]]
                 
                 for feature_idx, feature in enumerate(numeric_cols):
-                    if hasattr(preprocessor.transformers_[0][1], 'named_steps') and 'scaler' in preprocessor.transformers_[0][1].named_steps:
-                        scaler = preprocessor.transformers_[0][1].named_steps['scaler']
+                    if hasattr(column_transformer.transformers_[0][1], 'named_steps') and 'scaler' in column_transformer.transformers_[0][1].named_steps:
+                        scaler = column_transformer.transformers_[0][1].named_steps['scaler']
                         feature_mean = scaler.mean_[feature_idx]
                         feature_std = scaler.scale_[feature_idx]
                         
@@ -108,32 +112,6 @@ def visualize_trees(model, feature_names, output_dir, target_name, num_trees=3):
         os.remove(fmap_filename)
     except:
         pass
-    
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Train and test LLM latency prediction model')
-    
-    parser.add_argument('input_file', type=str,
-                        help='Path to the CSV file with pod-specific features')
-    parser.add_argument('--output_dir', type=str, default='latency_predictor_model_output',
-                        help='Directory to save model and test results')
-    parser.add_argument('--test_size', type=float, default=0.2,
-                        help='Fraction of data to use for testing (default: 0.2)')
-    parser.add_argument('--random_state', type=int, default=42,
-                        help='Random state for reproducibility (default: 42)')
-    parser.add_argument('--n_estimators', type=int, default=100,
-                        help='Number of trees in XGBoost model (default: 100)')
-    parser.add_argument('--max_depth', type=int, default=5,
-                        help='Maximum depth of trees in XGBoost model (default: 5)')
-    parser.add_argument('--learning_rate', type=float, default=0.1,
-                        help='Learning rate for XGBoost model (default: 0.1)')
-    parser.add_argument('--cv', type=int, default=5,
-                        help='Number of cross-validation folds (default: 5)')
-    parser.add_argument('--no_plots', action='store_true',
-                        help='Do not generate plots')
-    
-    return parser.parse_args()
 
 def preprocess_and_extract_features(input_file, target_performance_metrics):
     # Check if input file exists
@@ -288,8 +266,8 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
     
     logger.info(f"Training set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
     
-    # Create preprocessor
-    preprocessor = ColumnTransformer(
+    # Create column_transformer
+    column_transformer = ColumnTransformer(
         transformers=[
             ('num', Pipeline([
                 ('imputer', SimpleImputer(strategy='median')),
@@ -325,7 +303,7 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
         
         # Create pipeline
         pipeline = Pipeline([
-            ('preprocessor', preprocessor),
+            ('column_transformer', column_transformer),
             ('model', XGBRegressor(
                 n_estimators=n_estimators,
                 max_depth=max_depth,
@@ -572,17 +550,25 @@ def train_and_evaluate(df, output_dir, target_performance_metrics, test_size=0.2
     
     return result
 
-def main():
-    args = parse_args()
+def main(input_file):
+    output_dir = 'latency_predictor_model_output'
+    test_size = 0.2
+    random_state = 42
+    n_estimators = 100
+    max_depth = 5
+    learning_rate = 0.1
+    cv = 5
+    no_plots = False
+    
     target_performance_metrics = ['avg_tpot', 'ttft']
-    training_df = preprocess_and_extract_features(args.input_file, target_performance_metrics)
-    input_dir = '/'.join(args.input_file.split('/')[:-1])
+    training_df = preprocess_and_extract_features(input_file, target_performance_metrics)
+    input_dir = '/'.join(input_file.split('/')[:-1])
 
 
     if training_df is None:
         logger.error("Feature extraction failed. Exiting.")
         sys.exit(1)
-    output_dir = f"{input_dir}/{args.output_dir}"
+    output_dir = f"{input_dir}/{output_dir}"
     os.makedirs(output_dir, exist_ok=True)
 
     training_file = f"{output_dir}/pod_specific_data.csv"
@@ -593,13 +579,13 @@ def main():
         df=training_df,
         output_dir=output_dir,
         target_performance_metrics=target_performance_metrics,
-        test_size=args.test_size,
-        random_state=args.random_state,
-        n_estimators=args.n_estimators,
-        max_depth=args.max_depth,
-        learning_rate=args.learning_rate,
-        cv=args.cv,
-        no_plots=args.no_plots
+        test_size=test_size,
+        random_state=random_state,
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        learning_rate=learning_rate,
+        cv=cv,
+        no_plots=no_plots
     )
     
     if result is None:
@@ -609,4 +595,14 @@ def main():
     logger.info("Training and evaluation completed successfully!")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Usage: python train_and_test.py <input_file>")
+        sys.exit(1)
+    input_file = sys.argv[1]
+    if not os.path.exists(input_file):
+        print(f"Input file not found: {input_file}")
+        sys.exit(1)
+
+    # NOTE: input_file should be filtered gateway log file
+    preprocessed_df, preprocessed_file = preprocess.main(input_file)
+    main(preprocessed_file)

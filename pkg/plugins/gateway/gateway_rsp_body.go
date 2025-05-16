@@ -245,8 +245,23 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			// if routerCtx.Algorithm == "prefix-cache-and-load" {
 			ret := utils.DecrementNumDecodeTokensForPod(routerCtx.TargetAddressWithoutPort(), int(timing.totalTokenCount))
 			klog.V(5).Infof("DecrementNumDecodeTokensForPod(%s) by %d, %d", routerCtx.TargetAddressWithoutPort(), timing.totalTokenCount, ret)
-			klog.Infof("Calling calculateTimingMetrics, requestID: %s, timing.decodeTokenCount: %d, timing.prefillTokenCount: %d", requestID, timing.decodeTokenCount, timing.prefillTokenCount)
-			timingHeaders := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+
+			timingHeaders, logMessage := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+			utils.AddRequestLogMessage(requestID, logMessage)
+			// for i := 0; i < 100; i++ {
+			// 	temp_id := fmt.Sprint(i)
+			// 	utils.AddRequestLogMessage(temp_id, example_log_message_1)
+			// }
+			utils.CleanupKVCacheHitRatio(requestID)
+			utils.CleanupInflightRequests(requestID)
+			utils.CleanupvLLMGPUKVCacheUsage(requestID)
+			utils.CleanupvLLMCPUKVCacheUsage(requestID)
+			utils.CleanupvLLMNumRequestsRunning(requestID)
+			utils.CleanupvLLMNumRequestsWaiting(requestID)
+			utils.CleanupNumPrefillTokensForRequest(requestID)
+			utils.CleanupNumDecodeTokensForRequest(requestID)
+			utils.CleanupRequestPodMetrics(requestID)
+
 			headers = append(headers, timingHeaders...)
 			// }
 			utils.RequestTimings.Delete(requestID)
@@ -493,13 +508,13 @@ func addMetricToHeaders(headers []*configPb.HeaderValueOption, key string, data 
 	return headers, jsonStr
 }
 
-func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, routingCtx *types.RoutingContext, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) []*configPb.HeaderValueOption {
-	// Calculate basic timing metrics
+func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.Time, requestID string, routingCtx *types.RoutingContext, stream bool, numInputTokens int64, numOutputTokens int64, numTotalTokens int64) ([]*configPb.HeaderValueOption, string) {
+	klog.V(5).Infof("requestID: %s, timing.decodeTokenCount: %d, timing.prefillTokenCount: %d", requestID, timing.decodeTokenCount, timing.prefillTokenCount)
+
 	ttftMs := int64(0)
 	if !timing.firstTokenTime.IsZero() {
 		ttftMs = timing.firstTokenTime.Sub(timing.startTime).Milliseconds()
 	}
-
 	avgTpotMs := int64(0)
 	totalGenerationTimeMs := int64(0)
 	if !timing.firstTokenTime.IsZero() {
@@ -512,7 +527,7 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		}
 		if effectiveTokenCount > 0 {
 			avgTpotMs = totalGenerationTimeMs / effectiveTokenCount
-			klog.Infof("ttftMS:%d, avgTpotMs: %d, totalGenerationTimeMs: %d, effectiveTokenCount: %d", ttftMs, avgTpotMs, totalGenerationTimeMs, effectiveTokenCount)
+			klog.V(5).Infof("ttftMS:%d, avgTpotMs: %d, totalGenerationTimeMs: %d, effectiveTokenCount: %d", ttftMs, avgTpotMs, totalGenerationTimeMs, effectiveTokenCount)
 		}
 	}
 
@@ -546,19 +561,16 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	// 1. KV cache hit ratios
 	allPodsKvCacheHitRatios := utils.GetAllPodsKVCacheHitRatios(requestID)
 	headers, jsonStrings["allPodsKvCacheHitRatios"] = addMetricToHeaders(headers, HeaderKVCacheHitRatioAllPods, allPodsKvCacheHitRatios, utils.GetrequestAllPodsKVCacheMutex())
-	utils.CleanupKVCacheHitRatio(requestID)
 
 	// 2. Inflight requests
 	numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(requestID)
 	headers, jsonStrings["numInflightRequestsAllPods"] = addMetricToHeaders(headers, HeaderNumInflightRequestsAllPods, numInflightRequestsAllPods, utils.GetrequestInflightMutex())
 	utils.DecrementNumInflightForPod(requestID, routingCtx.TargetAddressWithoutPort())
-	utils.CleanupInflightRequests(requestID)
 
 	// 3. GPU KV cache usage
-	vllmGPUKVCacheUsage, err := utils.GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID)
+	vllmGPUKVCacheUsage, err := utils.GetvLLMGPUKVCacheUsageForAllPods(requestID)
 	if err == nil {
 		headers, jsonStrings["vllmGPUKVCacheUsage"] = addMetricToHeaders(headers, HeadervLLMGPUKVCacheUsage, vllmGPUKVCacheUsage, utils.GetvllmGPUKVCacheUsageMutex())
-		utils.CleanupvLLMGPUKVCacheUsage(requestID)
 	} else {
 		jsonStrings["vllmGPUKVCacheUsage"] = "{}"
 	}
@@ -567,35 +579,30 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	vllmCPUKVCacheUsage, err := utils.GetvLLMCPUKVCacheUsageForTheRequestForAllPods(requestID)
 	if err == nil {
 		headers, jsonStrings["vllmCPUKVCacheUsage"] = addMetricToHeaders(headers, HeadervLLMCPUKVCacheUsage, vllmCPUKVCacheUsage, utils.GetvllmCPUKVCacheUsageMutex())
-		utils.CleanupvLLMCPUKVCacheUsage(requestID)
 	} else {
 		jsonStrings["vllmCPUKVCacheUsage"] = "{}"
 	}
 
 	// 5. Number of running requests
-	vllmNumRequestsRunning, err := utils.GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID)
+	vllmNumRequestsRunning, err := utils.GetvLLMNumRequestsRunningForAllPods(requestID)
 	if err == nil {
 		headers, jsonStrings["vllmNumRequestsRunning"] = addMetricToHeaders(headers, HeadervLLMNumRunningRequests, vllmNumRequestsRunning, utils.GetvllmNumRequestsRunningMutex())
-		utils.CleanupvLLMNumRequestsRunning(requestID)
 	} else {
 		jsonStrings["vllmNumRequestsRunning"] = "{}"
 	}
 
 	// 6. Number of waiting requests
-	vllmNumRequestWaiting, err := utils.GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID)
+	vllmNumRequestWaiting, err := utils.GetvLLMNumRequestsWaitingForAllPods(requestID)
 	if err == nil {
 		headers, jsonStrings["vllmNumRequestWaiting"] = addMetricToHeaders(headers, HeadervLLMNumwWaitingRequests, vllmNumRequestWaiting, utils.GetvllmNumRequestsWaitingMutex())
-		utils.CleanupvLLMNumRequestsWaiting(requestID)
 	} else {
 		jsonStrings["vllmNumRequestWaiting"] = "{}"
 	}
 
 	numPrefillTokensForAllPods := utils.GetNumPrefillTokensForAllPods()
-	utils.CleanupNumPrefillTokensForRequest(requestID)
 	headers, jsonStrings["numPrefillTokensForAllPods"] = addMetricToHeaders(headers, HeaderNumPrefillTokensForAllPods, numPrefillTokensForAllPods, utils.GetpodTotalPrefillTokensMutex())
 
 	numDecodeTokensForAllPods := utils.GetNumDecodeTokensForAllPods()
-	utils.CleanupNumDecodeTokensForRequest(requestID)
 	headers, jsonStrings["numDecodeTokensForAllPods"] = addMetricToHeaders(headers, HeaderNumDecodeTokensForAllPods, numDecodeTokensForAllPods, utils.GetpodTotalDecodeTokensMutex())
 
 	// Get selected pod
@@ -605,11 +612,14 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 	}
 
 	ts := time.Now()
-	podDetailedMetrics := utils.GetAndCleanupRequestPodMetrics(requestID)
-	klog.Infof("GetAndCleanupRequestPodMetrics took %d, %s, %s", time.Since(ts).Milliseconds(), requestID, selectedPodIP)
+	podDetailedMetrics := utils.GetRequestPodMetrics(requestID)
+	klog.V(5).Infof("GetAndCleanupRequestPodMetrics took %d, %s, %s", time.Since(ts).Milliseconds(), requestID, selectedPodIP)
 	headers, jsonStrings["podMetricsLastSecond"] = addMetricToHeaders(headers, HeaderPodDetailedMetrics, podDetailedMetrics, utils.MetricsTracker.GetMutex())
 
-	klog.Infof("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s",
+	// log_window_end_time := time.Now()
+	// log_window_start_time := time.Now().Add(utils.MetricsTracker.WindowSize * -1)
+
+	logMessage := fmt.Sprintf("**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s",
 		requestID,
 		timing.startTime.UnixMicro(),
 		currentTime.UnixMicro(),
@@ -632,7 +642,9 @@ func (s *Server) calculateTimingMetrics(timing *RequestTiming, currentTime time.
 		jsonStrings["numDecodeTokensForAllPods"],
 	)
 
-	return headers
+	klog.Infof("%s", logMessage)
+
+	return headers, logMessage
 }
 
 ///////////////////////////////////////////////////////////////////////////

@@ -72,6 +72,20 @@ def make_predictions(model_file, input_file, output_file=None):
             logger.info(f"  Max: {preds.max():.2f}")
             logger.info(f"  Mean: {preds.mean():.2f}")
             logger.info(f"  Std: {preds.std():.2f}")
+            
+            # Add error columns if actual values are available
+            if target in df.columns:
+                # Absolute error
+                preds_df[f"error_{target}"] = np.abs(df[target] - preds)
+                
+                # Percentage error - handle division by zero
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    percent_error = np.abs((df[target] - preds) / df[target]) * 100
+                    accuracy = 100 - percent_error
+                    # Replace inf and nan with np.nan
+                    percent_error = np.where(np.isinf(percent_error) | np.isnan(percent_error), np.nan, percent_error)
+                preds_df[f"accuracy_{target}"] = accuracy
+                # preds_df[f"percent_error_{target}"] = percent_error
         except Exception as e:
             logger.error(f"Error making predictions for {target}: {e}")
     

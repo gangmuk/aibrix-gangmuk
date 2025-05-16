@@ -13,6 +13,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	MetricGPUCacheUsagePerc  = "gpu_cache_usage_perc"
+	MetricCPUCacheUsagePerc  = "cpu_cache_usage_perc"
+	MetricNumRequestsRunning = "num_requests_running"
+	MetricNumRequestsWaiting = "num_requests_waiting"
+	PodPort                  = 8000 // Same as in the metrics code
+)
+
 // PodDetailedMetrics provides detailed statistics for a pod's performance
 type PodDetailedMetrics struct {
 	// TTFT metrics
@@ -34,11 +42,6 @@ type PodDetailedMetrics struct {
 	P95TPOT     int64   `json:"last_second_p95_tpot_ms"` // 95th percentile TPOT
 	P99TPOT     int64   `json:"last_second_p99_tpot_ms"` // 99th percentile TPOT
 	TPOTSamples int     `json:"last_second_tpot_samples"`
-
-	// // Token position-based TPOT metrics (average TPOT for tokens 2-10)
-	EarlyTokensTPOT float64 `json:"last_second_early_tokens_tpot_ms"`
-	MidTokensTPOT   float64 `json:"last_second_mid_tokens_tpot_ms"`
-	LateTokensTPOT  float64 `json:"last_second_late_tokens_tpot_ms"`
 
 	// Overall metrics
 	TotalRequests      int `json:"last_second_total_requests"`
@@ -253,7 +256,6 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 		var ttftValues []int64
 		var tpotValues []int64
 		var ttftSum, tpotSum int64
-		// var earlyTokensTPOT, midTokensTPOT, lateTokensTPOT []int64
 		uniqueRequests := make(map[string]bool)
 		totalDecodeTokens := 0
 		totalPrefillTokens := 0
@@ -269,16 +271,6 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 				tpotValues = append(tpotValues, m.TPOT)
 				tpotSum += m.TPOT
 				totalDecodeTokens++
-				// early_token_index := numOutputTokens / 3
-				// mid_token_index := (numOutputTokens / 3) * 2
-				// switch {
-				// case m.DecodeTokenNum <= early_token_index:
-				// 	earlyTokensTPOT = append(earlyTokensTPOT, m.TPOT)
-				// case m.DecodeTokenNum > early_token_index && m.DecodeTokenNum <= mid_token_index:
-				// 	midTokensTPOT = append(midTokensTPOT, m.TPOT)
-				// case m.DecodeTokenNum > mid_token_index:
-				// 	lateTokensTPOT = append(lateTokensTPOT, m.TPOT)
-				// }
 			}
 		}
 		sort.Slice(ttftValues, func(i, j int) bool { return ttftValues[i] < ttftValues[j] })
@@ -291,7 +283,7 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 		detailedMetrics.TTFTSamples = len(ttftValues)
 		detailedMetrics.TPOTSamples = len(tpotValues)
 		if len(ttftValues) > 0 {
-			klog.Infof("GetDetailedMetrics, Setting TTFT related values!!, %s, %d", podIP, len(ttftValues))
+			klog.Infof("GetDetailedMetrics, Getting TTFT related values!!, %s, %d", podIP, len(ttftValues))
 			detailedMetrics.AvgTTFT = float64(ttftSum) / float64(len(ttftValues))
 			detailedMetrics.MinTTFT = ttftValues[0]
 			detailedMetrics.MaxTTFT = ttftValues[len(ttftValues)-1]
@@ -301,7 +293,7 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 			detailedMetrics.P99TTFT = percentile(ttftValues, 99)
 		}
 		if len(tpotValues) > 0 {
-			klog.Infof("GetDetailedMetrics, Setting TPOT related values!!, %s, %d", podIP, len(tpotValues))
+			klog.Infof("GetDetailedMetrics, Getting TPOT related values!!, %s, %d", podIP, len(tpotValues))
 			detailedMetrics.AvgTPOT = float64(tpotSum) / float64(len(tpotValues))
 			detailedMetrics.MinTPOT = tpotValues[0]
 			detailedMetrics.MaxTPOT = tpotValues[len(tpotValues)-1]
@@ -310,29 +302,6 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 			detailedMetrics.P95TPOT = percentile(tpotValues, 95)
 			detailedMetrics.P99TPOT = percentile(tpotValues, 99)
 		}
-
-		// if len(earlyTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range earlyTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.EarlyTokensTPOT = float64(sum) / float64(len(earlyTokensTPOT))
-		// }
-		// if len(midTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range midTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.MidTokensTPOT = float64(sum) / float64(len(midTokensTPOT))
-		// }
-		// if len(lateTokensTPOT) > 0 {
-		// 	var sum int64
-		// 	for _, v := range lateTokensTPOT {
-		// 		sum += v
-		// 	}
-		// 	detailedMetrics.LateTokensTPOT = float64(sum) / float64(len(lateTokensTPOT))
-		// }
-
 		result[podIP] = detailedMetrics
 		// Print all metrics for debugging
 		klog.Infof("Pod %s metrics: %+v", podIP, detailedMetrics)
@@ -340,11 +309,21 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 	return result
 }
 
+func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
+	return &PodMetricsTracker{
+		podMetrics: make(map[string][]PodMetric),
+		WindowSize: windowSize,
+	}
+}
+
 var (
 	RequestTimings   sync.Map           // Map to track request timing information: requestID -> *RequestTiming
 	MetricsTracker   *PodMetricsTracker // Track timing metrics for pods
 	MetricsEnabled   atomic.Bool        // Flag to enable/disable metrics collection
 	MetricsLogTicker *time.Ticker       // Ticker for periodic metrics logging
+
+	RequestToLogMessageMutex sync.RWMutex
+	RequestToLogMessage      = make(map[string]string) // requestID -> log message
 
 	podMetricsMutex     sync.RWMutex
 	requestToPodMetrics = make(map[string]map[string]PodDetailedMetrics)
@@ -400,29 +379,9 @@ var (
 
 )
 
-const (
-	MetricGPUCacheUsagePerc  = "gpu_cache_usage_perc"
-	MetricCPUCacheUsagePerc  = "cpu_cache_usage_perc"
-	MetricNumRequestsRunning = "num_requests_running"
-	MetricNumRequestsWaiting = "num_requests_waiting"
-	PodPort                  = 8000 // Same as in the metrics code
-)
-
-func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
-	return &PodMetricsTracker{
-		podMetrics: make(map[string][]PodMetric),
-		WindowSize: windowSize,
-	}
-}
-
-func init() {
-
-	// Enable metrics collection by default
-	MetricsTracker = NewPodMetricsTracker(1 * time.Second)
-	MetricsEnabled.Store(true)
-	// Start metrics cleanup goroutine
+func CleanupRoutineForpodMetrics() {
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
@@ -434,9 +393,28 @@ func init() {
 			}
 		}
 	}()
+}
 
-	// Start periodic metrics logging
+func CleanupAllRequestLogMessage() {
+	RequestToLogMessageMutex.Lock()
+	defer RequestToLogMessageMutex.Unlock()
+
+	for requestID := range RequestToLogMessage {
+		delete(RequestToLogMessage, requestID)
+	}
+	klog.Infof("Cleaned up all log messages")
+}
+
+func init() {
+
+	CleanupRoutineForpodMetrics()
+	// Enable metrics collection by default
+	MetricsTracker = NewPodMetricsTracker(1 * time.Second)
+	MetricsEnabled.Store(true)
 	MetricsLogTicker = time.NewTicker(10 * time.Second)
+
+	RequestToLogMessageMutex = sync.RWMutex{}
+	RequestToLogMessage = make(map[string]string)
 
 	podMetricsMutex = sync.RWMutex{}
 	requestToPodMetrics = make(map[string]map[string]PodDetailedMetrics)
@@ -490,6 +468,41 @@ func init() {
 	vllmNumRequestsWaitingMutex = sync.RWMutex{}
 }
 
+func AddRequestLogMessage(requestID string, logMessage string) {
+	RequestToLogMessageMutex.Lock()
+	defer RequestToLogMessageMutex.Unlock()
+
+	if _, exists := RequestToLogMessage[requestID]; !exists {
+		RequestToLogMessage[requestID] = logMessage
+	} else {
+		klog.Errorf("Request ID %s already exists in RequestToLogMessage", requestID)
+	}
+}
+
+func GetRequestLogMessage(requestID string) (string, bool) {
+	RequestToLogMessageMutex.RLock()
+	defer RequestToLogMessageMutex.RUnlock()
+
+	logMessage, exists := RequestToLogMessage[requestID]
+	if !exists {
+		klog.Errorf("Failed GetRequestLogMessage, Request ID %s not found in RequestToLogMessage", requestID)
+		return "", false
+	}
+	return logMessage, true
+}
+
+func CleanupRequestLogMessage(requestID string) {
+	RequestToLogMessageMutex.Lock()
+	defer RequestToLogMessageMutex.Unlock()
+
+	if _, exists := RequestToLogMessage[requestID]; exists {
+		delete(RequestToLogMessage, requestID)
+		klog.Infof("CleanupRequestLogMessage, Deleted log message for request ID: %s", requestID)
+	} else {
+		klog.Errorf("Failed CleanupRequestLogMessage, No log message found for request ID: %s", requestID)
+	}
+}
+
 func AddRequestPodMetrics(requestID string, detailedpodmetrics map[string]PodDetailedMetrics) {
 	podMetricsMutex.Lock()
 	defer podMetricsMutex.Unlock()
@@ -505,7 +518,7 @@ func AddRequestPodMetrics(requestID string, detailedpodmetrics map[string]PodDet
 	}
 }
 
-func GetAndCleanupRequestPodMetrics(requestID string) map[string]PodDetailedMetrics {
+func GetRequestPodMetrics(requestID string) map[string]PodDetailedMetrics {
 	podMetricsMutex.Lock()
 	defer podMetricsMutex.Unlock()
 
@@ -514,9 +527,19 @@ func GetAndCleanupRequestPodMetrics(requestID string) map[string]PodDetailedMetr
 		klog.ErrorS(nil, "Failed to find metrics for request ID", "requestID", requestID)
 		return make(map[string]PodDetailedMetrics)
 	}
-
-	delete(requestToPodMetrics, requestID)
 	return metrics // Return directly, no need for copying
+}
+
+func CleanupRequestPodMetrics(requestID string) {
+	podMetricsMutex.Lock()
+	defer podMetricsMutex.Unlock()
+
+	if _, exists := requestToPodMetrics[requestID]; exists {
+		delete(requestToPodMetrics, requestID)
+		klog.Infof("CleanupRequestPodMetrics, Deleted metrics for request ID: %s", requestID)
+	} else {
+		klog.Errorf("CleanupRequestPodMetrics, No metrics found for request ID: %s", requestID)
+	}
 }
 
 func GetrequestToPrefillTokensMutex() *sync.RWMutex {
@@ -941,7 +964,7 @@ func GetvllmGPUKVCacheUsageMutex() *sync.RWMutex {
 	return &vllmGPUKVCacheUsageMutex
 }
 
-func GetvLLMGPUKVCacheUsageForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+func GetvLLMGPUKVCacheUsageForAllPods(requestID string) (map[string]float64, error) {
 	vllmGPUKVCacheUsageMutex.RLock()
 	defer vllmGPUKVCacheUsageMutex.RUnlock()
 
@@ -979,7 +1002,7 @@ func GetvllmNumRequestsRunningMutex() *sync.RWMutex {
 	return &vllmNumRequestsRunningMutex
 }
 
-func GetvLLMNumRequestsRunningForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+func GetvLLMNumRequestsRunningForAllPods(requestID string) (map[string]float64, error) {
 	vllmNumRequestsRunningMutex.RLock()
 	defer vllmNumRequestsRunningMutex.RUnlock()
 
@@ -998,7 +1021,7 @@ func GetvllmNumRequestsWaitingMutex() *sync.RWMutex {
 	return &vllmNumRequestsWaitingMutex
 }
 
-func GetvLLMNumRequestsWaitingForTheRequestForAllPods(requestID string) (map[string]float64, error) {
+func GetvLLMNumRequestsWaitingForAllPods(requestID string) (map[string]float64, error) {
 	vllmNumRequestsWaitingMutex.RLock()
 	defer vllmNumRequestsWaitingMutex.RUnlock()
 
@@ -1117,3 +1140,72 @@ func GetVLLMNumRequestsWaitingForPod(requestID string, podIP string) (float64, b
 	val, exists := requests[podIP]
 	return val, exists
 }
+
+////////////////////////////////////////////////////////////////
+
+// // handleRequestCompletion processes a completed request
+// func (r *rlOnlineRouter) handleRequestCompletion(
+// 	requestID string,
+// 	ttft int,
+// 	avgTPOT float64,
+// 	decodeTime int,
+// 	e2eLatency int,
+// 	outputTokens int,
+// ) {
+// 	// Retrieve the original request
+// 	r.pendingMutex.RLock()
+// 	request, exists := r.pendingRequests[requestID]
+// 	r.pendingMutex.RUnlock()
+
+// 	if !exists {
+// 		// This can happen if the request was routed by fallback or another router
+// 		klog.Warningf("Received completion for unknown request ID: %s", requestID)
+// 		return
+// 	}
+
+// 	// Create a training data entry
+// 	entry := TrainingDataEntry{
+// 		RequestID:       requestID,
+// 		StartTime:       request.Timestamp,
+// 		EndTime:         time.Now().UnixMicro(),
+// 		SelectedPod:     "", // This should be filled with the actual selected pod
+// 		TTFT:            ttft,
+// 		AvgTPOT:         avgTPOT,
+// 		TotalDecodeTime: decodeTime,
+// 		E2ELatency:      e2eLatency,
+// 		InputTokens:     request.InputTokens,
+// 		OutputTokens:    outputTokens,
+// 		TotalTokens:     request.InputTokens + outputTokens,
+// 		Pods:            request.Pods,
+// 	}
+
+// 	// Find which pod was selected (this depends on how that information is tracked)
+
+// 	// Add to training data
+// 	r.trainingDataMutex.Lock()
+// 	r.trainingData = append(r.trainingData, entry)
+
+// 	// If buffer is full, flush immediately
+// 	if len(r.trainingData) >= trainingDataBufferSize {
+// 		go r.flushTrainingData()
+// 	}
+// 	r.trainingDataMutex.Unlock()
+
+// 	// Clean up
+// 	r.pendingMutex.Lock()
+// 	delete(r.pendingRequests, requestID)
+// 	r.pendingMutex.Unlock()
+
+// 	klog.Infof("Added completed request %s to training data (%d entries in buffer)",
+// 		requestID, len(r.trainingData))
+// }
+
+// // parseMetricsFromLog extracts metrics from the log format
+// func (r *rlOnlineRouter) parseMetricsFromLog(logLine string) {
+// 	// Example:
+// 	// **@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d...
+
+// 	// This is a placeholder implementation
+// 	// A real implementation would parse the log line format
+// 	// and extract the metrics, then call handleRequestCompletion
+// }

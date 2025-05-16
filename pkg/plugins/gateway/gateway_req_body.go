@@ -35,7 +35,7 @@ import (
 )
 
 func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *extProcPb.ProcessingRequest, user utils.User, routingAlgorithm types.RoutingAlgorithm) (*extProcPb.ProcessingResponse, string, *types.RoutingContext, bool, int64) {
-	klog.Infof("HandleRequestBody context state, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
+	klog.V(5).Infof("HandleRequestBody context state, requestID: %s, ctx.Err(): %v", requestID, ctx.Err())
 
 	var model string
 	var subAlgorithm string
@@ -127,7 +127,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 			klog.Errorf("requestID: %s, Tokenization failed: %v", routingCtx.RequestID, err)
 		}
 		utils.SetNumPrefillTokensForRequest(routingCtx.RequestID, len(prefill_tokens))
-		klog.Infof("SetNumPrefillTokensForRequest, %s, %d", routingCtx.RequestID, len(prefill_tokens))
+		klog.V(5).Infof("SetNumPrefillTokensForRequest, %s, %d", routingCtx.RequestID, len(prefill_tokens))
 
 		utils.RequestTimings.Store(requestID, &RequestTiming{
 			startTime:         time.Now(),
@@ -198,7 +198,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 					RawValue: []byte(targetPodIP),
 				},
 			})
-		klog.InfoS("request start", "requestID", requestID, "model", model, "routingAlgorithm", routingAlgorithm, "targetPodIP", targetPodIP)
+		klog.Infof("request start, requestID: %s, model: %s, routingAlgorithm: %s, targetPodIP: %s", requestID, model, routingAlgorithm, targetPodIP)
 	}
 
 	term = s.cache.AddRequestCount(routingCtx, requestID, model)

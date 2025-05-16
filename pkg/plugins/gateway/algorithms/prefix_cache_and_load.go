@@ -41,10 +41,11 @@ func init() {
 }
 
 const (
-	defaultDecodingLength = 45                      // FIXME: decode length is hardcoded. Preble as well.
-	slidingWindowPeriod   = 3 * time.Minute         // NOTE: hardcoded
-	evictionLoopInterval  = 1000 * time.Millisecond // NOTE: hardcoded
-	targetGPU             = "V100"                  // A6000 // FIXME: make it configurable
+	prefixRoutingThreshold = 50                      // 50%
+	defaultDecodingLength  = 45                      // FIXME: decode length is hardcoded. Preble as well.
+	slidingWindowPeriod    = 3 * time.Minute         // NOTE: hardcoded
+	evictionLoopInterval   = 1000 * time.Millisecond // NOTE: hardcoded
+	targetGPU              = "A6000"                 // FIXME: make it configurable
 )
 
 type SlidingWindowHistogram struct {
@@ -200,7 +201,7 @@ func calculateAttnQuadV100(numTokens int, seqLen *int) float64 {
 func (h *SlidingWindowHistogram) getPrefillCost(node *prefixcacheindexer.TreeNode) float64 {
 	missRate := 1.0
 	if h.promptTokens[node] > 0 {
-		missRate = 1.0 - (float64(h.hitTokens[node]) / float64(h.promptTokens[node]))
+		missRate = 1.0 - (float64(h.hitTokens[node]) / float64(h.promptTokens[node])) // ????
 	}
 	numTokens := node.NumTokens()
 	contextLength := node.ContextLength()
@@ -552,11 +553,10 @@ func (p *prefixCacheAndLoadRouter) Route(routingCtx *types.RoutingContext, pods 
 
 	var targetPod *v1.Pod
 	matchPercentage := len(matchedTokens) * 100 / len(prefill_tokens)
-	prefixRoutingThreshold := 50 // percentage
-	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %.0f%%, len(matchedPodsNames): %d, matchedPodsNames: %v", routingCtx.RequestID, len(matchedTokens), len(prefill_tokens), matchPercentage, len(matchedPods), matchedPodsNames)
+	klog.Infof("requestID: %s, Matched tokens/Total tokens: %d/%d, Matching ratio: %d, len(matchedPodsNames): %d, matchedPodsNames: %v", routingCtx.RequestID, len(matchedTokens), len(prefill_tokens), matchPercentage, len(matchedPods), matchedPodsNames)
 
 	if matchPercentage > prefixRoutingThreshold {
-		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %.2f > %.2f)", routingCtx.RequestID, matchPercentage, prefixRoutingThreshold)
+		klog.Infof("requestID: %s, Do prefix-aware routing! (matching ratio: %d > %d)", routingCtx.RequestID, matchPercentage, prefixRoutingThreshold)
 		var prefixMatches []prefixMatch
 
 		currentNode := node
