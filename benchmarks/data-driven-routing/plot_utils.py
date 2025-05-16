@@ -230,20 +230,6 @@ def create_simple_rps_plots(df):
             if len(rps) > 0:
                 ax.set_ylim(0, rps['count'].max() * 1.1)
                 
-        elif plot_type == 'pod_rps':
-            # RPS by pod
-            pod_rps = df_copy.groupby(['time_bucket', 'selectedpod']).size().reset_index(name='count')
-            for pod in pod_rps['selectedpod'].unique():
-                pod_data = pod_rps[pod_rps['selectedpod'] == pod]
-                ax.plot(pod_data['time_bucket'], pod_data['count'], label=pod)
-                print(f"Pod: {pod}, avg RPS: {pod_data['count'].mean():.2f}, max RPS: {pod_data['count'].max():.2f}")
-
-            ax.set_title('RPS by Pod')
-            ax.set_ylabel('Requests per second (RPS)')
-            ax.legend()
-            if len(pod_rps) > 0:
-                ax.set_ylim(0, pod_rps['count'].max() * 1.1)
-                
         elif plot_type == 'prompt_tps':
             # Prompt tokens per second
             prompt_tps = df_copy.groupby('time_bucket')['numInputTokens'].sum().reset_index(name='count')
@@ -253,13 +239,27 @@ def create_simple_rps_plots(df):
             if len(prompt_tps) > 0:
                 ax.set_ylim(0, prompt_tps['count'].max() * 1.1)
         
+        elif plot_type == 'pod_rps':
+            # RPS by pod
+            pod_rps = df_copy.groupby(['time_bucket', 'selectedpod']).size().reset_index(name='count')
+            for pod in pod_rps['selectedpod'].unique():
+                pod_data = pod_rps[pod_rps['selectedpod'] == pod]
+                ax.plot(pod_data['time_bucket'], pod_data['count'], label=pod)
+                # print(f"Pod: {pod}, avg RPS: {pod_data['count'].mean():.2f}, max RPS: {pod_data['count'].max():.2f}")
+
+            ax.set_title('RPS by Pod')
+            ax.set_ylabel('Requests per second (RPS)')
+            ax.legend()
+            if len(pod_rps) > 0:
+                ax.set_ylim(0, pod_rps['count'].max() * 1.1)
+                
         elif plot_type == 'prompt_tps_per_pod':
             # Prompt tokens per second by pod
             prompt_tps = df_copy.groupby(['time_bucket', 'selectedpod'])['numInputTokens'].sum().reset_index(name='count')
             for pod in prompt_tps['selectedpod'].unique():
                 pod_data = prompt_tps[prompt_tps['selectedpod'] == pod]
                 ax.plot(pod_data['time_bucket'], pod_data['count'], label=pod)
-                print(f"Pod: {pod}, avg prompt tps: {pod_data['count'].mean():.0f}, max prompt tps: {pod_data['count'].max():.0f}")
+                # print(f"Pod: {pod}, avg prompt tps: {pod_data['count'].mean():.0f}, max prompt tps: {pod_data['count'].max():.0f}")
             ax.set_title('Prompt Tokens per Second by Pod')
             ax.set_ylabel('Tokens per Second')
             ax.legend()
@@ -287,16 +287,83 @@ def create_simple_rps_plots(df):
     plt.subplots_adjust(top=0.85)  # Adjust for the suptitle
     plt.show()
 
+
+    # Create the figure and subplots
+    fig, axes = plt.subplots(1, 4, figsize=(18, 6))  # 1 row, 3 columns, adjust figsize as needed
+
+
+    # --- Subplot 3: Total Requests by Pod ---
+    pod_rps = df_copy.groupby(['selectedpod']).size().reset_index(name='count')
+    pod_rps = pod_rps.sort_values('selectedpod')  # Sort by pod name
+    positions = np.arange(len(pod_rps))
+    bars = axes[0].bar(positions, pod_rps['count'], width=0.6, color='skyblue')
+    axes[0].set_xticks(positions)
+    axes[0].set_xticklabels(pod_rps['selectedpod'], rotation=45, ha='right')
+    for bar in bars:
+        height = bar.get_height()
+        axes[0].text(bar.get_x() + bar.get_width()/2., height + 1, f'{int(height)}', ha='center', va='bottom')
+    axes[0].set_title('Total Requests by Pod')
+    axes[0].set_ylabel('Number of Requests')
+    axes[0].set_xlabel('Pod')
+    axes[0].grid(axis='y', linestyle='--', alpha=0.7)
+    axes[0].set_ylim(0, pod_rps['count'].max() * 1.15)
+
+
+    # --- Subplot 1: Total Input Tokens by Pod ---
+    prompt_tps_pod = df_copy.groupby(['selectedpod'])['numInputTokens'].sum().reset_index(name='total_tokens')
+    prompt_tps_pod = prompt_tps_pod.sort_values('selectedpod')  # Sort by pod name
+    positions = np.arange(len(prompt_tps_pod))
+    bars = axes[1].bar(positions, prompt_tps_pod['total_tokens'], width=0.6, color='skyblue')
+    axes[1].set_xticks(positions)
+    axes[1].set_xticklabels(prompt_tps_pod['selectedpod'], rotation=45, ha='right')
+    for bar in bars:
+        height = bar.get_height()
+        axes[1].text(bar.get_x() + bar.get_width()/2., height + 1, f'{int(height)}', ha='center', va='bottom')
+    axes[1].set_title('Total Input Tokens by Pod')
+    axes[1].set_ylabel('Total Number of Input Tokens')
+    axes[1].set_xlabel('Pod')
+    axes[1].grid(axis='y', linestyle='--', alpha=0.7)
+    axes[1].set_ylim(0, prompt_tps_pod['total_tokens'].max() * 1.15)
+
+    # --- Subplot 2: Total Output Tokens by Pod ---
+    output_tps_pod = df_copy.groupby(['selectedpod'])['numOutputTokens'].sum().reset_index(name='total_tokens')
+    output_tps_pod = output_tps_pod.sort_values('selectedpod')  # Sort by pod name
+    positions = np.arange(len(output_tps_pod))
+    bars = axes[2].bar(positions, output_tps_pod['total_tokens'], width=0.6, color='skyblue')
+    axes[2].set_xticks(positions)
+    axes[2].set_xticklabels(output_tps_pod['selectedpod'], rotation=45, ha='right')
+    for bar in bars:
+        height = bar.get_height()
+        axes[2].text(bar.get_x() + bar.get_width()/2., height + 1, f'{int(height)}', ha='center', va='bottom')
+    axes[2].set_title('Total Output Tokens by Pod')
+    axes[2].set_ylabel('Total Number of Output Tokens')
+    axes[2].set_xlabel('Pod')
+    axes[2].grid(axis='y', linestyle='--', alpha=0.7)
+    axes[2].set_ylim(0, output_tps_pod['total_tokens'].max() * 1.15)
+
+
+    # --- Subplot 2: Total Tokens by Pod ---
+    total_tps_pod = df_copy.groupby(['selectedpod'])['numTotalTokens'].sum().reset_index(name='total_tokens')
+    total_tps_pod = total_tps_pod.sort_values('selectedpod')  # Sort by pod name
+    positions = np.arange(len(total_tps_pod))
+    bars = axes[3].bar(positions, total_tps_pod['total_tokens'], width=0.6, color='skyblue')
+    axes[3].set_xticks(positions)
+    axes[3].set_xticklabels(total_tps_pod['selectedpod'], rotation=45, ha='right')
+    for bar in bars:
+        height = bar.get_height()
+        axes[3].text(bar.get_x() + bar.get_width()/2., height + 1, f'{int(height)}', ha='center', va='bottom')
+    axes[3].set_title('Total total Tokens by Pod')
+    axes[3].set_ylabel('Total Number of total Tokens')
+    axes[3].set_xlabel('Pod')
+    axes[3].grid(axis='y', linestyle='--', alpha=0.7)
+    axes[3].set_ylim(0, total_tps_pod['total_tokens'].max() * 1.15)
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+    plt.show()
+
+
 def create_pod_latency_bar_charts(df):
-    """
-    Create bar charts comparing average TTFT and TPOT metrics across different pods.
-    
-    Parameters:
-    df (DataFrame): Pandas DataFrame containing the processed log data
-    """
-    import matplotlib.pyplot as plt
-    import numpy as np
-    
     # Check if we have the necessary data columns
     if 'selectedpod' not in df.columns:
         print("Error: 'selectedpod' column not found in DataFrame")
@@ -306,96 +373,81 @@ def create_pod_latency_bar_charts(df):
     fig, axes = plt.subplots(1, 4, figsize=(16, 6))
     
     # Get unique pod identifiers
-    pod_ids = df['selectedpod'].unique()
+    pod_ids = sorted(df['selectedpod'].unique())
     
     # Use different colors for each pod
     num_pods = len(pod_ids)
     colors = plt.cm.viridis(np.linspace(0, 0.9, num_pods))
     
-    if 'selected_pod_last_second_avg_ttft_ms' in df.columns:
-        ax = axes[0]
-        ttft_by_pod = df.groupby('selectedpod')['selected_pod_last_second_avg_ttft_ms'].mean().sort_values(ascending=False)
-        
-        # Create the bar chart
-        bars = ax.bar(ttft_by_pod.index, ttft_by_pod.values, color=colors)
-        
-        # Annotate bars with values
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f'{height:.1f}',
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-        
-        ax.set_title('Average TTFT by Pod', fontsize=14)
-        ax.set_xlabel('Pod ID', fontsize=12)
-        ax.set_ylabel('Average TTFT (ms)', fontsize=12)
-        ax.tick_params(axis='x', rotation=45)
-        ax.grid(axis='y', alpha=0.3)
+    ax = axes[0]
+    ax.set_title('Average TTFT by Pod', fontsize=14)
+    ttft_by_pod = df.groupby('selectedpod')['ttft'].mean() #.sort_values(ascending=False)
+    ttft_by_pod = ttft_by_pod.reindex(index=pod_ids)
+    bars = ax.bar(ttft_by_pod.index, ttft_by_pod.values, color=colors)
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.0f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+    ax.set_xlabel('Pod ID', fontsize=12)
+    ax.set_ylabel('Average TTFT (ms)', fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(axis='y', alpha=0.3)
     
-    if 'selected_pod_last_second_p99_ttft_ms' in df.columns:
-        ax = axes[1]
-        p99_ttft_by_pod = df.groupby('selectedpod')['selected_pod_last_second_p99_ttft_ms'].mean().sort_values(ascending=False)
-        
-        # Create the bar chart
-        bars = ax.bar(p99_ttft_by_pod.index, p99_ttft_by_pod.values, color=colors)
-        
-        # Annotate bars with values
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f'{height:.1f}',
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-        ax.set_title('P99 TTFT by Pod', fontsize=14)
-        ax.set_xlabel('Pod ID', fontsize=12)
-        ax.set_ylabel('P99 TTFT (ms)', fontsize=12)
-        ax.tick_params(axis='x', rotation=45)
-        ax.grid(axis='y', alpha=0.3)
 
-    if 'selected_pod_last_second_avg_tpot_ms' in df.columns:
-        ax = axes[2]
-        tpot_by_pod = df.groupby('selectedpod')['selected_pod_last_second_avg_tpot_ms'].mean().sort_values(ascending=False)
-        
-        # Create the bar chart
-        bars = ax.bar(tpot_by_pod.index, tpot_by_pod.values, color=colors)
-        
-        # Annotate bars with values
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f'{height:.1f}',
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-        ax.set_title('Average TPOT by Pod', fontsize=14)
-        ax.set_xlabel('Pod ID', fontsize=12)
-        ax.set_ylabel('Average TPOT (ms)', fontsize=12)
-        ax.tick_params(axis='x', rotation=45)
-        ax.grid(axis='y', alpha=0.3)
-    if 'selected_pod_last_second_p99_tpot_ms' in df.columns:
-        ax = axes[3]
-        p99_tpot_by_pod = df.groupby('selectedpod')['selected_pod_last_second_p99_tpot_ms'].mean().sort_values(ascending=False)
-        
-        # Create the bar chart
-        bars = ax.bar(p99_tpot_by_pod.index, p99_tpot_by_pod.values, color=colors)
-        
-        # Annotate bars with values
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f'{height:.1f}',
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-        ax.set_title('P99 TPOT by Pod', fontsize=14)
-        ax.set_xlabel('Pod ID', fontsize=12)
-        ax.set_ylabel('P99 TPOT (ms)', fontsize=12)
-        ax.tick_params(axis='x', rotation=45)
-        ax.grid(axis='y', alpha=0.3)
-    
+    ax = axes[1]
+    ax.set_title('P99 TTFT by Pod', fontsize=14)
+    p99_ttft_by_pod = df.groupby('selectedpod')['ttft'].quantile(0.99)
+    p99_ttft_by_pod = p99_ttft_by_pod.reindex(index=pod_ids)
+    bars = ax.bar(p99_ttft_by_pod.index, p99_ttft_by_pod.values, color=colors)
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.0f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+    ax.set_xlabel('Pod ID', fontsize=12)
+    ax.set_ylabel('P99 TTFT (ms)', fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(axis='y', alpha=0.3)
+
+    ax = axes[2]
+    ax.set_title('Average of Avg TPOT by Pod', fontsize=14)
+    tpot_by_pod = df.groupby('selectedpod')['avg_tpot'].mean()
+    tpot_by_pod = tpot_by_pod.reindex(index=pod_ids)
+    bars = ax.bar(tpot_by_pod.index, tpot_by_pod.values, color=colors)
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.0f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+    ax.set_xlabel('Pod ID', fontsize=12)
+    ax.set_ylabel('Average TPOT (ms)', fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(axis='y', alpha=0.3)
+
+
+    ax = axes[3]
+    ax.set_title('P99 of Avg TPOT by Pod', fontsize=14)
+    p99_tpot_by_pod = df.groupby('selectedpod')['avg_tpot'].quantile(0.99)
+    p99_tpot_by_pod = p99_tpot_by_pod.reindex(index=pod_ids)
+    bars = ax.bar(p99_tpot_by_pod.index, p99_tpot_by_pod.values, color=colors)
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.0f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+    ax.set_xlabel('Pod ID', fontsize=12)
+    ax.set_ylabel('P99 TPOT (ms)', fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.suptitle('Pod Latency Comparison', fontsize=16, y=1.05)
     plt.show()
