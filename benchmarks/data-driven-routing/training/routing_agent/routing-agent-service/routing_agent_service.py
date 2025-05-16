@@ -15,7 +15,6 @@ import concurrent.futures
 import encoding
 import sac
 import ppo
-import ppo2
 from flask import Flask, request, jsonify
 from logger import logger
 import preprocess
@@ -111,8 +110,7 @@ def handle_flush():
         logger.info("Step 7: Training routing agent...")
         try:
             # sac.train(encoded_data_dir)
-            # ppo.train(encoded_data_dir)
-            ppo2.train(encoded_data_dir)
+            ppo.train(encoded_data_dir)
             logger.info("Successfully trained routing agent")
         except Exception as e:
             logger.error(f"Failed at step 7 (training routing agent): {str(e)}")

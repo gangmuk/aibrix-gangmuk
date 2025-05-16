@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-LLM Request Router - RL Training
---------------------------------
-Trains a Proximal Policy Optimization (PPO) agent for routing LLM inference requests
-to optimal pods in a GPU cluster.
-
-Usage:
-  python train_routing_agent_ppo.py /path/to/encoded_data [--continue-training]
-  
-The script loads preprocessed data from the specified directory and trains
-a reinforcement learning agent using the PPO algorithm.
-"""
-
 import os
 import sys
 import json
@@ -28,16 +15,7 @@ import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime
 import glob
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+from logger import logger
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -282,12 +260,14 @@ class PPOMemory:
         return pod_features, kv_hit_ratios, request_features, actions, old_probs, vals, rewards, dones
     
     def get_batches(self):
+        """Prepare batches for training"""
         n_states = len(self.pod_features)
         batch_start = np.arange(0, n_states, self.batch_size)
         indices = np.arange(n_states, dtype=np.int64)
         np.random.shuffle(indices)
         batches = [indices[i:i + self.batch_size] for i in batch_start]
         
+        # Stack all tensors properly, ensuring consistent shapes
         pod_features = torch.cat(self.pod_features, dim=0)
         kv_hit_ratios = torch.cat(self.kv_hit_ratios, dim=0)
         request_features = torch.cat(self.request_features, dim=0)
@@ -297,7 +277,21 @@ class PPOMemory:
         rewards = torch.cat(self.rewards, dim=0)
         dones = torch.cat(self.dones, dim=0)
         
+        # Log shapes for debugging
+        logger.debug(f"Tensor shapes in get_batches: actions={actions.shape}, vals={vals.shape}, rewards={rewards.shape}")
+        
         return pod_features, kv_hit_ratios, request_features, actions, old_probs, vals, rewards, dones, batches
+        
+    def clear_memory(self):
+        """Clear the memory buffer"""
+        self.pod_features = []
+        self.kv_hit_ratios = []
+        self.request_features = []
+        self.actions = []
+        self.probs = []
+        self.vals = []
+        self.rewards = []
+        self.dones = []
 
 
 class PPO:
@@ -310,6 +304,7 @@ class PPO:
         self.policy_clip = policy_clip
         self.n_epochs = n_epochs
         self.gae_lambda = gae_lambda
+        self.batch_size = batch_size
         
         # Initialize actor and critic networks
         self.actor = ActorNetwork(state_dim, action_dim, hidden_dim).to(device)
@@ -319,8 +314,15 @@ class PPO:
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
         
-        # Initialize memory
-        self.memory = PPOMemory(batch_size)
+        # Initialize memory attributes directly
+        self.pod_features = []
+        self.kv_hit_ratios = []
+        self.request_features = []
+        self.actions = []
+        self.probs = []
+        self.vals = []
+        self.rewards = []
+        self.dones = []
         
         # Metrics for tracking
         self.actor_loss_history = []
@@ -328,7 +330,18 @@ class PPO:
         self.entropy_history = []
         
     def remember(self, pod_features, kv_hit_ratios, request_features, action, probs, val, reward, done):
-        self.memory.store_memory(pod_features, kv_hit_ratios, request_features, action, probs, val, reward, done)
+        """Store transition in memory"""
+        self.pod_features.append(pod_features)
+        self.kv_hit_ratios.append(kv_hit_ratios)
+        self.request_features.append(request_features)
+        self.actions.append(action)
+        self.probs.append(probs)
+        self.vals.append(val)
+        self.rewards.append(reward)
+        self.dones.append(done)
+        # logger.info(f"Added experience: pods shape={pod_features.shape}, action={action}")
+        # logger.info(f"Memory size after adding: {len(self.pod_features)}")
+
         
     def choose_action(self, pod_features, kv_hit_ratios, request_features, evaluate=False):
         """Select an action (pod) for the given state"""
@@ -346,10 +359,40 @@ class PPO:
     
     def learn(self):
         """Update policy and value function using PPO"""
-        # Get all data from memory
-        pod_features, kv_hit_ratios, request_features, actions, old_log_probs, values, rewards, dones, batches = self.memory.get_batches()
+        if len(self.pod_features) == 0:
+            return {
+                'actor_loss': 0.0,
+                'critic_loss': 0.0,
+                'entropy': 0.0
+            }
         
-        # Initialize advantage
+        # Stack all tensors
+        pod_features = torch.cat(self.pod_features, dim=0)
+        kv_hit_ratios = torch.cat(self.kv_hit_ratios, dim=0)
+        request_features = torch.cat(self.request_features, dim=0)
+        actions = torch.cat(self.actions, dim=0)
+        old_log_probs = torch.cat(self.probs, dim=0)
+        values = torch.cat(self.vals, dim=0)
+        rewards = torch.cat(self.rewards, dim=0)
+        dones = torch.cat(self.dones, dim=0)
+        
+        # Create batches
+        n_states = len(self.pod_features)
+        batch_size = min(self.batch_size, n_states)
+        batch_start = np.arange(0, n_states, batch_size)
+        indices = np.arange(n_states, dtype=np.int64)
+        np.random.shuffle(indices)
+        batches = [indices[i:i + batch_size] for i in batch_start]
+        
+        logger.info(f"Starting learning with {n_states} experiences in memory")
+        logger.info(f"Number of batches: {len(batches)}")
+        for batch_idx, batch in enumerate(batches):
+            logger.info(f"Batch {batch_idx} size: {len(batch)}")
+        
+        # Reshape tensors for calculations
+        values = values.view(-1, 1)
+        rewards = rewards.view(-1, 1)
+        dones = dones.view(-1, 1)
         advantages = torch.zeros_like(rewards).to(device)
         
         # Compute advantages using GAE
@@ -362,23 +405,37 @@ class PPO:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
         
         # Compute target values
+        # This calculates the target value for EACH experience individually
+        # Result shape: [n_states, 1]
         target_values = rewards + self.gamma * values * (1 - dones)
+        
+        # Flatten to 1D for easier indexing in batches
+        advantages = advantages.view(-1)
+        target_values = target_values.view(-1)
         
         epoch_actor_loss = 0
         epoch_critic_loss = 0
         epoch_entropy = 0
+        num_updates = 0
         
         # PPO epochs
-        for _ in range(self.n_epochs):
+        for epoch in range(self.n_epochs):
             # Process each batch
-            for batch_indices in batches:
-                batch_pod_features = pod_features[batch_indices]
+            for batch_idx, batch_indices in enumerate(batches):
+                # Get batch data
+                # key part: these should all be the same size [batch_size]
+                batch_pod_features = pod_features[batch_indices]  
                 batch_kv_hit_ratios = kv_hit_ratios[batch_indices]
                 batch_request_features = request_features[batch_indices]
-                batch_actions = actions[batch_indices]
+                batch_actions = actions[batch_indices]  
                 batch_old_log_probs = old_log_probs[batch_indices]
+                
+                # The critical part - use indexing to get ONLY this batch's values
                 batch_advantages = advantages[batch_indices]
                 batch_target_values = target_values[batch_indices]
+                
+                # Debug shapes
+                logger.info(f"Batch {batch_idx} shapes - advantages: {batch_advantages.shape}, targets: {batch_target_values.shape}")
                 
                 # Get current policy distributions
                 action_probs = self.actor(batch_pod_features, batch_kv_hit_ratios, batch_request_features)
@@ -386,11 +443,13 @@ class PPO:
                 new_log_probs = dist.log_prob(batch_actions)
                 entropy = dist.entropy().mean()
                 
-                # Get current value estimates
-                critic_value = self.critic(batch_pod_features, batch_kv_hit_ratios, batch_request_features).squeeze()
-                # Reshape critic_value and batch_target_values to ensure they match
-                critic_value = critic_value.view(-1)
-                batch_target_values = batch_target_values.view(-1)
+                # Get current value estimates for this batch
+                critic_value = self.critic(batch_pod_features, batch_kv_hit_ratios, batch_request_features).view(-1)
+                
+                # Safety check - these should match EXACTLY
+                if critic_value.shape != batch_target_values.shape:
+                    logger.info(f"Critical error at batch {batch_idx}: Shapes mismatch - critic: {critic_value.shape}, targets: {batch_target_values.shape}")
+                    continue
                 
                 # Compute policy ratio and clip
                 prob_ratio = torch.exp(new_log_probs - batch_old_log_probs)
@@ -416,14 +475,15 @@ class PPO:
                 epoch_actor_loss += actor_loss.item()
                 epoch_critic_loss += critic_loss.item()
                 epoch_entropy += entropy.item()
+                num_updates += 1
         
         # Clear memory
-        self.memory.clear_memory()
+        self.clear_memory()
         
         # Store metrics
-        avg_actor_loss = epoch_actor_loss / (len(batches) * self.n_epochs)
-        avg_critic_loss = epoch_critic_loss / (len(batches) * self.n_epochs)
-        avg_entropy = epoch_entropy / (len(batches) * self.n_epochs)
+        avg_actor_loss = epoch_actor_loss / max(1, num_updates)
+        avg_critic_loss = epoch_critic_loss / max(1, num_updates)
+        avg_entropy = epoch_entropy / max(1, num_updates)
         
         self.actor_loss_history.append(avg_actor_loss)
         self.critic_loss_history.append(avg_critic_loss)
@@ -434,7 +494,18 @@ class PPO:
             'critic_loss': avg_critic_loss,
             'entropy': avg_entropy
         }
-    
+
+    def clear_memory(self):
+        """Clear memory buffers"""
+        self.pod_features = []
+        self.kv_hit_ratios = []
+        self.request_features = []
+        self.actions = []
+        self.probs = []
+        self.vals = []
+        self.rewards = []
+        self.dones = []
+
     def save(self, directory):
         """Save the agent's parameters to the specified directory"""
         os.makedirs(directory, exist_ok=True)
@@ -498,17 +569,6 @@ class RoutingDataset(Dataset):
 
 
 def evaluate_agent(agent, eval_data, num_episodes=100):
-    """
-    Evaluate the agent's performance on a validation set.
-    
-    Args:
-        agent: PPO agent to evaluate
-        eval_data: Validation data in tensor format
-        num_episodes: Number of evaluation episodes
-    
-    Returns:
-        Dictionary of evaluation metrics
-    """
     # Extract data
     pod_features = eval_data['pod_features_with_staleness'].to(device)
     kv_hit_ratios = eval_data['kv_hit_ratios'].to(device)
@@ -631,15 +691,6 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
 
 
 def load_all_encoded_data(encoded_data_dir):
-    """
-    Load and combine data from all batch subdirectories in the encoded_data directory.
-    
-    Args:
-        encoded_data_dir: Path to the directory containing batch_* subdirectories
-        
-    Returns:
-        combined_data: Dictionary with combined tensor data
-    """
     logger.info(f"Loading data from {encoded_data_dir}")
     
     # Find all batch subdirectories
@@ -717,15 +768,6 @@ def load_all_encoded_data(encoded_data_dir):
 
 
 def load_previous_model(encoded_data_dir):
-    """
-    Try to load the previously trained model if it exists.
-    
-    Args:
-        encoded_data_dir: Path to the encoded_data directory
-        
-    Returns:
-        model_path: Path to the latest model, or None if not found
-    """
     # Look for results directory
     results_dir = os.path.join(os.path.dirname(encoded_data_dir), "results")
     if not os.path.exists(results_dir):
@@ -759,67 +801,59 @@ def load_previous_model(encoded_data_dir):
 
 
 def train(encoded_data_dir):
-    """Main function to train the LLM routing agent using PPO on all available data"""
-    parser = argparse.ArgumentParser(description='Train LLM routing agent with PPO')
-    parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden dimension of neural networks')
-    parser.add_argument('--batch-size', type=int, default=64, help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
-    parser.add_argument('--gamma', type=float, default=0.99, help='Discount factor')
-    parser.add_argument('--gae-lambda', type=float, default=0.95, help='GAE lambda parameter')
-    parser.add_argument('--policy-clip', type=float, default=0.2, help='PPO clip parameter')
-    parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
-    parser.add_argument('--updates-per-epoch', type=int, default=1000, help='Number of updates per epoch')
-    parser.add_argument('--n-epochs', type=int, default=10, help='Number of PPO epochs per update')
-    parser.add_argument('--eval-interval', type=int, default=5, help='Evaluation interval (epochs)')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--output-dir', type=str, default=None, help='Output directory for results')
-    parser.add_argument('--continue-training', action='store_true', help='Continue training from the latest model')
-    
-    try:
-        args = parser.parse_args()
-    except:
-        # If called from another script, use default arguments
-        args = parser.parse_args([])
+    hidden_dim = 256
+    batch_size = 64
+    lr = 3e-4
+    gamma = 0.99
+    gae_lambda = 0.95
+    policy_clip = 0.2
+    epochs = 1
+    updates_per_epoch = 1000
+    n_epochs = 10
+    eval_interval = 5
+    seed = 42
+    output_dir = None
+    continue_training = False
     
     # Set random seed
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     
     # Set output directory
-    if args.output_dir is None:
+    if output_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         results_dir = "training_results"
         os.makedirs(results_dir, exist_ok=True)
-        args.output_dir = os.path.join(results_dir, f"ppo_{timestamp}")
+        output_dir = os.path.join(results_dir, f"ppo_{timestamp}")
     
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     # Load and combine data from all batches
     combined_data = load_all_encoded_data(encoded_data_dir)
     
     # Check if we should continue training from a previous model
     previous_model_path = None
-    if args.continue_training:
+    if continue_training:
         previous_model_path = load_previous_model(encoded_data_dir)
         logger.info(f"Continue training from previous model: {previous_model_path}")
     
     # Create configuration
     config = {
-        'hidden_dim': args.hidden_dim,
-        'batch_size': args.batch_size,
-        'learning_rate': args.lr,
-        'gamma': args.gamma,
-        'gae_lambda': args.gae_lambda,
-        'policy_clip': args.policy_clip,
-        'num_epochs': args.epochs,
-        'n_epochs': args.n_epochs,
-        'updates_per_epoch': args.updates_per_epoch,
-        'eval_interval': args.eval_interval,
-        'seed': args.seed
+        'hidden_dim': hidden_dim,
+        'batch_size': batch_size,
+        'learning_rate': lr,
+        'gamma': gamma,
+        'gae_lambda': gae_lambda,
+        'policy_clip': policy_clip,
+        'num_epochs': epochs,
+        'n_epochs': n_epochs,
+        'updates_per_epoch': updates_per_epoch,
+        'eval_interval': eval_interval,
+        'seed': seed
     }
     
     # Save configuration
-    with open(os.path.join(args.output_dir, 'config.json'), 'w') as f:
+    with open(os.path.join(output_dir, 'config.json'), 'w') as f:
         json.dump(config, f, indent=4)
     
     # Determine state dimensions
@@ -861,12 +895,12 @@ def train(encoded_data_dir):
     # Create dataset
     dataset = RoutingDataset(combined_data)
     dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
-    
+    logger.info(f"Dataloader length: {len(dataloader)}")
+
     # Training loop
     logger.info("Starting training...")
     total_updates = 0
     eval_metrics = []
-    
     for epoch in range(config['num_epochs']):
         epoch_start_time = time.time()
         epoch_actor_loss = 0
@@ -874,11 +908,18 @@ def train(encoded_data_dir):
         epoch_entropy = 0
         epoch_updates = 0
         
-        # Training updates for this epoch
-        for i in range(min(config['updates_per_epoch'], len(dataloader))):
-            # Get batch data
-            batch = next(iter(dataloader))
+        # For training updates for this epoch
+        dataloader_iter = iter(dataloader)
+        for i in range(min(config['updates_per_epoch'], len(dataloader) * 10)):  # Ensure enough iterations to trigger learning
+            try:
+                # Get next batch (this will progress through all batches)
+                batch = next(dataloader_iter)
+            except StopIteration:
+                # Restart iterator if we've gone through all batches
+                dataloader_iter = iter(dataloader)
+                batch = next(dataloader_iter)
             
+            # Process batch data
             pod_features = batch['pod_features'].to(device)
             kv_hit_ratios = batch['kv_hit_ratios'].to(device)
             request_features = batch['request_features'].to(device)
@@ -901,29 +942,36 @@ def train(encoded_data_dir):
                     kv_hit_ratios[j:j+1], 
                     request_features[j:j+1], 
                     actions[j:j+1], 
-                    old_log_probs[j:j+1], 
+                    old_log_probs[j:j+1].view(1), 
                     old_values[j:j+1], 
                     rewards[j:j+1], 
                     done
                 )
             
-            # Learn if we've collected enough data
-            if i % 10 == 0 or i == config['updates_per_epoch'] - 1:
-                update_metrics = agent.learn()
-                
-                total_updates += 1
-                epoch_updates += 1
-                epoch_actor_loss += update_metrics['actor_loss']
-                epoch_critic_loss += update_metrics['critic_loss']
-                epoch_entropy += update_metrics['entropy']
-                
-                # Log progress
-                if i % 100 == 0:
-                    logger.info(f"Epoch {epoch+1}/{config['num_epochs']}, "
-                              f"Update {i+1}/{config['updates_per_epoch']}, "
-                              f"Actor Loss: {update_metrics['actor_loss']:.4f}, "
-                              f"Critic Loss: {update_metrics['critic_loss']:.4f}, "
-                              f"Entropy: {update_metrics['entropy']:.4f}")
+            # Learn if we've collected enough data OR if we're on the last dataloader batch
+            if (i+1) % 10 == 0 or i == min(config['updates_per_epoch'], len(dataloader) * 10) - 1:
+                logger.info(f"Memory size before learning: {len(agent.pod_features)}")
+                if len(agent.pod_features) > 0:  # Only learn if we have collected experiences
+                    try:
+                        update_metrics = agent.learn()
+                        
+                        total_updates += 1
+                        epoch_updates += 1
+                        epoch_actor_loss += update_metrics['actor_loss']
+                        epoch_critic_loss += update_metrics['critic_loss']
+                        epoch_entropy += update_metrics['entropy']
+                        
+                        # Log progress
+                        if i % 100 == 0:
+                            logger.info(f"Epoch {epoch+1}/{config['num_epochs']}, "
+                                    f"Update {i+1}/{min(config['updates_per_epoch'], len(dataloader) * 10)}, "
+                                    f"Actor Loss: {update_metrics['actor_loss']:.4f}, "
+                                    f"Critic Loss: {update_metrics['critic_loss']:.4f}, "
+                                    f"Entropy: {update_metrics['entropy']:.4f}")
+                    except Exception as e:
+                        logger.error(f"Error during training: {e}")
+                        # Clear memory and continue
+                        agent.clear_memory()
         
         # Calculate average metrics for the epoch
         avg_actor_loss = epoch_actor_loss / max(1, epoch_updates)
@@ -950,25 +998,25 @@ def train(encoded_data_dir):
                       f"Avg Value: {metrics['avg_value']:.4f}")
             
             # Save agent checkpoint
-            agent.save(os.path.join(args.output_dir, f"checkpoint_epoch_{epoch+1}"))
+            agent.save(os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}"))
             
             # Plot training metrics
-            plot_training_metrics(agent, eval_metrics, args.output_dir)
+            plot_training_metrics(agent, eval_metrics, output_dir)
     
     # Final save
-    agent.save(os.path.join(args.output_dir, "final_model"))
+    agent.save(os.path.join(output_dir, "final_model"))
     
     # Save evaluation metrics
-    with open(os.path.join(args.output_dir, 'eval_metrics.pkl'), 'wb') as f:
+    with open(os.path.join(output_dir, 'eval_metrics.pkl'), 'wb') as f:
         pickle.dump(eval_metrics, f)
     
-    logger.info(f"Training completed, model saved to {args.output_dir}")
-    return args.output_dir
+    logger.info(f"Training completed, model saved to {output_dir}")
+    return output_dir
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python train_routing_agent_ppo.py /path/to/encoded_data_dir [--continue-training]")
+        logger.info("Usage: python train_routing_agent_ppo.py /path/to/encoded_data_dir [--continue-training]")
         sys.exit(1)
     
     encoded_data_dir = sys.argv[1]
