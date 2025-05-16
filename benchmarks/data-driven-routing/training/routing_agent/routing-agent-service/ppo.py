@@ -435,7 +435,7 @@ class PPO:
                 batch_target_values = target_values[batch_indices]
                 
                 # Debug shapes
-                logger.info(f"Batch {batch_idx} shapes - advantages: {batch_advantages.shape}, targets: {batch_target_values.shape}")
+                logger.debug(f"Batch {batch_idx} shapes - advantages: {batch_advantages.shape}, targets: {batch_target_values.shape}")
                 
                 # Get current policy distributions
                 action_probs = self.actor(batch_pod_features, batch_kv_hit_ratios, batch_request_features)
