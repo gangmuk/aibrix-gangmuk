@@ -28,6 +28,12 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from logger import logger
 
+# # Set up logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 # Configure logging
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -945,5 +951,11 @@ def train(data_dir):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python train_routing_agent.py <data_dir>")
+        sys.exit(1)
+    if os.path.exists(sys.argv[1]):
+        print(f"Data directory {sys.argv[1]} does not exist.")
+        sys.exit(1)
     data_dir = sys.argv[1]
     train(data_dir)

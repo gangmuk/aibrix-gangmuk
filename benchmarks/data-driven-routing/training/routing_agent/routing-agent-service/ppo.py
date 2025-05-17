@@ -422,7 +422,7 @@ class PPO:
             logger.info(f"PPO epoch {epoch + 1}/{self.ppo_epochs}")
             # Process each batch
             for batch_idx, batch_indices in enumerate(batches):
-                logger.info(f"batch {batch_idx + 1}/{len(batches)} in PPO")
+                logger.debug(f"batch {batch_idx + 1}/{len(batches)} in PPO")
                 # Get batch data
                 # key part: these should all be the same size [batch_size]
                 batch_pod_features = pod_features[batch_indices]  

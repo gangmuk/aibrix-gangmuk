@@ -22,7 +22,12 @@ import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime
 from sklearn.metrics import confusion_matrix, classification_report
-from logger import logger
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -163,7 +168,7 @@ def train_behavioral_cloning(train_data, test_data=None, config=None):
             'weight_decay': 1e-4,
             'num_epochs': 50,
             'dropout': 0.2,
-            'eval_interval': 5,
+            'eval_interval': 1,
         }
     
     # Create output directory for results
@@ -259,7 +264,9 @@ def train_behavioral_cloning(train_data, test_data=None, config=None):
         epoch_start_time = time.time()
         epoch_loss = 0.0
         num_batches = 0
-        
+        num_iterations = len(train_loader)
+        logger.info(f"Epoch {epoch+1}/{config['num_epochs']}, "
+                  f"Total Batches: {num_iterations}")
         for batch in train_loader:
             # Move data to device
             pod_features, kv_hit_ratios, request_features, actions = [b.to(device) for b in batch]
@@ -281,7 +288,7 @@ def train_behavioral_cloning(train_data, test_data=None, config=None):
             num_batches += 1
             
             # Log progress
-            if num_batches % 100 == 0:
+            if num_batches % 10 == 0:
                 logger.info(f"Epoch {epoch+1}/{config['num_epochs']}, "
                           f"Batch {num_batches}/{len(train_loader)}, "
                           f"Loss: {loss.item():.4f}")

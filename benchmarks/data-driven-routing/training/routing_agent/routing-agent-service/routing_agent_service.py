@@ -16,12 +16,15 @@ import encoding
 import sac
 import ppo
 from flask import Flask, request, jsonify
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 from logger import logger
 import preprocess
 
 app = Flask(__name__)
 
 BATCH_ID = 0
+ENCODED_DATA_DIR = "encoded_data"
 
 def write_to_file(log_data, raw_data):
     with open(raw_data, "w") as log_file:
@@ -31,7 +34,7 @@ def write_to_file(log_data, raw_data):
     
 @app.route("/flush", methods=["POST"])
 def handle_flush():
-    global BATCH_ID
+    global BATCH_ID, ENCODED_DATA_DIR
     log_data = request.json
     try:
         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
@@ -46,14 +49,11 @@ def handle_flush():
         logger.info(f"Successfully parsed data.  (writte in  {preprocessed_file})")
 
         # Encode preprocessed data
-        encoded_data_dir = "encoded_data"
-        encoded_data_subdir = f"{encoded_data_dir}/batch_{BATCH_ID}"
+        encoded_data_subdir = f"{ENCODED_DATA_DIR}/batch_{BATCH_ID}"
         encoding.encode(all_pods, df, encoded_data_subdir)
         logger.info(f"Successfully encoded data to {encoded_data_subdir}")
-            
-        # Train the model
-        train(encoded_data_dir)
-        logger.info(f"Successfully train the model")
+
+        train()
             
         return jsonify({"status": "success", "message": f"Successfully processed {len(log_data)} log messages"}), 200
         
@@ -64,15 +64,18 @@ def handle_flush():
         logger.error(f"Traceback: {error_traceback}")
         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
 
-def train(encoded_data_dir):
-    try:
-        # sac.train(encoded_data_dir)
-        ppo.train(encoded_data_dir)
-        logger.info("Successfully trained routing agent")
-    except Exception as e:
-        logger.error(f"Failed at step 7 (training routing agent): {str(e)}")
-        raise
+def train():
+    global ENCODED_DATA_DIR
+    # sac.train(ENCODED_DATA_DIR)
+    ppo.train(ENCODED_DATA_DIR)
+    logger.info("Successfully trained routing agent")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
+    
+    # scheduler = BackgroundScheduler()
+    # scheduler.add_job(func=train, trigger="interval", seconds=60)
+    # scheduler.start()
+    # atexit.register(lambda: scheduler.shutdown())
+
     app.run(host="0.0.0.0", port=port, debug=False)

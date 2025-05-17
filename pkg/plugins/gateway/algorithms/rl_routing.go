@@ -18,6 +18,8 @@ import (
 )
 
 var (
+	flushPeriod = 10 * time.Second
+
 	httpClientForRLAgent = &http.Client{
 		Timeout: 1000 * time.Millisecond,
 		Transport: &http.Transport{
@@ -56,7 +58,7 @@ func NewRLOnlineRouter() (types.Router, error) {
 
 func FlushLogMessageToRLAgent() {
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(flushPeriod)
 		defer ticker.Stop()
 		for {
 			select {

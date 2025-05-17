@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import argparse
 import sys
+from logger import logger
 
 AVG_TPOT_SLO = 50
 TTFT_SLO = 1000
@@ -106,7 +107,7 @@ def safe_parse_json(json_str):
                 else:
                     return {}
             except (SyntaxError, ValueError, TypeError):
-                print(f"Warning: Could not parse JSON: {str(json_str)[:50]}...")
+                logger.warning(f"Warning: Could not parse JSON: {str(json_str)[:50]}...")
                 return {}
 
 def calculate_ttft_reward(row, ttft_slo_threshold):
@@ -144,7 +145,7 @@ def calculate_tpot_reward(row, AVG_TPOT_SLO):
 def extract_key_pod_metrics(pod_metrics, pod_id):
     """Extract the most relevant metrics for a pod from the pod metrics"""
     if pod_id not in pod_metrics:
-        print(f"Error: Pod ID {pod_id} not found in pod metrics.")
+        logger.error(f"Error: Pod ID {pod_id} not found in pod metrics.")
         assert False
     return {
         'last_second_avg_ttft_ms': pod_metrics[pod_id]['last_second_avg_ttft_ms'],
@@ -159,7 +160,7 @@ def extract_key_pod_metrics(pod_metrics, pod_id):
 
 def preprocess_dataset(df):
     all_pods_set = set()
-    print("Collecting all unique pod IDs across the dataset...")
+    logger.info("Collecting all unique pod IDs across the dataset...")
     for _, row in df.iterrows():
         kv_cache_hit_ratios = safe_parse_json(row['allPodsKvCacheHitRatios'])
         if kv_cache_hit_ratios:
@@ -171,14 +172,14 @@ def preprocess_dataset(df):
         if pod_metrics:
             all_pods_set.update(pod_metrics.keys())
         if len(all_pods_set) == 8:
-            print(f"Found all EIGHT pods: {all_pods_set}. break")
+            logger.info(f"Found all EIGHT pods: {all_pods_set}. break")
             break
     all_pods = list(all_pods_set)
-    print(f"Identified {len(all_pods)} pods: {all_pods}")
+    logger.info(f"Identified {len(all_pods)} pods: {all_pods}")
 
 
-    print(f"Original dataset shape: {df.shape}")
-    print(f"Columns: {df.columns.tolist()}")
+    logger.info(f"Original dataset shape: {df.shape}")
+    logger.info(f"Columns: {df.columns.tolist()}")
     
     expected_columns = [
         'normalized_start_time', 'time_bucket', 'normalized_end_time', 
@@ -209,9 +210,9 @@ def preprocess_dataset(df):
         'last_second_p95_tpot_ms', 
         'last_second_p99_tpot_ms', 
         'last_second_tpot_samples', 
-        'last_second_early_tokens_tpot_ms', 
-        'last_second_mid_tokens_tpot_ms', 
-        'last_second_late_tokens_tpot_ms', 
+        # 'last_second_early_tokens_tpot_ms', 
+        # 'last_second_mid_tokens_tpot_ms', 
+        # 'last_second_late_tokens_tpot_ms', 
         'last_second_total_requests', 
         'last_second_total_decode_tokens', 
         'last_second_total_prefill_tokens', 
@@ -221,36 +222,36 @@ def preprocess_dataset(df):
     # Check for missing expected columns
     missing_columns = [col for col in expected_columns if col not in df.columns]
     if missing_columns:
-        print(f"Error: Missing expected columns: {missing_columns}")
+        logger.error(f"Error: Missing expected columns: {missing_columns}")
         assert False
     
     # Check for unknown columns
     unknown_columns = [col for col in df.columns if col not in expected_columns]
     if unknown_columns:
-        print(f"Error: Found unknown columns: {unknown_columns}")
+        logger.error(f"Error: Found unknown columns: {unknown_columns}")
 
     # Process first row to check podMetricsLastSecond structure
     if 'podMetricsLastSecond' in df.columns and len(df) > 0:
         first_row = df.iloc[0]
-        print(f"WARNING: We are using the first row only to check podMetricsLastSecond structure")
+        logger.warning(f"WARNING: We are using the first row only to check podMetricsLastSecond structure")
         pod_metrics = safe_parse_json(first_row['podMetricsLastSecond'])
-        # print(f"features in pod_metrics: {pod_metrics.keys()}")
-        print(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
+        # logger.info(f"features in pod_metrics: {pod_metrics.keys()}")
+        logger.info(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
         if pod_metrics:
             # Check structure for each pod
             for pod_id, metrics in pod_metrics.items():
-                # print(f"Checking metrics for pod {pod_id}")
-                print(f"metrics: {metrics}")
+                # logger.info(f"Checking metrics for pod {pod_id}")
+                logger.info(f"metrics: {metrics}")
                 # Check for missing expected keys
                 missing_keys = [key for key in expected_last_second_pod_metrics_keys if key not in metrics]
                 if missing_keys:
-                    print(f"Error: Missing expected keys in podMetricsLastSecond for pod {pod_id}: {missing_keys}")
+                    logger.error(f"Error: Missing expected keys in podMetricsLastSecond for pod {pod_id}: {missing_keys}")
                     assert False
                 
                 # Check for unknown keys
                 unknown_keys = [key for key in metrics.keys() if key not in expected_last_second_pod_metrics_keys]
                 if unknown_keys:
-                    print(f"Error: Found unknown keys in podMetricsLastSecond for pod {pod_id}: {unknown_keys}")
+                    logger.error(f"Error: Found unknown keys in podMetricsLastSecond for pod {pod_id}: {unknown_keys}")
                     assert False
     
     
@@ -271,15 +272,15 @@ def preprocess_dataset(df):
     
     for col in json_columns:
         if col in df.columns:
-            # print(f"Processing column: {col}")
+            # logger.info(f"Processing column: {col}")
             sample_val = df[col].iloc[0]
             if isinstance(sample_val, str):
-                # print(f"  Parsing as JSON string")
+                # logger.info(f"  Parsing as JSON string")
                 df[col] = df[col].apply(safe_parse_json)
             elif isinstance(sample_val, dict):
-                print(f"  Already parsed as dictionary")
+                logger.info(f"  Already parsed as dictionary")
             else:
-                print(f"  Unknown type: {type(sample_val)}")
+                logger.info(f"  Unknown type: {type(sample_val)}")
                 # Try to parse anyway
                 df[col] = df[col].apply(safe_parse_json)
     
@@ -384,13 +385,13 @@ def preprocess_dataset(df):
         'pod_gpu_models': pod_gpu_models,
     }
     
-    print(f"Processed dataset shape: {processed_df.shape}")
-    print(f"Processed columns: {processed_df.columns[:10].tolist()}...")
+    logger.info(f"Processed dataset shape: {processed_df.shape}")
+    logger.info(f"Processed columns: {processed_df.columns[:10].tolist()}...")
 
-    # Print GPU model mapping
-    print("\nPod GPU model mapping:")
+    # logger.info GPU model mapping
+    logger.info("\nPod GPU model mapping:")
     for pod_id, gpu_model in pod_gpu_models.items():
-        print(f"  Pod {pod_id} -> GPU model {gpu_model}")
+        logger.info(f"  Pod {pod_id} -> GPU model {gpu_model}")
     
     return processed_df, mapping_info, all_pods
 
@@ -406,32 +407,32 @@ def main(input_file):
         
         # Save the processed dataset
         output_file = os.path.join(input_dir, "processed_dataset.csv")
-        print(f"Saving processed dataset to {output_file}...")
+        logger.info(f"Saving processed dataset to {output_file}...")
         processed_df.to_csv(output_file, index=False)
         
         # Save mapping information
         mapping_file = output_file.replace('.csv', '_mapping.json')
         with open(mapping_file, 'w') as f:
             json.dump(mapping_info, f, indent=2)
-        print(f"Mapping information saved to {mapping_file}")
-        print("\nPod mapping (for action space):")
+        logger.info(f"Mapping information saved to {mapping_file}")
+        logger.info("\nPod mapping (for action space):")
         for pod, idx in mapping_info['pod_to_index'].items():
-            print(f"  Pod {pod} -> Action {idx}")
+            logger.info(f"  Pod {pod} -> Action {idx}")
     except Exception as e:
-        print(f"Error processing dataset: {e}")
+        logger.error(f"Error processing dataset: {e}")
         assert False
     return processed_df, output_file, all_pods
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python reorg.py <input_dir>")
+        logger.error("Usage: python reorg.py <input_dir>")
         sys.exit(1)
 
     input_file = sys.argv[1]
     if not os.path.exists(input_file):
-        print("ERROR: Input file does not exist. exiting...")
+        logger.error("ERROR: Input file does not exist. exiting...")
         exit()
     processed_df, output_file = main(input_file)
-    print(f"* AVG_TPOT_SLO: {AVG_TPOT_SLO} ms")
-    print(f"* TTFT_SLO: {TTFT_SLO} ms")
-    print(f"Processed dataset saved to {output_file}")
+    logger.info(f"* AVG_TPOT_SLO: {AVG_TPOT_SLO} ms")
+    logger.info(f"* TTFT_SLO: {TTFT_SLO} ms")
+    logger.info(f"Processed dataset saved to {output_file}")
