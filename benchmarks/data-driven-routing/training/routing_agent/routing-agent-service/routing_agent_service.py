@@ -32,13 +32,14 @@ def write_to_file(log_data, raw_data):
 @app.route("/flush", methods=["POST"])
 def handle_flush():
     global BATCH_ID
+    log_data = request.json
     try:
-        logger.info(f"Received log data with {len(request.json) if request.json else 0} entries")
+        logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
         raw_data = f"raw_data_batch_{BATCH_ID}.csv"
         BATCH_ID += 1
         
         # Write raw data to file
-        write_to_file(request.json, raw_data)
+        write_to_file(log_data, raw_data)
 
         # Preprocess raw data
         df, preprocessed_file, all_pods = preprocess.main(raw_data)

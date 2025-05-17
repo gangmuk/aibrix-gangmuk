@@ -299,10 +299,10 @@ class PPO:
     Proximal Policy Optimization (PPO) for LLM request routing
     """
     def __init__(self, state_dim, action_dim, hidden_dim=256, lr_actor=3e-4, lr_critic=3e-4,
-                 gamma=0.99, gae_lambda=0.95, policy_clip=0.2, batch_size=64, n_epochs=10):
+                 gamma=0.99, gae_lambda=0.95, policy_clip=0.2, batch_size=64, ppo_epochs=10):
         self.gamma = gamma
         self.policy_clip = policy_clip
-        self.n_epochs = n_epochs
+        self.ppo_epochs = ppo_epochs
         self.gae_lambda = gae_lambda
         self.batch_size = batch_size
         
@@ -384,10 +384,9 @@ class PPO:
         np.random.shuffle(indices)
         batches = [indices[i:i + batch_size] for i in batch_start]
         
-        logger.info(f"Starting learning with {n_states} experiences in memory")
-        logger.info(f"Number of batches: {len(batches)}")
+        logger.info(f"Starting learning with {n_states} experiences in memory, number of batches: {len(batches)}")
         for batch_idx, batch in enumerate(batches):
-            logger.info(f"Batch {batch_idx} size: {len(batch)}")
+            logger.debug(f"Batch {batch_idx} size: {len(batch)}")
         
         # Reshape tensors for calculations
         values = values.view(-1, 1)
@@ -419,9 +418,11 @@ class PPO:
         num_updates = 0
         
         # PPO epochs
-        for epoch in range(self.n_epochs):
+        for epoch in range(self.ppo_epochs):
+            logger.info(f"PPO epoch {epoch + 1}/{self.ppo_epochs}")
             # Process each batch
             for batch_idx, batch_indices in enumerate(batches):
+                logger.info(f"batch {batch_idx + 1}/{len(batches)} in PPO")
                 # Get batch data
                 # key part: these should all be the same size [batch_size]
                 batch_pod_features = pod_features[batch_indices]  
@@ -444,11 +445,18 @@ class PPO:
                 entropy = dist.entropy().mean()
                 
                 # Get current value estimates for this batch
+                '''
+                What the Critic is Actually Predicting
+                When the critic outputs a value for a state:
+
+                It's estimating: "If I route this request to this pod, how well will my SLOs be satisfied?"
+                More specifically: "Given the current system state (loads, cache hits, etc.), what's the expected future SLO satisfaction if I make this routing decision?"
+                '''
                 critic_value = self.critic(batch_pod_features, batch_kv_hit_ratios, batch_request_features).view(-1)
                 
                 # Safety check - these should match EXACTLY
                 if critic_value.shape != batch_target_values.shape:
-                    logger.info(f"Critical error at batch {batch_idx}: Shapes mismatch - critic: {critic_value.shape}, targets: {batch_target_values.shape}")
+                    logger.warning(f"Critical error at batch {batch_idx}: Shapes mismatch - critic: {critic_value.shape}, targets: {batch_target_values.shape}")
                     continue
                 
                 # Compute policy ratio and clip
@@ -807,9 +815,9 @@ def train(encoded_data_dir):
     gamma = 0.99
     gae_lambda = 0.95
     policy_clip = 0.2
-    epochs = 1
-    updates_per_epoch = 1000
-    n_epochs = 10
+    training_epochs = 2
+    max_updates_per_epoch = 1000
+    ppo_epochs = 10
     eval_interval = 5
     seed = 42
     output_dir = None
@@ -845,9 +853,9 @@ def train(encoded_data_dir):
         'gamma': gamma,
         'gae_lambda': gae_lambda,
         'policy_clip': policy_clip,
-        'num_epochs': epochs,
-        'n_epochs': n_epochs,
-        'updates_per_epoch': updates_per_epoch,
+        'num_training_epochs': training_epochs,
+        'ppo_epochs': ppo_epochs,
+        'max_updates_per_epoch': max_updates_per_epoch,
         'eval_interval': eval_interval,
         'seed': seed
     }
@@ -881,7 +889,7 @@ def train(encoded_data_dir):
         gae_lambda=config['gae_lambda'],
         policy_clip=config['policy_clip'],
         batch_size=config['batch_size'],
-        n_epochs=config['n_epochs']
+        ppo_epochs=config['ppo_epochs']
     )
     
     # Load previous model if available
@@ -895,27 +903,50 @@ def train(encoded_data_dir):
     # Create dataset
     dataset = RoutingDataset(combined_data)
     dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
-    logger.info(f"Dataloader length: {len(dataloader)}")
+    number_of_batches = len(dataloader)
+    logger.info(f"Loaded dataset with {len(dataset)} samples")
+    logger.info(f"Batch size: {config['batch_size']}")
+    logger.info(f"number of batches in training data length: {number_of_batches}")
 
+
+
+    '''
+    There will be three nested loops:
+    1. Outer loop: for each epoch
+    2.
+    '''
     # Training loop
     logger.info("Starting training...")
     total_updates = 0
     eval_metrics = []
-    for epoch in range(config['num_epochs']):
+    logger.info(f"Total number of training epochs: {config['num_training_epochs']}")
+    for epoch in range(config['num_training_epochs']):
         epoch_start_time = time.time()
         epoch_actor_loss = 0
         epoch_critic_loss = 0
         epoch_entropy = 0
         epoch_updates = 0
         
-        # For training updates for this epoch
+        '''
+        if the data size is 100, and batch size is 64, there will be 2 batches. One with 64 and one with 36 data in each. number of batches is 2. And it is multiplied by 5. It means it will use each data 5 times for learning). total iterations = 2 * 5 = 10. It means that it will process the entire dataset 5 times. 
+        10 iterations will process
+        Batch 1, Batch 2, Batch 1, Batch 2, Batch 1, Batch 2, Batch 1, Batch 2, Batch 1, Batch 2
+        '''
+        
+        # this inner loop is for each batch. one iter means one batch. but it does not mean batch idx since we are going to learn the same batch multiple times, .e.g., 5 times. So we use batch_iter_idx instead of batch_idx. batch_iter_idx is not the unique index of the batch!!
+
         dataloader_iter = iter(dataloader)
-        for i in range(min(config['updates_per_epoch'], len(dataloader) * 10)):  # Ensure enough iterations to trigger learning
+        num_iter_per_data = 5
+        total_iter = number_of_batches * num_iter_per_data
+        final_total_num_iteration = min(config['max_updates_per_epoch'], total_iter)
+        logger.info(f"Epoch: {epoch}/{config['num_training_epochs']}, Total number iterations: {final_total_num_iteration}")
+        for batch_iter_idx in range(final_total_num_iteration):
             try:
                 # Get next batch (this will progress through all batches)
                 batch = next(dataloader_iter)
             except StopIteration:
                 # Restart iterator if we've gone through all batches
+                logger.info(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Consumed all batches, reiterate the data from the beginning")
                 dataloader_iter = iter(dataloader)
                 batch = next(dataloader_iter)
             
@@ -932,11 +963,11 @@ def train(encoded_data_dir):
                 old_log_probs = torch.log(torch.gather(old_action_probs, 1, actions.unsqueeze(1)) + 1e-10).squeeze()
                 old_values = agent.critic(pod_features, kv_hit_ratios, request_features)
             
-            # Store transitions in memory
-            for j in range(len(rewards)):
+            # Store all data of this batch in agent memory
+            logger.info(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Storing {len(pod_features)}({len(rewards)}) experiences in memory")
+            for j in range(len(rewards)): # it is usually batch size
                 # Fake done flags (all False since we don't have episode boundaries in offline data)
                 done = torch.zeros(1, device=device)
-                
                 agent.remember(
                     pod_features[j:j+1], 
                     kv_hit_ratios[j:j+1], 
@@ -948,9 +979,11 @@ def train(encoded_data_dir):
                     done
                 )
             
-            # Learn if we've collected enough data OR if we're on the last dataloader batch
-            if (i+1) % 10 == 0 or i == min(config['updates_per_epoch'], len(dataloader) * 10) - 1:
-                logger.info(f"Memory size before learning: {len(agent.pod_features)}")
+            # Trigger learning every 5th batch iteration (5: if we collected enough data in agent's memory to learn)
+            trigger_learning = (batch_iter_idx+1) % 5 == 0 or batch_iter_idx == final_total_num_iteration - 1
+            if trigger_learning:
+                logger.info(f"Learning is triggered! (batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration})")
+                logger.info(f"Memory size in agent: {len(agent.pod_features)}")
                 if len(agent.pod_features) > 0:  # Only learn if we have collected experiences
                     try:
                         update_metrics = agent.learn()
@@ -962,9 +995,9 @@ def train(encoded_data_dir):
                         epoch_entropy += update_metrics['entropy']
                         
                         # Log progress
-                        if i % 100 == 0:
-                            logger.info(f"Epoch {epoch+1}/{config['num_epochs']}, "
-                                    f"Update {i+1}/{min(config['updates_per_epoch'], len(dataloader) * 10)}, "
+                        if batch_iter_idx % 100 == 0:
+                            logger.info(f"Epoch {epoch+1}/{config['num_training_epochs']}, "
+                                    f"Update {batch_iter_idx+1}/{min(config['max_updates_per_epoch'], number_of_batches * 10)}, "
                                     f"Actor Loss: {update_metrics['actor_loss']:.4f}, "
                                     f"Critic Loss: {update_metrics['critic_loss']:.4f}, "
                                     f"Entropy: {update_metrics['entropy']:.4f}")
@@ -979,13 +1012,13 @@ def train(encoded_data_dir):
         avg_entropy = epoch_entropy / max(1, epoch_updates)
         epoch_time = time.time() - epoch_start_time
         
-        logger.info(f"Epoch {epoch+1}/{config['num_epochs']} completed in {epoch_time:.2f}s, "
+        logger.info(f"Epoch {epoch+1}/{config['num_training_epochs']} completed in {epoch_time:.2f}s, "
                   f"Avg Actor Loss: {avg_actor_loss:.4f}, "
                   f"Avg Critic Loss: {avg_critic_loss:.4f}, "
                   f"Avg Entropy: {avg_entropy:.4f}")
         
         # Evaluate agent
-        if (epoch + 1) % config['eval_interval'] == 0 or epoch == config['num_epochs'] - 1:
+        if (epoch + 1) % config['eval_interval'] == 0 or epoch == config['num_training_epochs'] - 1:
             # Use the combined data for evaluation
             eval_data = combined_data
             logger.info("Evaluating on combined data...")
