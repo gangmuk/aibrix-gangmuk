@@ -878,8 +878,59 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
     
     logger.info(f"Using model from {model_dir} for inference")
     
-    # Set device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    ###########################################################
+    # Print all available keys in tensor_data
+    logger.info("Available tensor data keys:")
+    for key in tensor_data.keys():
+        if isinstance(tensor_data[key], torch.Tensor):
+            logger.info(f"  {key}: shape={tensor_data[key].shape}, dtype={tensor_data[key].dtype}")
+        else:
+            logger.info(f"  {key}: type={type(tensor_data[key])}")
+    
+    # Try to load metadata to get feature names if available
+    metadata_file = "metadata.json"
+    pod_features_list_file = "pod_features_list.pkl"
+    feature_indices_map_file = "feature_indices_map.pkl"
+    
+    try:
+        import json
+        import pickle
+        
+        feature_names = {
+            "pod_features": [],
+            "request_features": []
+        }
+        
+        # Load metadata if available
+        if os.path.exists(metadata_file):
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+                logger.info("Loaded feature dimensions from metadata:")
+                for key, value in metadata.get('feature_dimensions', {}).items():
+                    logger.info(f"  {key}: {value}")
+        
+        # Try to load pod feature names
+        if os.path.exists(pod_features_list_file):
+            with open(pod_features_list_file, 'rb') as f:
+                pod_features_list = pickle.load(f)
+                feature_names["pod_features"] = pod_features_list
+                logger.info("Pod features used in inference:")
+                for i, feature in enumerate(pod_features_list):
+                    logger.info(f"  {i}: {feature}")
+        
+        # Try to load feature indices map
+        if os.path.exists(feature_indices_map_file):
+            with open(feature_indices_map_file, 'rb') as f:
+                feature_indices_map = pickle.load(f)
+                logger.info("Feature indices map:")
+                for feature, idx in feature_indices_map.items():
+                    logger.info(f"  {feature}: index={idx}")
+    
+    except Exception as e:
+        logger.error(f"Error loading feature metadata: {e}")
+        logger.info("Continuing with inference without feature names")
+    
+    ###########################################################
     
     # Extract data from tensor dataset and move to device
     try:
@@ -897,6 +948,47 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
         kv_hit_ratios = kv_hit_ratios.unsqueeze(0)
     if len(request_features.shape) == 1:
         request_features = request_features.unsqueeze(0)
+
+
+     # Analyze request features
+    if request_features is not None:
+        logger.info("Analyzing request features used for inference:")
+        try:
+            # Get information about the request features from tensor_data
+            if 'feature_info' in tensor_data:
+                feature_info = tensor_data['feature_info']
+                if 'numeric_request_features' in feature_info:
+                    numeric_features = feature_info['numeric_request_features']
+                    logger.info(f"Numeric request features ({len(numeric_features)}):")
+                    for i, feature in enumerate(numeric_features):
+                        logger.info(f"  {i}: {feature}")
+                
+                if 'categorical_request_features' in feature_info:
+                    categorical_features = feature_info['categorical_request_features']
+                    logger.info(f"Categorical request features ({len(categorical_features)}):")
+                    for i, feature in enumerate(categorical_features):
+                        logger.info(f"  {i}: {feature}")
+            
+            # Print the actual values in the tensor
+            logger.info("Request features tensor values:")
+            if request_features.shape[0] > 0:
+                # Print the first row of features
+                feature_values = request_features[0].cpu().numpy().flatten()
+                logger.info(f"  Values (first row, {len(feature_values)} features): {feature_values}")
+                
+                # Check for values that might indicate important features
+                non_zero_indices = np.nonzero(feature_values)[0]
+                logger.info(f"  Non-zero features (may be most important): {non_zero_indices}")
+                for idx in non_zero_indices:
+                    logger.info(f"    Feature index {idx}: Value = {feature_values[idx]}")
+        
+        except Exception as e:
+            logger.error(f"Error analyzing request features: {e}")
+            logger.error(traceback.format_exc())
+            logger.info("Continuing with inference despite feature analysis error")
+    
+    
+    
     
     # Determine state dimensions
     state_dim = {
@@ -937,149 +1029,6 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
             # Use pure exploitation (select best pod)
             selected_action = torch.argmax(action_probs, dim=1).item()
             confidence = action_probs[0, selected_action].item()
-    
-    # Return inference results
-    return {
-        'selected_pod_index': selected_action,
-        'confidence': confidence,
-        'pod_probabilities': action_probs[0].cpu().numpy().tolist(),
-        'model_dir': model_dir,
-        'exploration_enabled': exploration_enabled
-    }
-
-
-def infer(tensor_dataset_path, model_dir=None, exploration_enabled=False, exploration_rate=0.1):
-    """
-    Perform inference using the latest trained contextual bandit model
-    
-    Args:
-        tensor_dataset_path: Path to the tensor_dataset.pt file
-        model_dir: Optional directory containing the model to use (if None, use the latest)
-        exploration_enabled: Whether to enable exploration during inference
-        exploration_rate: Exploration rate if exploration is enabled (default 0.1)
-    
-    Returns:
-        Dictionary with selected pod index, probabilities, and metadata
-    """
-    # Find the latest model if not specified
-    if model_dir is None:
-        results_dir = "training_results"
-        if not os.path.exists(results_dir):
-            raise ValueError("No trained models found")
-            
-        model_dirs = sorted(glob.glob(os.path.join(results_dir, "cb_*")), reverse=True)
-        if not model_dirs:
-            raise ValueError("No trained contextual bandit models found")
-            
-        # Get the most recent model directory
-        latest_model_dir = model_dirs[0]
-        
-        # Check if it has a final_model subdirectory
-        final_model_path = os.path.join(latest_model_dir, "final_model")
-        if os.path.exists(final_model_path):
-            model_dir = final_model_path
-        else:
-            # If no final_model, look for the latest checkpoint
-            checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
-                                key=lambda x: int(x.split("_")[-1]), 
-                                reverse=True)
-            if checkpoints:
-                model_dir = checkpoints[0]
-            else:
-                raise ValueError("No trained model checkpoints found")
-    
-    logger.info(f"Using model from {model_dir} for inference")
-    
-    # Load the tensor dataset
-    try:
-        logger.info(f"Loading tensor dataset from {tensor_dataset_path}")
-        tensor_data = torch.load(tensor_dataset_path)
-    except Exception as e:
-        logger.error(f"Error loading tensor dataset from {tensor_dataset_path}: {e}")
-        raise ValueError(f"Failed to load tensor dataset: {e}")
-
-     # Extract data from tensor dataset
-    try:
-        pod_features = tensor_data['pod_features_with_staleness']
-    except Exception as e:
-        logger.error(f"Error extracting pod features: {e}")
-        raise ValueError(f"Missing pod_features_with_staleness in tensor dataset: {e}")
-        
-    try:
-        kv_hit_ratios = tensor_data['kv_hit_ratios']
-    except Exception as e:
-        logger.error(f"Error extracting KV hit ratios: {e}")
-        raise ValueError(f"Missing kv_hit_ratios in tensor dataset: {e}")
-        
-    try:
-        request_features = tensor_data['request_features']
-    except Exception as e:
-        logger.error(f"Error extracting request features: {e}")
-        raise ValueError(f"Missing request_features in tensor dataset: {e}")
-    
-    # Ensure data is in batch format (add batch dimension if needed)
-    try:
-        if len(pod_features.shape) == 2:
-            pod_features = pod_features.unsqueeze(0)
-            logger.info("Added batch dimension to pod features")
-        if len(kv_hit_ratios.shape) == 2:
-            kv_hit_ratios = kv_hit_ratios.unsqueeze(0)
-            logger.info("Added batch dimension to KV hit ratios")
-        if len(request_features.shape) == 1:
-            request_features = request_features.unsqueeze(0)
-            logger.info("Added batch dimension to request features")
-    except Exception as e:
-        logger.error(f"Error adding batch dimension: {e}")
-        assert False
-
-    # Move tensors to device
-    pod_features = pod_features.to(device)
-    kv_hit_ratios = kv_hit_ratios.to(device)
-    request_features = request_features.to(device)
-    
-    # Determine state dimensions
-    state_dim = {
-        'pod_features': pod_features.shape[2],
-        'kv_hit_ratios': kv_hit_ratios.shape[2],
-        'request_features': request_features.shape[1],
-        'num_pods': pod_features.shape[1]
-    }
-    
-    # Determine action dimension (number of pods)
-    action_dim = pod_features.shape[1]
-    
-    # Create agent and load model
-    agent = ContextualBandit(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        exploration_rate=exploration_rate
-    )
-    agent.load(model_dir)
-    logger.info(f"Loaded model from {model_dir}")
-
-    # Set to evaluation mode
-    agent.policy.eval()
-    with torch.no_grad():
-        # Get action probabilities
-        action_probs = agent.policy(pod_features, kv_hit_ratios, request_features)
-        logger.info(f"Action probabilities: {action_probs}")
-
-        if exploration_enabled:
-            logger.info("Exploration enabled")
-            # Use exploration strategy (epsilon-greedy)
-            action, _ = agent.policy.get_action(
-                pod_features, kv_hit_ratios, request_features, 
-                explore=True, 
-                epsilon=exploration_rate
-            )
-            selected_action = action.item()
-            confidence = action_probs[0, selected_action].item()
-        else:
-            # Use pure exploitation (select best pod)
-            logger.info("Exploration disabled")
-            selected_action = torch.argmax(action_probs, dim=1).item()
-            confidence = action_probs[0, selected_action].item()
-        logger.info(f"Selected action: {selected_action}, confidence: {confidence}")
     
     # Return inference results
     return {

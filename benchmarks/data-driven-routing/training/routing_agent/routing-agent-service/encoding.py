@@ -130,7 +130,7 @@ class LLMRoutingDataProcessor:
         
         # return pod_data
 
-    def analyze_request_features(self, df):
+    def analyze_request_features(self, df, request_features_train, request_features_reward):
         # Columns to exclude from features
         exclude_cols = [
             'request_id',           # Identifier, not a feature
@@ -142,6 +142,7 @@ class LLMRoutingDataProcessor:
             'ttft_normalized',      # Derived from reward
             'tpot_normalized',      # Derived from reward
         ]
+        exclude_cols.extend(request_features_reward)
         exclude_patterns = ['reward', 'action', 'slo_satisfied', 'normalized']
         
         # Any column not starting with "pod_" and not in exclude list
@@ -152,7 +153,10 @@ class LLMRoutingDataProcessor:
             and col not in exclude_cols
         ]
         
-        logger.info(f"Request features - found {len(candidate_request_features)} candidate columns: {candidate_request_features}")
+        # Log what we're doing
+        logger.info(f"Request features - Training features: {request_features_train}")
+        logger.info(f"Request features - Reward features (excluded from training): {request_features_reward}")
+        logger.info(f"Request features - Found {len(candidate_request_features)} candidate columns: {candidate_request_features}")
 
         # Test each column to see if it's numeric or categorical
         numeric_cols = []
@@ -361,12 +365,12 @@ class LLMRoutingDataProcessor:
         
         return expanded_request
 
-    def preprocess_data(self, df, all_pods):
+    def preprocess_data(self, df, all_pods, request_features_train, request_features_reward):
         # Step 1: Extract pod-related columns
         pod_data = self.extract_pod_columns(df, all_pods)
         
-        # Step 2: Analyze request features
-        self.analyze_request_features(df)
+        # Step 2 (Optional): Analyze request features
+        self.analyze_request_features(df, request_features_train, request_features_reward)
         
         # Step 3: Encode pod IDs
         self.encode_pod_ids(df)
@@ -381,13 +385,9 @@ class LLMRoutingDataProcessor:
         request_numeric_features = None
         if self.numeric_request_features:
             request_numeric_features = df[self.numeric_request_features].fillna(0).values
-            # Fit scaler
-            self.request_feature_scaler.fit(request_numeric_features)
-            # Store statistics
-            self.feature_stats['request_feature_means'] = self.request_feature_scaler.mean_
-            self.feature_stats['request_feature_stds'] = self.request_feature_scaler.scale_
-            # Transform
-            request_numeric_features = self.request_feature_scaler.transform(request_numeric_features)
+            # Still store the statistics even if not normalizing
+            self.feature_stats['request_feature_means'] = np.mean(request_numeric_features, axis=0)
+            self.feature_stats['request_feature_stds'] = np.std(request_numeric_features, axis=0)
         else:
             request_numeric_features = np.zeros((n_samples, 0))
             
@@ -477,28 +477,24 @@ class LLMRoutingDataProcessor:
                 pod_features_array = np.stack(pod_features_list, axis=1)
                 pod_kv_hit_array = np.stack(pod_kv_hit_ratios, axis=1)
                 
-                ## Normalize pod features
                 ## NOTE: normalization can cause issue, making all values zero if raw values in different pods are similar
                 pod_shape = pod_features_array.shape
                 kv_shape = pod_kv_hit_array.shape
                 pod_features_flat = pod_features_array.reshape(-1, pod_features_array.shape[2])
                 kv_flat = pod_kv_hit_array.reshape(-1, 1)
+
                 self.pod_feature_scaler.fit(pod_features_flat)
                 self.kv_hit_scaler.fit(kv_flat)
                 pod_features_norm = self.pod_feature_scaler.transform(pod_features_flat).reshape(pod_shape)
                 kv_hit_norm = self.kv_hit_scaler.transform(kv_flat).reshape(kv_shape)
 
-                # pod_features_norm = pod_features_array  # Just use raw values
-                # kv_hit_norm = pod_kv_hit_array  # Just use raw values
-
-                # Add after processing pod features and KV hit ratio:
-                logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
-                logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
-
                 self.feature_stats['pod_feature_means'] = self.pod_feature_scaler.mean_
                 self.feature_stats['pod_feature_stds'] = self.pod_feature_scaler.scale_
                 self.feature_stats['kv_hit_means'] = self.kv_hit_scaler.mean_
                 self.feature_stats['kv_hit_stds'] = self.kv_hit_scaler.scale_
+
+                logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
+                logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
             else:
                 logger.error("No pod features found in expected format")
                 assert False
@@ -578,6 +574,11 @@ class LLMRoutingDataProcessor:
             request_features, pod_features_norm
         )
         
+        if interaction_features is not None:
+            logger.info(f"Created interaction features with shape {interaction_features.shape}")
+            logger.info(f"Interaction features min={interaction_features.min()}, max={interaction_features.max()}")
+    
+        
         # Return processed data
         processed_data = {
             # Original pod features
@@ -648,7 +649,8 @@ class LLMRoutingDataProcessor:
             # elif isinstance(data, np.ndarray):
             #     np.save(os.path.join(output_dir, f"{key}.npy"), data)
             elif isinstance(data, list) or isinstance(data, dict):
-                with open(os.path.join(output_dir, f"{key}.pkl"), 'wb') as f:
+                # with open(os.path.join(output_dir, f"{key}.pkl"), 'wb') as f:
+                with open(f"{key}.pkl", 'wb') as f:
                     pickle.dump(data, f)
         
         # Save encoders
@@ -726,7 +728,8 @@ class LLMRoutingDataProcessor:
             }
         }
         
-        with open(os.path.join(output_dir, "metadata.json"), 'w') as f:
+        # with open(os.path.join(output_dir, "metadata.json"), 'w') as f:
+        with open("metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2)
         
         logger.info(f"Saved processed data to {output_dir}")
@@ -799,7 +802,7 @@ class LLMRoutingDataProcessor:
             return None, None
 
 
-def encode(all_pods, df, output_dir):
+def encode_for_train(all_pods, df, output_dir, request_stats, request_features_train, request_features_reward):
     """Main function to process LLM routing data."""
     test_split = 0.2
     random_seed = 42
@@ -808,16 +811,6 @@ def encode(all_pods, df, output_dir):
     
     # Set random seed
     np.random.seed(random_seed)
-    
-    # logger.info(f"Processing input file: {input_file}")
-    
-    # # Load the data
-    # try:
-    #     df = pd.read_csv(input_file)
-    #     logger.info(f"Loaded {len(df)} records with {len(df.columns)} columns")
-    # except Exception as e:
-    #     logger.error(f"Failed to load data: {e}")
-    #     sys.exit(1)
     
     # Print some column samples
     logger.debug(f"columns: {list(df.columns)}")
@@ -858,9 +851,36 @@ def encode(all_pods, df, output_dir):
     # Process data
     processor = LLMRoutingDataProcessor(output_dir=output_dir)
     
+    # Check if we have running statistics for request features
+    if request_stats is not None and request_stats.count > 0:
+        logger.info(f"Using running statistics for normalization (n={request_stats.count})")
+        
+        # Get the request features to use for interaction
+        # request_features = ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot', 'e2e_latency']
+        request_features = ['input_tokens', 'output_tokens', 'total_tokens']
+        if all(feature in df.columns for feature in request_features):
+            # We need to modify the DataFrame to contain normalized values before preprocessing
+            request_values = df[request_features].values
+            
+            # Apply normalization
+            normalized_values = request_stats.normalize(request_values)
+            
+            # Store normalized values in DataFrame
+            for i, feature in enumerate(request_features):
+                original_values = df[feature].copy()
+                df[feature] = normalized_values[:, i]
+                
+                # Log normalization for the first row
+                if len(df) > 0:
+                    logger.info(f"Normalized {feature}: {original_values.iloc[0]} -> {df[feature].iloc[0]}")
+        else:
+            logger.warning(f"Some request features missing from DataFrame, using default normalization")
+    else:
+        logger.info("No running statistics provided, using batch-specific normalization")
+    
     # Process training data
     logger.info("Processing training data...")
-    train_processed = processor.preprocess_data(df, all_pods)
+    train_processed = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
     train_path = processor.save_processed_data(train_processed, prefix="train")
     
     # # Process test data
@@ -898,10 +918,61 @@ def encode(all_pods, df, output_dir):
     logger.info(f"  actions: {train_processed['actions'].shape}")
     logger.info(f"  rewards: {train_processed['rewards'].shape}")
 
+    return train_path
 
-def encode_for_inference(all_pods, df):
+def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
+
+    # Check if we have running statistics for request features
+    if request_stats is not None and request_stats.count > 0:
+        logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
+        
+        if all(feature in df.columns for feature in request_features_train):
+            # Check for required features
+            missing_features = [f for f in request_features_train if f not in df.columns]
+            if missing_features:
+                logger.error(f"Missing required request features: {missing_features}")
+                assert False, f"Required features {missing_features} not found in DataFrame"
+            
+            # Check for zero values
+            for feature in request_features_train:
+                if feature in df.columns and (df[feature] == 0).all():
+                    logger.warning(f"Feature {feature} has all zero values. Setting to 0.01 to avoid scaling issues.")
+                    df[feature] = 0.01
+            
+            # Log original feature values for debugging
+            logger.info("Request features before normalization:")
+            for feature in request_features_train:
+                if len(df) > 0:
+                    logger.info(f"  {feature}: {df[feature].iloc[0]}")
+
+            request_values = df[request_features_train].values
+            normalized_values = request_stats.normalize(request_values)
+            
+            # Store normalized values in DataFrame
+            for i, feature in enumerate(request_features_train):
+                original_values = df[feature].copy()
+                df[feature] = normalized_values[:, i]
+                
+                # Log normalization for the first row
+                if len(df) > 0:
+                    logger.info(f"Normalized {feature}: {original_values.iloc[0]} -> {df[feature].iloc[0]}")
+        else:
+            logger.error(f"Some request features missing from DataFrame, using default normalization")
+            assert False
+    else:
+        logger.error("No running statistics provided, using batch-specific normalization")
+        assert False
+    
     processor = LLMRoutingDataProcessor(output_dir="temp_inference")
-    processed_data = processor.preprocess_data(df, all_pods)
+    processed_data = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
+
+    # Log processed request features
+    if 'request_features' in processed_data:
+        request_feat = processed_data['request_features']
+        logger.info(f"Processed request features shape: {request_feat.shape}")
+        if len(request_feat) > 0:
+            logger.info(f"Processed request features values: {request_feat[0]}")
+    
     tensor_data = {
         # Basic tensors
         'pod_features': torch.FloatTensor(processed_data['pod_features']),
@@ -928,6 +999,207 @@ def encode_for_inference(all_pods, df):
         tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
     if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
         tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+    
+    return tensor_data
+
+
+# Add this debug function to troubleshoot request feature encoding
+def debug_request_feature_encoding(df, tensor_dataset):
+    """
+    Debug the request feature encoding process by comparing original DataFrame values 
+    with encoded tensor values.
+    
+    Args:
+        df: Original DataFrame with request data
+        tensor_dataset: Encoded tensor dataset
+    """
+    from logger import logger
+    import numpy as np
+    
+    logger.info("=== DEBUG REQUEST FEATURE ENCODING ===")
+    
+    # Extract request features from DataFrame
+    request_features = ['request_start_time', 'request_end_time', 'input_tokens', 
+                         'output_tokens', 'total_tokens', 'ttft', 'avg_tpot', 'e2e_latency']
+    
+    # Check if features exist in DataFrame
+    missing = [f for f in request_features if f not in df.columns]
+    if missing:
+        logger.warning(f"Missing request features in DataFrame: {missing}")
+        for col in missing:
+            request_features.remove(col)
+    
+    # Print raw values from DataFrame
+    logger.info("Original request feature values from DataFrame:")
+    for feature in request_features:
+        if feature in df.columns:
+            value = df[feature].iloc[0] if len(df) > 0 else "N/A"
+            logger.info(f"  {feature}: {value}")
+    
+    # Print encoded values from tensor
+    if 'request_features' in tensor_dataset:
+        tensor_values = tensor_dataset['request_features'].numpy().flatten()
+        logger.info(f"Encoded request feature tensor values: {tensor_values}")
+        
+        # Check if all values are zero
+        if np.all(tensor_values == 0):
+            logger.error("All request feature values are zero! This indicates a serious issue with encoding.")
+        
+        # Try to match indices if we have feature_info
+        if 'feature_info' in tensor_dataset and 'numeric_request_features' in tensor_dataset['feature_info']:
+            numeric_features = tensor_dataset['feature_info']['numeric_request_features']
+            logger.info("Mapping between features and tensor values:")
+            for i, feature in enumerate(numeric_features):
+                value = tensor_values[i] if i < len(tensor_values) else "out of bounds"
+                logger.info(f"  {feature} (index {i}): {value}")
+    else:
+        logger.error("No 'request_features' tensor found in dataset!")
+    
+    # Check scalers if available
+    if 'feature_info' in tensor_dataset and 'feature_stats' in tensor_dataset['feature_info']:
+        feature_stats = tensor_dataset['feature_info']['feature_stats']
+        logger.info("Feature statistics used for scaling:")
+        if 'request_feature_means' in feature_stats:
+            logger.info(f"  Means: {feature_stats['request_feature_means']}")
+        if 'request_feature_stds' in feature_stats:
+            logger.info(f"  Stds: {feature_stats['request_feature_stds']}")
+            # Check for any zero standard deviations
+            if np.any(feature_stats['request_feature_stds'] == 0):
+                logger.warning("Some request feature standard deviations are zero! This will cause normalization issues.")
+    
+    logger.info("=== END DEBUG ===")
+
+# Modify encode_for_inference_with_feature_info to include debugging information
+def fix_encode_for_inference_with_feature_info(all_pods, df, request_features_train, request_features_reward):
+    """
+    Process and encode data for inference without writing to disk.
+    Returns tensor data directly along with detailed feature information.
+    
+    Args:
+        all_pods: List of all pod IDs
+        df: Preprocessed DataFrame
+        
+    Returns:
+        Dictionary containing tensor data and feature information for inference
+    """
+    import os
+    import torch
+    from collections import defaultdict
+    import numpy as np
+    from sklearn.preprocessing import StandardScaler, OneHotEncoder
+    from logger import logger
+    
+    # Create a processor instance with a temporary directory
+    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+    
+    # Log the DataFrame columns before processing
+    logger.info("DataFrame columns before processing:")
+    for col in df.columns:
+        if col in request_features_train or col in request_features_reward:
+            value = df[col].iloc[0] if len(df) > 0 else "N/A"
+            logger.info(f"  {col}: {value}")
+        else:
+            logger.warning(f"Unexpected column in DataFrame: {col}")
+            logger.info(f"  {col}")
+    
+    # IMPORTANT FIX: Check for zero values and replace with small non-zero values
+    # to avoid normalization issues
+    request_cols = request_features_train + request_features_reward
+    
+    for col in request_cols:
+        if col in df.columns and (df[col] == 0).all():
+            logger.warning(f"Column {col} has all zero values. Setting to small value 0.01 to avoid scaling issues.")
+            df[col] = 0.01
+    
+    # Process the data
+    processed_data = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
+    
+    # Print feature lists
+    logger.info("Pod features extracted during encoding:")
+    for i, feature in enumerate(processor.pod_features):
+        logger.info(f"  {i}: {feature}")
+    
+    logger.info("Numeric request features extracted during encoding:")
+    for i, feature in enumerate(processor.numeric_request_features):
+        # Also print the value from the DataFrame
+        value = df[feature].iloc[0] if feature in df.columns and len(df) > 0 else "N/A"
+        logger.info(f"  {i}: {feature} - Value from DataFrame: {value}")
+    
+    logger.info("Categorical request features extracted during encoding:")
+    for i, feature in enumerate(processor.categorical_request_features):
+        logger.info(f"  {i}: {feature}")
+    
+    # IMPORTANT: Check the processed request features before creating tensors
+    if 'request_features' in processed_data:
+        request_feat_array = processed_data['request_features']
+        logger.info(f"Processed request features shape: {request_feat_array.shape}")
+        logger.info(f"Processed request features values: {request_feat_array}")
+        
+        # Check if all zeros
+        if np.all(request_feat_array == 0):
+            logger.error("All request features are zero after processing! Checking normalization...")
+            
+            # Check normalization parameters
+            if 'feature_stats' in processed_data:
+                stats = processed_data['feature_stats']
+                if 'request_feature_means' in stats:
+                    logger.info(f"Request feature means: {stats['request_feature_means']}")
+                if 'request_feature_stds' in stats:
+                    logger.info(f"Request feature stds: {stats['request_feature_stds']}")
+                    # Check for zeros in standard deviations which would cause normalization issues
+                    if np.any(stats['request_feature_stds'] == 0):
+                        logger.warning("Found zero standard deviations in request features!")
+                        # Replace zeros with ones to avoid division by zero
+                        stats['request_feature_stds'][stats['request_feature_stds'] == 0] = 1.0
+    
+    # Create a PyTorch-ready dataset with all enhanced features
+    tensor_data = {
+        # Basic tensors
+        'pod_features': torch.FloatTensor(processed_data['pod_features']),
+        'kv_hit_ratios': torch.FloatTensor(processed_data['kv_hit_ratios']),
+        'request_features': torch.FloatTensor(processed_data['request_features']),
+        'actions': torch.LongTensor(processed_data['actions']),
+        'rewards': torch.FloatTensor(processed_data['rewards']),
+        
+        # Enhanced features for transformer
+        'positional_encodings': torch.FloatTensor(processed_data['positional_encodings']),
+        'pod_features_with_staleness': torch.FloatTensor(processed_data['pod_features_with_staleness']),
+        
+        # Cross-attention components
+        'query': torch.FloatTensor(processed_data['cross_attention_inputs']['query']),
+        'key_value': torch.FloatTensor(processed_data['cross_attention_inputs']['key_value']),
+        
+        # Additional metadata for feature inspection
+        'feature_info': {
+            'pod_features': processor.pod_features,
+            'numeric_request_features': processor.numeric_request_features,
+            'categorical_request_features': processor.categorical_request_features,
+            'feature_timing': processed_data.get('feature_timing', {}),
+            'pod_ids': all_pods,
+            'feature_stats': processed_data.get('feature_stats', {})
+        }
+    }
+    
+    # Add interaction features if available
+    if processed_data['interaction_features'] is not None:
+        tensor_data['interaction_features'] = torch.FloatTensor(processed_data['interaction_features'])
+        
+    # Add additional reward components if available
+    if 'ttft_rewards' in processed_data and processed_data['ttft_rewards'] is not None:
+        tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
+    if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
+        tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+    
+    # Check final request features tensor
+    request_tensor = tensor_data['request_features']
+    logger.info(f"Final request features tensor shape: {request_tensor.shape}")
+    logger.info(f"Final request features tensor values: {request_tensor.numpy()}")
+    
+    # Log tensor shapes
+    logger.info("All tensor shapes:")
+    for key, tensor in tensor_data.items():
+        if isinstance(tensor, torch.Tensor):
+            logger.info(f"  {key}: {tensor.shape}")
     
     return tensor_data
 
