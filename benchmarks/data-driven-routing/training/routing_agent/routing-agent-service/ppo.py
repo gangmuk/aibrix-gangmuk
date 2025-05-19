@@ -419,7 +419,7 @@ class PPO:
         
         # PPO epochs
         for epoch in range(self.ppo_epochs):
-            logger.info(f"PPO epoch {epoch + 1}/{self.ppo_epochs}")
+            logger.debug(f"PPO epoch {epoch + 1}/{self.ppo_epochs}")
             # Process each batch
             for batch_idx, batch_indices in enumerate(batches):
                 logger.debug(f"batch {batch_idx + 1}/{len(batches)} in PPO")
@@ -939,14 +939,15 @@ def train(encoded_data_dir):
         num_iter_per_data = 5
         total_iter = number_of_batches * num_iter_per_data
         final_total_num_iteration = min(config['max_updates_per_epoch'], total_iter)
-        logger.info(f"Epoch: {epoch}/{config['num_training_epochs']}, Total number iterations: {final_total_num_iteration}")
+        total_num_data = len(dataset)
+        logger.info(f"Epoch: {epoch}/{config['num_training_epochs']}, Total number iterations: {final_total_num_iteration}. Total number of data: {total_num_data}, Number of batches: {number_of_batches}, Number of iterations per data: {num_iter_per_data}")
         for batch_iter_idx in range(final_total_num_iteration):
             try:
                 # Get next batch (this will progress through all batches)
                 batch = next(dataloader_iter)
             except StopIteration:
                 # Restart iterator if we've gone through all batches
-                logger.info(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Consumed all batches, reiterate the data from the beginning")
+                logger.debug(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Consumed all batches, reiterate the data from the beginning")
                 dataloader_iter = iter(dataloader)
                 batch = next(dataloader_iter)
             
@@ -964,7 +965,7 @@ def train(encoded_data_dir):
                 old_values = agent.critic(pod_features, kv_hit_ratios, request_features)
             
             # Store all data of this batch in agent memory
-            logger.info(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Storing {len(pod_features)}({len(rewards)}) experiences in memory")
+            logger.debug(f"batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}. Storing {len(pod_features)}({len(rewards)}) experiences in memory")
             for j in range(len(rewards)): # it is usually batch size
                 # Fake done flags (all False since we don't have episode boundaries in offline data)
                 done = torch.zeros(1, device=device)
@@ -982,8 +983,7 @@ def train(encoded_data_dir):
             # Trigger learning every 5th batch iteration (5: if we collected enough data in agent's memory to learn)
             trigger_learning = (batch_iter_idx+1) % 5 == 0 or batch_iter_idx == final_total_num_iteration - 1
             if trigger_learning:
-                logger.info(f"Learning is triggered! (batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration})")
-                logger.info(f"Memory size in agent: {len(agent.pod_features)}")
+                logger.debug(f"Learning is triggered! (batch_iter_idx: {batch_iter_idx+1}/{final_total_num_iteration}), Memory size in agent: {len(agent.pod_features)}")
                 if len(agent.pod_features) > 0:  # Only learn if we have collected experiences
                     try:
                         update_metrics = agent.learn()

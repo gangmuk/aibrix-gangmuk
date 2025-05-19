@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+
+# preprocess.py
+
 import pandas as pd
 import numpy as np
 import json
@@ -33,15 +37,25 @@ def parse_log_file(file_path):
             json_columns = list()
             column_names = list()
             for i in range(0, len(parts), 2):
+                if i + 1 >= len(parts):
+                    break
+                    
                 column_name = parts[i]
                 column_names.append(column_name)
                 value = parts[i+1]
+                
                 if value.startswith('{') and value.endswith('}'):
                     try:
+                        # NEW: Fix escaped quotes issue - replace \" with " before parsing
+                        fixed_value = value.replace('\\"', '"')
                         json_columns.append(column_name)
-                        row[column_name] = json.loads(value) # this is going to be dictionary
-                    except json.JSONDecodeError:
-                        logger.error(f"Error decoding JSON: {value}")
+                        row[column_name] = json.loads(fixed_value)
+                    except Exception as e:
+                        logger.error(f"Error decoding JSON, column: {column_name}, value: {value}")
+                        logger.error(f"Error: {e}")
+                        
+                        # Since we can't parse it, store as string to avoid losing data
+                        row[column_name] = value
                 else:
                     try:
                         row[column_name] = int(value)
@@ -235,8 +249,14 @@ def preprocess_dataset(df):
         first_row = df.iloc[0]
         logger.warning(f"WARNING: We are using the first row only to check podMetricsLastSecond structure")
         pod_metrics = safe_parse_json(first_row['podMetricsLastSecond'])
-        # logger.info(f"features in pod_metrics: {pod_metrics.keys()}")
-        logger.info(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
+        logger.info(f"features in pod_metrics: {pod_metrics.keys()}")
+        try:
+            logger.info(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            logger.error(f"pod_metrics: {pod_metrics}")
+            logger.error(f"first_row: {first_row}")
+            assert False
         if pod_metrics:
             # Check structure for each pod
             for pod_id, metrics in pod_metrics.items():
@@ -253,7 +273,9 @@ def preprocess_dataset(df):
                 if unknown_keys:
                     logger.error(f"Error: Found unknown keys in podMetricsLastSecond for pod {pod_id}: {unknown_keys}")
                     assert False
-    
+    else:
+        logger.error("Error: podMetricsLastSecond column not found in the DataFrame.")
+        assert False
     
     # Convert string columns to appropriate types
     numeric_columns = ['normalized_start_time', 'normalized_end_time', 'ttft', 
@@ -399,8 +421,19 @@ def main(input_file):
     df, json_columns = parse_log_file(input_file)
     if len(df) == 0:
         logger.error("No data found in the log file.")
+
     df = parse_json_columns(df, json_columns)
+    if len(df) == 0:
+        logger.error("No data found after parsing JSON columns.")
+        logger.info(f"Parsed {len(df)} records from {input_file}")
+        assert False
+
     df = normalize_time(df)
+    if len(df) == 0:
+        logger.error("No data found after normalization")
+        logger.info(f"Normalized {len(df)} records from {input_file}")
+        assert False
+
     input_dir = os.path.dirname(input_file)
     try:
         processed_df, mapping_info, all_pods = preprocess_dataset(df)

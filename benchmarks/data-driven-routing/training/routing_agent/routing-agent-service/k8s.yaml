@@ -18,6 +18,11 @@ metadata:
   namespace: default
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+      maxSurge: 100%
   selector:
     matchLabels:
       app: routing-agent-service

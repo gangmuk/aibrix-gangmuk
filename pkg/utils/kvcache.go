@@ -2,7 +2,14 @@
 package utils
 
 import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptrace"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -20,6 +27,289 @@ const (
 	MetricNumRequestsWaiting = "num_requests_waiting"
 	PodPort                  = 8000 // Same as in the metrics code
 )
+
+type TimingResult struct {
+	RequestID        string
+	DNSTime          time.Duration
+	ConnectionTime   time.Duration
+	RequestTime      time.Duration
+	SendTime         time.Duration
+	ReadTime         time.Duration
+	ParseTime        time.Duration
+	TotalTime        time.Duration
+	Success          bool
+	Error            error
+	ConnectionReused bool
+}
+
+// String returns a formatted string representation of the timing result
+func (tr TimingResult) String() string {
+	return fmt.Sprintf("Success:%v, DNS: %dms, Conn: %dms, ConnReuse: %v, Req: %dms, Send: %dms, Read: %dms, Parse: %dms, Total: %dms",
+		tr.Success,
+		tr.DNSTime.Milliseconds(),
+		tr.ConnectionTime.Milliseconds(),
+		tr.ConnectionReused,
+		tr.RequestTime.Milliseconds(),
+		tr.SendTime.Milliseconds(),
+		tr.ReadTime.Milliseconds(),
+		tr.ParseTime.Milliseconds(),
+		tr.TotalTime.Milliseconds())
+}
+
+func SendRequestWithTiming(
+	client *http.Client,
+	url string,
+	method string,
+	reqBody []byte,
+	headers map[string]string,
+	requestID string,
+	timeout time.Duration,
+) ([]byte, TimingResult, error) {
+
+	result := TimingResult{
+		RequestID: requestID,
+		Success:   false,
+	}
+
+	startTime := time.Now()
+
+	// Variables for httptrace
+	var dnsStart, dnsEnd, connectStart, connectEnd, tlsStart, tlsEnd time.Time
+
+	// 3. Request Creation
+	reqStart := time.Now()
+	req, reqErr := http.NewRequest(method, url, bytes.NewBuffer(reqBody))
+	result.RequestTime = time.Since(reqStart)
+
+	if reqErr != nil {
+		result.Error = reqErr
+		klog.Errorf("requestID: %s - Failed to create request: %v", requestID, reqErr)
+		result.TotalTime = -1
+		return nil, result, reqErr
+	}
+
+	// Add headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Add request ID header for tracking
+	if requestID != "" {
+		req.Header.Set("X-Request-ID", requestID)
+	}
+
+	// Create the HTTP trace before setting the timeout context
+	trace := &httptrace.ClientTrace{
+		// DNS timing
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			dnsStart = time.Now()
+			klog.Infof("requestID: %s - DNS lookup started for %s", requestID, info.Host)
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			dnsEnd = time.Now()
+			klog.Infof("requestID: %s - DNS lookup done for addresses: %v, error: %v, took: %v",
+				requestID, info.Addrs, info.Err, time.Since(dnsStart))
+		},
+
+		// Connection timing
+		ConnectStart: func(network, addr string) {
+			connectStart = time.Now()
+			klog.Infof("requestID: %s - TCP Connect started: network=%s, addr=%s",
+				requestID, network, addr)
+		},
+		ConnectDone: func(network, addr string, err error) {
+			connectEnd = time.Now()
+			klog.Infof("requestID: %s - TCP Connect done: network=%s, addr=%s, err=%v, took: %v",
+				requestID, network, addr, err, time.Since(connectStart))
+		},
+
+		// TLS timing
+		TLSHandshakeStart: func() {
+			tlsStart = time.Now()
+			klog.Infof("requestID: %s - TLS handshake started", requestID)
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			tlsEnd = time.Now()
+			klog.Infof("requestID: %s - TLS handshake done, version: %#x, error: %v, took: %v",
+				requestID, state.Version, err, time.Since(tlsStart))
+		},
+
+		// Connection reuse information
+		GotConn: func(info httptrace.GotConnInfo) {
+			klog.Infof("requestID: %s - Got connection: reused=%v, was_idle=%v, idle_time=%v",
+				requestID, info.Reused, info.WasIdle, info.IdleTime)
+
+			// Also log the connection details
+			klog.Infof("requestID: %s - Connection details: local=%v, remote=%v",
+				requestID, info.Conn.LocalAddr(), info.Conn.RemoteAddr())
+
+			result.ConnectionReused = info.Reused
+		},
+
+		// Request/response timing
+		WroteHeaders: func() {
+			klog.Infof("requestID: %s - Request headers written", requestID)
+		},
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			klog.Infof("requestID: %s - Request written, error: %v", requestID, info.Err)
+		},
+		GotFirstResponseByte: func() {
+			klog.Infof("requestID: %s - Got first response byte", requestID)
+		},
+	}
+
+	// Set context with timeout and trace
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ctx = httptrace.WithClientTrace(ctx, trace)
+	req = req.WithContext(ctx)
+
+	// 4. Send Request
+	sendStart := time.Now()
+	resp, sendErr := client.Do(req)
+	result.SendTime = time.Since(sendStart)
+
+	// Update timing results based on httptrace data
+	if !dnsStart.IsZero() && !dnsEnd.IsZero() {
+		result.DNSTime = dnsEnd.Sub(dnsStart)
+	}
+
+	if !connectStart.IsZero() && !connectEnd.IsZero() {
+		result.ConnectionTime = connectEnd.Sub(connectStart)
+		if !tlsStart.IsZero() && !tlsEnd.IsZero() {
+			// Add TLS time to connection time
+			result.ConnectionTime += tlsEnd.Sub(tlsStart)
+		}
+	}
+
+	if sendErr != nil {
+		result.Error = sendErr
+		klog.Errorf("requestID: %s - Failed to send request: %v", requestID, sendErr)
+		result.TotalTime = -1
+		return nil, result, sendErr
+	}
+	defer resp.Body.Close()
+
+	// Check connection reuse info from headers as well
+	connectionHeader := resp.Header.Get("Connection")
+	if connectionHeader == "keep-alive" {
+		result.ConnectionReused = true
+	}
+
+	// 5. Read Response
+	readStart := time.Now()
+	body, readErr := ioutil.ReadAll(resp.Body)
+	result.ReadTime = time.Since(readStart)
+
+	if readErr != nil {
+		result.Error = readErr
+		klog.Errorf("requestID: %s - Failed to read response: %v", requestID, readErr)
+		result.TotalTime = -1
+		return nil, result, readErr
+	}
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf("requestID: %s - non-200 status code: %d", requestID, resp.StatusCode)
+		result.Error = err
+		result.TotalTime = -1
+		return body, result, err
+	}
+
+	// Skip parsing timing since we don't know the response type
+	result.ParseTime = 0
+	result.Success = true
+	result.TotalTime = time.Since(startTime)
+	klog.Infof("requestID: %s - Request completed successfully, total time took %dms", requestID, result.TotalTime.Milliseconds())
+	return body, result, nil
+}
+
+func SendJSONRequestWithParsing(
+	client *http.Client,
+	url string,
+	reqBody []byte,
+	responseObj interface{},
+	requestID string,
+	timeout time.Duration,
+) (TimingResult, error) {
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+		"Accept":       "application/json",
+	}
+
+	body, timingResult, err := SendRequestWithTiming(
+		client,
+		url,
+		"POST",
+		reqBody,
+		headers,
+		requestID,
+		timeout,
+	)
+
+	if err != nil {
+		return timingResult, err
+	}
+
+	// Parse JSON response
+	parseStart := time.Now()
+	err = json.Unmarshal(body, responseObj)
+	timingResult.ParseTime = time.Since(parseStart)
+
+	if err != nil {
+		timingResult.Error = err
+		timingResult.Success = false
+	}
+
+	return timingResult, err
+}
+
+type PodFeatures struct {
+	RequestID string `json:"request_id"`
+
+	// Core request features
+	SelectedPod  string `json:"selected_pod"`
+	InputTokens  int    `json:"input_tokens"`
+	OutputTokens int    `json:"output_tokens"`
+	TotalTokens  int    `json:"total_tokens"`
+
+	// Pod metrics
+	KVHitRatio int `json:"kv_hit_ratio"`
+
+	InflightRequests int `json:"inflight_requests"`
+
+	GpuKVCache float64 `json:"gpu_kv_cache"`
+	CpuKVCache float64 `json:"cpu_kv_cache"`
+
+	RunningRequests int `json:"running_requests"`
+	WaitingRequests int `json:"waiting_requests"`
+
+	PrefillTokens int `json:"prefill_tokens"`
+	DecodeTokens  int `json:"decode_tokens"`
+
+	GpuModel string `json:"gpu_model"`
+
+	LastSecondAvgTTFTMs float64 `json:"last_second_avg_ttft_ms"`
+	LastSecondP99TTFTMs int     `json:"last_second_p99_ttft_ms"`
+	LastSecondAvgTPOTMs float64 `json:"last_second_avg_tpot_ms"`
+	LastSecondP99TPOTMs int     `json:"last_second_p99_tpot_ms"`
+
+	LastSecondTotalRequests      int `json:"last_second_total_requests"`
+	LastSecondTotalTokens        int `json:"last_second_total_tokens"`
+	LastSecondTotalDecodeTokens  int `json:"last_second_total_decode_tokens"`
+	LastSecondTotalPrefillTokens int `json:"last_second_total_prefill_tokens"`
+}
+
+// PredictionRequest is the request body sent to the predictor service
+type PredictionRequest struct {
+	Pods []PodFeatures `json:"pods"`
+}
+
+// PredictionResponse is the response from the predictor service
+type PredictionResponse struct {
+	Predictions map[string]map[string]float64 `json:"predictions"`
+}
 
 // PodDetailedMetrics provides detailed statistics for a pod's performance
 type PodDetailedMetrics struct {
@@ -406,9 +696,8 @@ func CleanupAllRequestLogMessage() {
 }
 
 func init() {
+	// CleanupRoutineForpodMetrics()
 
-	CleanupRoutineForpodMetrics()
-	// Enable metrics collection by default
 	MetricsTracker = NewPodMetricsTracker(1 * time.Second)
 	MetricsEnabled.Store(true)
 	MetricsLogTicker = time.NewTicker(10 * time.Second)
