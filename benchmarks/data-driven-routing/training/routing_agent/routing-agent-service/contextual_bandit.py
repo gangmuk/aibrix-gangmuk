@@ -830,6 +830,123 @@ def train(encoded_data_dir):
         'eval_metrics': eval_metrics
     }
 
+# Add this new function to contextual_bandit.py
+def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, exploration_rate=0.1):
+    """
+    Perform inference using the latest trained contextual bandit model with in-memory tensor data
+    
+    Args:
+        tensor_data: Dictionary containing tensor data for inference
+        model_dir: Optional directory containing the model to use (if None, use the latest)
+        exploration_enabled: Whether to enable exploration during inference
+        exploration_rate: Exploration rate if exploration is enabled (default 0.1)
+    
+    Returns:
+        Dictionary with selected pod index, probabilities, and metadata
+    """
+    import torch
+    import os
+    import glob
+    from logger import logger
+    
+    # Find the latest model if not specified
+    if model_dir is None:
+        results_dir = "training_results"
+        if not os.path.exists(results_dir):
+            raise ValueError("No trained models found")
+            
+        model_dirs = sorted(glob.glob(os.path.join(results_dir, "cb_*")), reverse=True)
+        if not model_dirs:
+            raise ValueError("No trained contextual bandit models found")
+            
+        # Get the most recent model directory
+        latest_model_dir = model_dirs[0]
+        
+        # Check if it has a final_model subdirectory
+        final_model_path = os.path.join(latest_model_dir, "final_model")
+        if os.path.exists(final_model_path):
+            model_dir = final_model_path
+        else:
+            # If no final_model, look for the latest checkpoint
+            checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
+                                key=lambda x: int(x.split("_")[-1]), 
+                                reverse=True)
+            if checkpoints:
+                model_dir = checkpoints[0]
+            else:
+                raise ValueError("No trained model checkpoints found")
+    
+    logger.info(f"Using model from {model_dir} for inference")
+    
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Extract data from tensor dataset and move to device
+    try:
+        pod_features = tensor_data['pod_features_with_staleness'].to(device)
+        kv_hit_ratios = tensor_data['kv_hit_ratios'].to(device)
+        request_features = tensor_data['request_features'].to(device)
+    except KeyError as e:
+        logger.error(f"Missing key in tensor data: {e}")
+        raise ValueError(f"Missing key in tensor data: {e}")
+    
+    # Ensure data is in batch format (add batch dimension if needed)
+    if len(pod_features.shape) == 2:
+        pod_features = pod_features.unsqueeze(0)
+    if len(kv_hit_ratios.shape) == 2:
+        kv_hit_ratios = kv_hit_ratios.unsqueeze(0)
+    if len(request_features.shape) == 1:
+        request_features = request_features.unsqueeze(0)
+    
+    # Determine state dimensions
+    state_dim = {
+        'pod_features': pod_features.shape[2],
+        'kv_hit_ratios': kv_hit_ratios.shape[2],
+        'request_features': request_features.shape[1],
+        'num_pods': pod_features.shape[1]
+    }
+    
+    # Determine action dimension (number of pods)
+    action_dim = pod_features.shape[1]
+    
+    # Create agent and load model
+    agent = ContextualBandit(
+        state_dim=state_dim,
+        action_dim=action_dim,
+        exploration_rate=exploration_rate
+    )
+    agent.load(model_dir)
+    logger.info(f"Loaded model from {model_dir}")
+
+    # Set to evaluation mode
+    agent.policy.eval()
+    with torch.no_grad():
+        # Get action probabilities
+        action_probs = agent.policy(pod_features, kv_hit_ratios, request_features)
+        
+        if exploration_enabled:
+            # Use exploration strategy (epsilon-greedy)
+            action, _ = agent.policy.get_action(
+                pod_features, kv_hit_ratios, request_features, 
+                explore=True, 
+                epsilon=exploration_rate
+            )
+            selected_action = action.item()
+            confidence = action_probs[0, selected_action].item()
+        else:
+            # Use pure exploitation (select best pod)
+            selected_action = torch.argmax(action_probs, dim=1).item()
+            confidence = action_probs[0, selected_action].item()
+    
+    # Return inference results
+    return {
+        'selected_pod_index': selected_action,
+        'confidence': confidence,
+        'pod_probabilities': action_probs[0].cpu().numpy().tolist(),
+        'model_dir': model_dir,
+        'exploration_enabled': exploration_enabled
+    }
+
 
 def infer(tensor_dataset_path, model_dir=None, exploration_enabled=False, exploration_rate=0.1):
     """

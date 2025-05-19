@@ -898,5 +898,39 @@ def encode(all_pods, df, output_dir):
     logger.info(f"  actions: {train_processed['actions'].shape}")
     logger.info(f"  rewards: {train_processed['rewards'].shape}")
 
+
+def encode_for_inference(all_pods, df):
+    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+    processed_data = processor.preprocess_data(df, all_pods)
+    tensor_data = {
+        # Basic tensors
+        'pod_features': torch.FloatTensor(processed_data['pod_features']),
+        'kv_hit_ratios': torch.FloatTensor(processed_data['kv_hit_ratios']),
+        'request_features': torch.FloatTensor(processed_data['request_features']),
+        'actions': torch.LongTensor(processed_data['actions']),
+        'rewards': torch.FloatTensor(processed_data['rewards']),
+        
+        # Enhanced features for transformer
+        'positional_encodings': torch.FloatTensor(processed_data['positional_encodings']),
+        'pod_features_with_staleness': torch.FloatTensor(processed_data['pod_features_with_staleness']),
+        
+        # Cross-attention components
+        'query': torch.FloatTensor(processed_data['cross_attention_inputs']['query']),
+        'key_value': torch.FloatTensor(processed_data['cross_attention_inputs']['key_value']),
+    }
+    
+    # Add interaction features if available
+    if processed_data['interaction_features'] is not None:
+        tensor_data['interaction_features'] = torch.FloatTensor(processed_data['interaction_features'])
+        
+    # Add additional reward components if available
+    if 'ttft_rewards' in processed_data and processed_data['ttft_rewards'] is not None:
+        tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
+    if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
+        tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+    
+    return tensor_data
+
+
 if __name__ == "__main__":
     encode() # this should be updated

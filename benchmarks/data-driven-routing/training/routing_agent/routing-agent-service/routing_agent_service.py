@@ -1,3 +1,5 @@
+# routing_agent_service.py
+
 # import threading
 # import joblib
 import pandas as pd
@@ -47,7 +49,7 @@ def handle_flush():
 
         # Preprocess raw data
         df, preprocessed_file, all_pods = preprocess.main(raw_data)
-        logger.info(f"Successfully parsed data.  (writte in  {preprocessed_file})")
+        logger.info(f"Successfully parsed data. (writte in  {preprocessed_file})")
 
         # Encode preprocessed data
         encoded_data_subdir = f"{ENCODED_DATA_DIR}/batch_{BATCH_ID}"
@@ -93,24 +95,28 @@ def handle_infer():
         
         # Use the existing preprocessing function to parse the log
         # This will extract all pod info and create the processed dataframe
-        processed_df, preprocessed_file, all_pods = preprocess.main(raw_data)
+        processed_df, _, all_pods = preprocess.main(raw_data)
         logger.info(f"Successfully parsed data for request_{request_id}")
         
         # Encode the preprocessed data
         # This will create tensor_dataset.pt in the output directory
-        encoded_data_subdir = f"inference_encoded/request_{request_id}"
-        encoding.encode(all_pods, processed_df, encoded_data_subdir)
-        logger.info(f"Successfully encoded data to {encoded_data_subdir}")
+
+        ## previous approach. file based    
+        # encoded_data_subdir = f"inference_encoded/request_{request_id}"
+        # encoding.encode(all_pods, processed_df, encoded_data_subdir)
+        # logger.info(f"Successfully encoded data to {encoded_data_subdir}")
+        # tensor_dataset_path = os.path.join(encoded_data_subdir, "train", "tensor_dataset.pt")
+        # if not os.path.exists(tensor_dataset_path):
+        #     logger.error(f"Tensor dataset not found at {tensor_dataset_path}")
+        #     return jsonify({"error": "Failed to encode data"}), 500
+        # result = contextual_bandit.infer(tensor_dataset_path)
+
+        ## new approach. in memory tensor dataset
+        tensor_dataset = encoding.encode_for_inference(all_pods, processed_df)
+        logger.info(f"Successfully encoded data in memory for inference")
+        result = contextual_bandit.infer_from_tensor(tensor_dataset)
         
-        # Load the encoded tensor dataset
-        tensor_dataset_path = os.path.join(encoded_data_subdir, "train", "tensor_dataset.pt")
-        if not os.path.exists(tensor_dataset_path):
-            logger.error(f"Tensor dataset not found at {tensor_dataset_path}")
-            return jsonify({"error": "Failed to encode data"}), 500
-            
-        # Call the contextual bandit inference function
-        # The infer function expects the encoded data path and returns the pod selection
-        result = contextual_bandit.infer(tensor_dataset_path)
+
         logger.info(f"Inference result: {result}")
         
         # Map the pod index back to the actual pod ID
