@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptrace"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -607,6 +609,11 @@ func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
 }
 
 var (
+	UseRealRequest = false
+
+	RunningPodRegistry      = make(map[string]string) // Map to track running pods: podIP -> Pod object
+	RunningPodRegistryMutex sync.RWMutex
+
 	RequestTimings   sync.Map           // Map to track request timing information: requestID -> *RequestTiming
 	MetricsTracker   *PodMetricsTracker // Track timing metrics for pods
 	MetricsEnabled   atomic.Bool        // Flag to enable/disable metrics collection
@@ -697,6 +704,7 @@ func CleanupAllRequestLogMessage() {
 
 func init() {
 	// CleanupRoutineForpodMetrics()
+	RunningPodRegistry = make(map[string]string)
 
 	MetricsTracker = NewPodMetricsTracker(1 * time.Second)
 	MetricsEnabled.Store(true)
@@ -757,6 +765,55 @@ func init() {
 	vllmNumRequestsWaitingMutex = sync.RWMutex{}
 }
 
+func AddPodToRegistry(podIP string, podName string) {
+	RunningPodRegistryMutex.Lock()
+	defer RunningPodRegistryMutex.Unlock()
+
+	// Add the pod to the registry
+	RunningPodRegistry[podIP] = podName
+	klog.Infof("Registered podIP %s, podName %s", podIP, podName)
+}
+
+func SyncPodRegistry(readyPods []*v1.Pod) {
+	RunningPodRegistryMutex.Lock()
+	defer RunningPodRegistryMutex.Unlock()
+
+	// Clear the registry
+	RunningPodRegistry = make(map[string]string)
+
+	// Add all ready pods to the registry
+	for _, pod := range readyPods {
+		podIP := pod.Status.PodIP
+		podName := pod.Name
+		RunningPodRegistry[podIP] = podName
+		klog.Infof("Registered podIP %s, podName %s", podIP, podName)
+	}
+}
+
+func DeletePodFromRegistry(podIP string) {
+	RunningPodRegistryMutex.Lock()
+	defer RunningPodRegistryMutex.Unlock()
+
+	// Delete the pod from the registry
+	if _, exists := RunningPodRegistry[podIP]; exists {
+		delete(RunningPodRegistry, podIP)
+		klog.Infof("Deleted pod with IP %s from registry", podIP)
+	} else {
+		klog.Errorf("Failed to delete pod with IP %s, not found in registry", podIP)
+	}
+}
+
+func GetAllPodIPsFromRegistry() []string {
+	RunningPodRegistryMutex.RLock()
+	defer RunningPodRegistryMutex.RUnlock()
+
+	podIPs := make([]string, 0, len(RunningPodRegistry))
+	for podIP := range RunningPodRegistry {
+		podIPs = append(podIPs, podIP)
+	}
+	return podIPs
+}
+
 func AddRequestLogMessage(requestID string, logMessage string) {
 	RequestToLogMessageMutex.Lock()
 	defer RequestToLogMessageMutex.Unlock()
@@ -765,6 +822,18 @@ func AddRequestLogMessage(requestID string, logMessage string) {
 		RequestToLogMessage[requestID] = logMessage
 	} else {
 		klog.Errorf("Request ID %s already exists in RequestToLogMessage", requestID)
+	}
+}
+
+func DeleteRequestLogMessage(requestID string) {
+	RequestToLogMessageMutex.Lock()
+	defer RequestToLogMessageMutex.Unlock()
+
+	if _, exists := RequestToLogMessage[requestID]; exists {
+		delete(RequestToLogMessage, requestID)
+		klog.Infof("Deleted log message for request ID: %s", requestID)
+	} else {
+		klog.Errorf("Failed to delete log message for request ID: %s, not found", requestID)
 	}
 }
 
@@ -1430,71 +1499,144 @@ func GetVLLMNumRequestsWaitingForPod(requestID string, podIP string) (float64, b
 	return val, exists
 }
 
-////////////////////////////////////////////////////////////////
+func GenerateLogMessages(podIPs []string, numLogs int) []string {
+	logs := make([]string, numLogs)
+	for i := 0; i < numLogs; i++ {
+		logs[i] = generateSingleLog(podIPs, i)
+	}
+	return logs
+}
 
-// // handleRequestCompletion processes a completed request
-// func (r *rlOnlineRouter) handleRequestCompletion(
-// 	requestID string,
-// 	ttft int,
-// 	avgTPOT float64,
-// 	decodeTime int,
-// 	e2eLatency int,
-// 	outputTokens int,
-// ) {
-// 	// Retrieve the original request
-// 	r.pendingMutex.RLock()
-// 	request, exists := r.pendingRequests[requestID]
-// 	r.pendingMutex.RUnlock()
+func generateSingleLog(podIPs []string, requestID int) string {
+	// Generate random metrics that make sense for a model serving cluster
+	requestStartTime := time.Now().UnixNano() / 1000           // microseconds
+	requestEndTime := requestStartTime + rand.Int63n(15000000) // 0-15 seconds later in microseconds
 
-// 	if !exists {
-// 		// This can happen if the request was routed by fallback or another router
-// 		klog.Warningf("Received completion for unknown request ID: %s", requestID)
-// 		return
-// 	}
+	// Select a random pod for this request
+	if len(podIPs) == 0 {
+		klog.Error("No pod IPs available to select from")
+		return ""
+	}
+	selectedPod := podIPs[rand.Intn(len(podIPs))]
 
-// 	// Create a training data entry
-// 	entry := TrainingDataEntry{
-// 		RequestID:       requestID,
-// 		StartTime:       request.Timestamp,
-// 		EndTime:         time.Now().UnixMicro(),
-// 		SelectedPod:     "", // This should be filled with the actual selected pod
-// 		TTFT:            ttft,
-// 		AvgTPOT:         avgTPOT,
-// 		TotalDecodeTime: decodeTime,
-// 		E2ELatency:      e2eLatency,
-// 		InputTokens:     request.InputTokens,
-// 		OutputTokens:    outputTokens,
-// 		TotalTokens:     request.InputTokens + outputTokens,
-// 		Pods:            request.Pods,
-// 	}
+	// Generate realistic latency metrics
+	ttft := 150 + rand.Intn(500)               // Time to first token: 150-650ms
+	avgTpot := 30 + rand.Intn(50)              // Average time per output token: 30-80ms
+	totalDecodeTime := 5000 + rand.Intn(15000) // Total decode time: 5-20 seconds
+	e2e := totalDecodeTime + rand.Intn(2000)   // End-to-end time: total decode + 0-2 seconds
 
-// 	// Find which pod was selected (this depends on how that information is tracked)
+	// Generate token counts
+	numInputTokens := 500 + rand.Intn(2000) // 500-2500 input tokens
+	numOutputTokens := 100 + rand.Intn(800) // 100-900 output tokens
+	numTotalTokens := numInputTokens + numOutputTokens
 
-// 	// Add to training data
-// 	r.trainingDataMutex.Lock()
-// 	r.trainingData = append(r.trainingData, entry)
+	// Build JSON objects for different metrics
+	kvCacheHitRatios := buildPodJsonMap(podIPs, 0, 1)   // KV cache hit ratios are typically 0
+	inflightRequests := buildPodJsonMap(podIPs, 1, 3)   // 1-3 requests per pod
+	gpuKVCacheUsage := buildPodJsonMap(podIPs, 0, 0.5)  // 0-30% GPU KV cache usage
+	cpuKVCacheUsage := buildPodJsonMap(podIPs, 0, 0.0)  // 0-20% CPU KV cache usage
+	numRequestsRunning := buildPodJsonMap(podIPs, 0, 2) // 0-2 requests running per pod
+	numRequestsWaiting := buildPodJsonMap(podIPs, 0, 1) // 0-1 requests waiting per pod
 
-// 	// If buffer is full, flush immediately
-// 	if len(r.trainingData) >= trainingDataBufferSize {
-// 		go r.flushTrainingData()
-// 	}
-// 	r.trainingDataMutex.Unlock()
+	// Build per-pod detailed metrics for the last second
+	podMetricsLastSecond := buildPodMetricsLastSecond(podIPs)
 
-// 	// Clean up
-// 	r.pendingMutex.Lock()
-// 	delete(r.pendingRequests, requestID)
-// 	r.pendingMutex.Unlock()
+	// Token counts per pod
+	prefillTokens := buildPodJsonMap(podIPs, 1000, 100000) // 0-130K prefill tokens per pod
+	decodeTokens := buildPodJsonMap(podIPs, 1000, 100000)  // 80K-300K decode tokens per pod
 
-// 	klog.Infof("Added completed request %s to training data (%d entries in buffer)",
-// 		requestID, len(r.trainingData))
-// }
+	logFormat := `**@latency_metrics@requestID@%d@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d@total_decode_time@%d@e2e@%d@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s`
 
-// // parseMetricsFromLog extracts metrics from the log format
-// func (r *rlOnlineRouter) parseMetricsFromLog(logLine string) {
-// 	// Example:
-// 	// **@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@%d@selectedpod@%s@ttft@%d@avg_tpot@%d...
+	ret := fmt.Sprintf(logFormat,
+		requestID,
+		requestStartTime,
+		requestEndTime,
+		selectedPod,
+		ttft,
+		avgTpot,
+		totalDecodeTime,
+		e2e,
+		numInputTokens,
+		numOutputTokens,
+		numTotalTokens,
+		kvCacheHitRatios,
+		inflightRequests,
+		gpuKVCacheUsage,
+		cpuKVCacheUsage,
+		numRequestsRunning,
+		numRequestsWaiting,
+		podMetricsLastSecond,
+		prefillTokens,
+		decodeTokens,
+	)
+	klog.V(5).Infof("Generated log message: %s", ret)
+	return ret
+}
 
-// 	// This is a placeholder implementation
-// 	// A real implementation would parse the log line format
-// 	// and extract the metrics, then call handleRequestCompletion
-// }
+// buildPodJsonMap creates a JSON object mapping pod IPs to random values
+func buildPodJsonMap(podIPs []string, min float64, max float64) string {
+	parts := make([]string, len(podIPs))
+
+	for i, ip := range podIPs {
+		var value interface{}
+		if max <= 1 {
+			// Generate a float for percentages
+			value = min + rand.Float64()*(max-min)
+		} else {
+			// Generate an integer for counts
+			value = int(min) + rand.Intn(int(max-min)+1)
+		}
+
+		// Format based on whether it's a float or int
+		switch v := value.(type) {
+		case float64:
+			parts[i] = fmt.Sprintf(`"%s":%g`, ip, v)
+		case int:
+			parts[i] = fmt.Sprintf(`"%s":%d`, ip, v)
+		}
+	}
+
+	return fmt.Sprintf("{%s}", strings.Join(parts, ","))
+}
+
+// buildPodMetricsLastSecond creates realistic per-pod metrics for the last second
+func buildPodMetricsLastSecond(podIPs []string) string {
+	parts := make([]string, len(podIPs))
+
+	for i, ip := range podIPs {
+		// Generate realistic TTFTs for this pod
+		ttftAvg := 300 + rand.Float64()*3000 // 300-3300ms average TTFT
+		ttftMin := ttftAvg * 0.8             // Min is ~80% of average
+		ttftMax := ttftAvg * 1.2             // Max is ~120% of average
+		ttftP50 := ttftAvg * 0.95            // p50 is close to average
+		ttftP90 := ttftAvg * 1.1             // p90 is slightly higher
+		ttftP95 := ttftAvg * 1.15            // p95 is higher still
+		ttftP99 := ttftAvg * 1.18            // p99 is highest
+		ttftSamples := 2 + rand.Intn(13)     // 2-15 samples
+
+		// Generate realistic TPOTs for this pod
+		tpotAvg := 40 + rand.Float64()*350 // 40-390ms average TPOT
+		tpotMin := tpotAvg * 0.7           // Min is lower than average
+		tpotMax := tpotAvg * 1.5           // Max can be much higher
+		tpotP50 := tpotAvg * 0.9           // p50 is close to but below average
+		tpotP90 := tpotAvg * 1.2           // p90 is higher
+		tpotP95 := tpotAvg * 1.4           // p95 is higher still
+		tpotP99 := tpotAvg * 1.45          // p99 is highest
+		tpotSamples := 50 + rand.Intn(600) // 50-650 samples
+
+		// Total tokens
+		totalRequests := ttftSamples
+		totalDecodeTokens := tpotSamples
+		totalPrefillTokens := 2000 + rand.Intn(35000) // 2K-37K prefill tokens
+		totalTokens := totalDecodeTokens + totalPrefillTokens
+
+		metrics := fmt.Sprintf(`"last_second_avg_ttft_ms":%g,"last_second_min_ttft_ms":%g,"last_second_max_ttft_ms":%g,"last_second_p50_ttft_ms":%g,"last_second_p90_ttft_ms":%g,"last_second_p95_ttft_ms":%g,"last_second_p99_ttft_ms":%g,"last_second_ttft_samples":%d,"last_second_avg_tpot_ms":%g,"last_second_min_tpot_ms":%g,"last_second_max_tpot_ms":%g,"last_second_p50_tpot_ms":%g,"last_second_p90_tpot_ms":%g,"last_second_p95_tpot_ms":%g,"last_second_p99_tpot_ms":%g,"last_second_tpot_samples":%d,"last_second_total_requests":%d,"last_second_total_decode_tokens":%d,"last_second_total_prefill_tokens":%d,"last_second_total_tokens":%d`,
+			ttftAvg, ttftMin, ttftMax, ttftP50, ttftP90, ttftP95, ttftP99, ttftSamples,
+			tpotAvg, tpotMin, tpotMax, tpotP50, tpotP90, tpotP95, tpotP99, tpotSamples,
+			totalRequests, totalDecodeTokens, totalPrefillTokens, totalTokens)
+
+		parts[i] = fmt.Sprintf(`"%s":{%s}`, ip, metrics)
+	}
+
+	return fmt.Sprintf("{%s}", strings.Join(parts, ","))
+}

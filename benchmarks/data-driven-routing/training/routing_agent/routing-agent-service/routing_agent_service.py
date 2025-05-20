@@ -24,6 +24,7 @@ from flask import Flask, request, jsonify
 from logger import logger
 import preprocess
 import pickle
+import threading
 
 app = Flask(__name__)
 
@@ -154,6 +155,10 @@ def handle_flush():
     log_data = request.json
     try:
         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
+        if log_data and len(log_data) > 0:
+            first_key = list(log_data.keys())[0]
+            logger.debug(f"First raw log: {log_data[first_key]}")
+
         raw_data = f"raw_data_batch_{BATCH_ID}.csv"
         BATCH_ID += 1
         
@@ -195,6 +200,66 @@ def handle_flush():
         logger.error(f"Unhandled exception: {str(e)}")
         logger.error(f"Traceback: {error_traceback}")
         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
+
+# @app.route("/flush", methods=["POST"])
+# def handle_flush():
+#     global BATCH_ID, ENCODED_DATA_DIR
+#     log_data = request.json
+    
+#     try:
+#         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
+#         raw_data = f"raw_data_batch_{BATCH_ID}.csv"
+#         BATCH_ID += 1
+        
+#         # Write raw data to file
+#         write_to_file(log_data, raw_data)
+        
+#         # Start background processing
+#         threading.Thread(target=process_data_in_background, 
+#                          args=(raw_data, BATCH_ID, ENCODED_DATA_DIR), 
+#                          daemon=True).start()
+        
+#         # Return response immediately
+#         return jsonify({"status": "success", "message": f"Data received. Processing {len(log_data)} log messages in background"}), 200
+        
+#     except Exception as e:
+#         import traceback
+#         error_traceback = traceback.format_exc()
+#         logger.error(f"Unhandled exception: {str(e)}")
+#         logger.error(f"Traceback: {error_traceback}")
+#         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
+
+# def process_data_in_background(raw_data, batch_id, encoded_data_dir):
+#     try:
+#         # Preprocess raw data
+#         df, preprocessed_file, all_pods = preprocess.main(raw_data)
+#         logger.info(f"Successfully parsed data. (written in {preprocessed_file})")
+        
+#         # Update running statistics
+#         request_features = ['input_tokens', 'output_tokens', 'total_tokens']
+#         stats = get_request_stats()
+#         stats.update(df[request_features].values)
+#         stats.save(STATS_FILE)
+        
+#         # Apply normalization using the updated running statistics
+#         normalized_values = stats.normalize(df[request_features_train].values)
+#         for i, feature in enumerate(request_features):
+#             df[feature] = normalized_values[:, i]
+        
+#         # Encode preprocessed data
+#         encoded_data_subdir = f"{encoded_data_dir}/batch_{batch_id}"
+#         encoding.encode_for_train(all_pods, df, encoded_data_subdir, stats, request_features_train, request_features_reward)
+#         logger.info(f"Successfully encoded data to {encoded_data_subdir}")
+        
+#         # Train model
+#         contextual_bandit.train(encoded_data_dir)
+#         logger.info("Successfully trained routing agent")
+        
+#     except Exception as e:
+#         import traceback
+#         error_traceback = traceback.format_exc()
+#         logger.error(f"Background processing error: {str(e)}")
+#         logger.error(f"Traceback: {error_traceback}")
 
 @app.route("/infer", methods=["POST"])
 def handle_infer():

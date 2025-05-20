@@ -505,7 +505,7 @@ def load_all_encoded_data(encoded_data_dir):
             
         try:
             # Load tensor data
-            logger.info(f"Loading tensor data from {tensor_path}")
+            logger.debug(f"Loading tensor data from {tensor_path}")
             batch_data = torch.load(tensor_path)
             
             # If this is the first valid batch, use it as the base
@@ -535,7 +535,7 @@ def load_all_encoded_data(encoded_data_dir):
                             
                     batch_samples = batch_data['rewards'].size(0)
                     total_samples += batch_samples
-                    logger.info(f"Added {batch_samples} samples from batch {os.path.basename(batch_dir)}")
+                    logger.debug(f"Added {batch_samples} samples from batch {os.path.basename(batch_dir)}")
                 else:
                     logger.warning(f"Skipping incompatible batch {os.path.basename(batch_dir)}")
                     
@@ -598,7 +598,7 @@ def train(encoded_data_dir):
     exploration_rate = 0.1
     training_epochs = 2
     max_updates_per_epoch = 1000
-    eval_interval = 5
+    eval_interval = 10
     seed = 42
     output_dir = None
     continue_training = False
@@ -763,7 +763,8 @@ def train(encoded_data_dir):
                         logger.error(f"Error during learning: {e}")
             
             # Evaluate the agent periodically
-            if (batch_iter_idx + 1) % (final_total_num_iteration // config['eval_interval']) == 0 or batch_iter_idx == final_total_num_iteration - 1:
+            temp = min(config['eval_interval'], final_total_num_iteration)
+            if (batch_iter_idx + 1) % (final_total_num_iteration // temp) == 0 or batch_iter_idx == final_total_num_iteration - 1:
                 logger.info(f"Evaluating agent at batch {batch_iter_idx+1}/{final_total_num_iteration}")
                 
                 try:

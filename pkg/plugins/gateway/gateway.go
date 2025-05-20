@@ -192,6 +192,8 @@ func (s *Server) selectTargetPod(ctx *types.RoutingContext, pods types.PodList) 
 	for _, pod := range readyPods {
 		utils.MetricsTracker.InitPodKey(pod.Status.PodIP)
 	}
+	utils.SyncPodRegistry(readyPods)
+
 	klog.Infof("selectTargetPod, done with InitPodKey. context state, requestID: %s, ctx.Err(): %v", ctx.RequestID, ctx.Err())
 
 	ts := time.Now()
