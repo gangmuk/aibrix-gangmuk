@@ -31,6 +31,7 @@ app = Flask(__name__)
 BATCH_ID = 0
 ENCODED_DATA_DIR = "encoded_data"
 STATS_FILE = "request_feature_stats.pkl"  # Add this near the top with your other constants
+NUM_TRAINS = 0
 
 class RunningStats:
     """Maintains running mean and standard deviation for feature normalization"""
@@ -119,7 +120,7 @@ class RunningStats:
         if not os.path.exists(filename):
             logger.info(f"Statistics file {filename} not found, initializing new stats")
             return cls()
-            
+        
         with open(filename, 'rb') as f:
             data = pickle.load(f)
             
@@ -151,7 +152,8 @@ request_features_reward = ['ttft', 'avg_tpot', 'e2e_latency']
 
 @app.route("/flush", methods=["POST"])
 def handle_flush():
-    global BATCH_ID, ENCODED_DATA_DIR
+    ts_func_start = time.time()
+    global BATCH_ID, ENCODED_DATA_DIR, NUM_TRAINS
     log_data = request.json
     try:
         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
@@ -159,15 +161,18 @@ def handle_flush():
             first_key = list(log_data.keys())[0]
             logger.debug(f"First raw log: {log_data[first_key]}")
 
-        raw_data = f"raw_data_batch_{BATCH_ID}.csv"
+        raw_data = f"raw_training_data_batch_{BATCH_ID}.csv"
         BATCH_ID += 1
         
         # Write raw data to file
+        ts_write_raw_data = time.time()
         write_to_file(log_data, raw_data)
+        logger.info(f"wrote {len(log_data)} entries to {raw_data}, took {time.time() - ts_write_raw_data} seconds")
 
         # Preprocess raw data
+        ts_preprocess = time.time()
         df, preprocessed_file, all_pods = preprocess.main(raw_data)
-        logger.info(f"Successfully parsed data. (writte in  {preprocessed_file})")
+        logger.info(f"Successfully parsed data. (writte in  {preprocessed_file}), took {time.time() - ts_preprocess} seconds")
         
         # Update running statistics
         # request_features = ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot', 'e2e_latency']
@@ -183,14 +188,19 @@ def handle_flush():
             df[feature] = normalized_values[:, i]
 
         # Encode preprocessed data
+        ts_encode = time.time()
         encoded_data_subdir = f"{ENCODED_DATA_DIR}/batch_{BATCH_ID}"
         encoding.encode_for_train(all_pods, df, encoded_data_subdir, stats, request_features_train, request_features_reward)
-        logger.info(f"Successfully encoded data to {encoded_data_subdir}")
+        logger.info(f"Successfully encoded data to {encoded_data_subdir}, took {time.time() - ts_encode} seconds")
 
         # sac.train(ENCODED_DATA_DIR)
         # ppo.train(ENCODED_DATA_DIR)
+        ts_train = time.time()
         contextual_bandit.train(ENCODED_DATA_DIR)
-        logger.info("Successfully trained routing agent")
+        logger.info(f"Successfully trained routing agent, took {time.time() - ts_train} seconds")
+
+        NUM_TRAINS += 1
+        logger.info(f"Successfully {NUM_TRAINS}th trained routing agent, total took {time.time() - ts_func_start} seconds")
             
         return jsonify({"status": "success", "message": f"Successfully processed {len(log_data)} log messages"}), 200
         
@@ -263,11 +273,15 @@ def handle_flush():
 
 @app.route("/infer", methods=["POST"])
 def handle_infer():
+    global NUM_TRAINS
     try:
         # Get the log message as a string from the request body
         log_message = request.data.decode('utf-8')
         logger.info(f"Received inference request: {log_message[:100]}...")
-        
+        if NUM_TRAINS == 0:
+            logger.warning("No training has been done yet, please train the model first.")
+            return jsonify({"error": "No training has been done yet, please train the model first."}), 400
+
         # Extract request ID for logging purposes
         request_id = "unknown"
         if "requestID@" in log_message:
@@ -297,7 +311,8 @@ def handle_infer():
 
         # Get running statistics
         stats = get_request_stats()
-
+        if stats is None or stats.count == 0:
+            logger.warning(f"No running statistics available, stats: {stats}, stats.count: {stats.count}, stats.mean: {stats.mean}, stats.var: {stats.var}")
         ## new approach. in memory tensor dataset
         tensor_dataset = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
         logger.info(f"Successfully encoded data in memory for inference")

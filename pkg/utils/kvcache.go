@@ -609,7 +609,7 @@ func NewPodMetricsTracker(windowSize time.Duration) *PodMetricsTracker {
 }
 
 var (
-	UseRealRequest = false
+	UseRealRequest = LoadEnv("AIBRIX_RL_ROUTER_USE_REAL_REQUEST", "true")
 
 	RunningPodRegistry      = make(map[string]string) // Map to track running pods: podIP -> Pod object
 	RunningPodRegistryMutex sync.RWMutex
@@ -699,7 +699,7 @@ func CleanupAllRequestLogMessage() {
 	for requestID := range RequestToLogMessage {
 		delete(RequestToLogMessage, requestID)
 	}
-	klog.Infof("Cleaned up all log messages")
+	klog.Infof("Cleaned up all log messages in RequestToLogMessage")
 }
 
 func init() {

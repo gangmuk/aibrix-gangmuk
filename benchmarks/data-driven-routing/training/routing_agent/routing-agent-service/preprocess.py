@@ -101,6 +101,7 @@ def safe_parse_json(json_str):
         return json_str
         
     if pd.isna(json_str) or not json_str:
+        logger.warning(f"Warning: Empty or NaN JSON string: {str(json_str)[:50]}...")
         return {}
     
     try:
@@ -112,6 +113,7 @@ def safe_parse_json(json_str):
             if isinstance(json_str, str):
                 return json.loads(json_str.replace("'", '"'))
             else:
+                logger.warning(f"Warning: Invalid JSON string: {str(json_str)[:50]}...")
                 return {}
         except (json.JSONDecodeError, TypeError):
             try:
@@ -119,6 +121,7 @@ def safe_parse_json(json_str):
                 if isinstance(json_str, str):
                     return ast.literal_eval(json_str)
                 else:
+                    logger.warning(f"Warning: Invalid JSON string: {str(json_str)[:50]}...")
                     return {}
             except (SyntaxError, ValueError, TypeError):
                 logger.warning(f"Warning: Could not parse JSON: {str(json_str)[:50]}...")
@@ -254,6 +257,7 @@ def preprocess_dataset(df):
             logger.info(f"features in pod_metrics: {pod_metrics[list(pod_metrics.keys())[0]].keys()}")
         except Exception as e:
             logger.error(f"Error: {e}")
+            logger.error(f"first_row['podMetricsLastSecond']: {first_row['podMetricsLastSecond']}")
             logger.error(f"pod_metrics: {pod_metrics}")
             logger.error(f"first_row: {first_row}")
             assert False

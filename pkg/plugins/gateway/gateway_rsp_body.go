@@ -247,7 +247,7 @@ func (s *Server) HandleResponseBody(ctx context.Context, requestID string, req *
 			klog.V(5).Infof("DecrementNumDecodeTokensForPod(%s) by %d, %d", routerCtx.TargetAddressWithoutPort(), timing.totalTokenCount, ret)
 
 			timingHeaders, logMessage := s.calculateTimingMetrics(timing, currentTime, requestID, routerCtx, stream, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
-			if utils.UseRealRequest {
+			if utils.UseRealRequest == "true" {
 				utils.AddRequestLogMessage(requestID, logMessage)
 			}
 			// for i := 0; i < 100; i++ {

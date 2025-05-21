@@ -960,7 +960,7 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
             logger.error(f"Some request features missing from DataFrame, using default normalization")
             assert False
     else:
-        logger.error("No running statistics provided, using batch-specific normalization")
+        logger.error(f"No running statistics provided. request_stats: {request_stats}, request_stats.count: {request_stats.count}")
         assert False
     
     processor = LLMRoutingDataProcessor(output_dir="temp_inference")

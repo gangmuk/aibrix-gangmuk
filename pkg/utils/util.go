@@ -88,6 +88,7 @@ func LoadEnv(key, defaultValue string) string {
 		klog.Warningf("environment variable %s is not set, using default value: %s", key, defaultValue)
 		return defaultValue
 	}
+	klog.Infof("environment variable %s is set to: %s", key, value)
 	return value
 }
 
