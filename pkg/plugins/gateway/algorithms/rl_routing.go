@@ -72,7 +72,7 @@ func NewRLOnlineRouter() (types.Router, error) {
 // // flush real request log collected
 func FlushLogMessageToRLAgent() {
 	if utils.UseRealRequest == "true" {
-		klog.Infof("Flushing real request log to RL agent")
+		klog.Infof("flushing real request log to RL agent")
 		done := make(chan struct{})
 		go func() {
 			ticker := time.NewTicker(flushPeriod)
@@ -85,49 +85,53 @@ func FlushLogMessageToRLAgent() {
 						continue // Skip this iteration and check again on the next tick
 					}
 					if len(utils.RequestToLogMessage) > minNumLogMessagesToFlush {
-						utils.RequestToLogMessageMutex.Lock()
 						klog.Infof("Starting %dth flushing for %d number of log messages", numFlush+1, len(utils.RequestToLogMessage))
+
+						// utils.RequestToLogMessageMutex.Lock()
 						reqBody, err := json.Marshal(utils.RequestToLogMessage)
+						// utils.RequestToLogMessageMutex.Unlock()
+
 						if err != nil {
 							klog.Errorf("Failed flush. failed marshal RequestToLogMessage: %v", err)
-							utils.RequestToLogMessageMutex.Unlock()
 							utils.CleanupAllRequestLogMessage()
 							continue
 						}
+
 						url := fmt.Sprintf("%s%s", routingAgentURL, flushEndpoint)
 						req, reqErr := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 						if reqErr != nil {
 							klog.Errorf("Failed flush. failed to create request: %v", reqErr)
-							utils.RequestToLogMessageMutex.Unlock()
 							utils.CleanupAllRequestLogMessage()
 							continue
 						}
 						req.Header.Set("Content-Type", "application/json")
 						resp, sendErr := httpClientForRLAgent.Do(req) // flush request
+						klog.Info("flush 1")
 						if sendErr != nil {
 							klog.Errorf("Failed flush. failed to send request: %v", sendErr)
-							utils.RequestToLogMessageMutex.Unlock()
 							utils.CleanupAllRequestLogMessage()
 							continue
 						}
+						klog.Info("flush 2")
 						if resp.StatusCode != http.StatusOK {
 							klog.Errorf("Received non-200 response: %s", resp.Status)
-							utils.RequestToLogMessageMutex.Unlock()
 							utils.CleanupAllRequestLogMessage()
 							klog.Errorf("Failed flush. Received non-200 response: %s", resp.Status)
 							continue
 						}
+						klog.Info("flush 3")
 						body, readErr := ioutil.ReadAll(resp.Body)
+						klog.Info("flush 4")
 						if readErr != nil {
 							klog.Errorf("Failed to read response body: %v", readErr)
-							utils.RequestToLogMessageMutex.Unlock()
 							utils.CleanupAllRequestLogMessage()
 							klog.Errorf("Failed flush. Failed to read response body: %v", readErr)
 							continue
 						}
+						klog.Info("flush 5")
 						resp.Body.Close()
+						klog.Info("flush 7")
 						utils.CleanupAllRequestLogMessage()
-						utils.RequestToLogMessageMutex.Unlock()
 						klog.Infof("Successfully flushed, response: %s", string(body))
 						flushed = true
 						numFlush += 1
@@ -269,7 +273,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		return ctx.TargetAddress(), nil
 	}
 	if !flushed {
-		klog.Infof("At least one flush is required for RL based routing. Using fallback routing and return right away.")
+		klog.Infof("At least one training is required for RL based routing. Using fallback routing and return right away.")
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
