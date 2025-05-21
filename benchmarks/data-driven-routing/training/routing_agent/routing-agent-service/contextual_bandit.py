@@ -13,17 +13,16 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.distributions import Categorical
 import pickle
 import time
-import logging
-import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime
 import glob
 from logger import logger
+import traceback
 
-# Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Using device: {device}")
-
+results_dir = ""
+final_model_path = "final_model"
 
 class ParallelFeatureProcessor(nn.Module):
     """
@@ -308,7 +307,6 @@ class ContextualBandit:
         
         # Save policy network
         torch.save(self.policy.state_dict(), os.path.join(directory, 'policy.pth'))
-        
         # Save training history
         history = {
             'loss': self.loss_history,
@@ -319,6 +317,7 @@ class ContextualBandit:
         with open(os.path.join(directory, 'history.pkl'), 'wb') as f:
             pickle.dump(history, f)
             
+        os.system(f"cp -r {directory} final_model")
         logger.info(f"Saved agent to {directory}")
     
     def load(self, directory):
@@ -442,7 +441,7 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
     plt.ylabel('Accuracy')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'training_metrics.png'))
+    plt.savefig(os.path.join(output_dir, 'training_metrics.pdf'))
     
     # Plot action distribution
     if len(eval_metrics) > 0:
@@ -465,7 +464,7 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
         plt.ylabel('Count')
         
         plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'action_distribution.png'))
+        plt.savefig(os.path.join(output_dir, 'action_distribution.pdf'))
         
         # Plot predicted probabilities
         if 'probs' in last_eval:
@@ -475,7 +474,7 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
             plt.title('Average Action Probabilities')
             plt.xlabel('Action')
             plt.ylabel('Probability')
-            plt.savefig(os.path.join(output_dir, 'action_probabilities.png'))
+            plt.savefig(os.path.join(output_dir, 'action_probabilities.pdf'))
     
     logger.info(f"Saved training metrics plots to {output_dir}")
 
@@ -556,41 +555,46 @@ def load_all_encoded_data(encoded_data_dir):
     
     return combined_data
 
-
-def load_previous_model(encoded_data_dir):
-    # Look for results directory
-    results_dir = os.path.join(os.path.dirname(encoded_data_dir), "results")
-    if not os.path.exists(results_dir):
-        return None
-        
-    # Find all model directories sorted by timestamp
-    model_dirs = sorted(glob.glob(os.path.join(results_dir, "cb_*")), reverse=True)
-    
-    if not model_dirs:
-        return None
-        
-    # Get the most recent model directory
-    latest_model_dir = model_dirs[0]
-    
-    # Check if it has a final_model subdirectory
-    final_model_path = os.path.join(latest_model_dir, "final_model")
+def load_previous_model():
+    global final_model_path
     if os.path.exists(final_model_path):
         logger.info(f"Found previous model at {final_model_path}")
         return final_model_path
+
+# def load_previous_model(encoded_data_dir):
+#     global results_dir
+#     # Look for results directory
+#     results_dir = os.path.join(os.path.dirname(encoded_data_dir), "results")
+#     if not os.path.exists(results_dir):
+#         return None
         
-    # If no final_model, look for the latest checkpoint
-    checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
-                         key=lambda x: int(x.split("_")[-1]), 
-                         reverse=True)
+#     # Find all model directories sorted by timestamp
+#     model_dirs = sorted(glob.glob(os.path.join(results_dir, "cb_*")), reverse=True)
     
-    if checkpoints:
-        logger.info(f"Found previous checkpoint at {checkpoints[0]}")
-        return checkpoints[0]
+#     if not model_dirs:
+#         return None
         
-    return None
+#     # Get the most recent model directory
+#     latest_model_dir = model_dirs[0]
+    
+#     # Check if it has a final_model subdirectory
+#     final_model_path = os.path.join(latest_model_dir, "final_model")
+#     if os.path.exists(final_model_path):
+#         logger.info(f"Found previous model at {final_model_path}")
+#         return final_model_path
+        
+#     # If no final_model, look for the latest checkpoint
+#     checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), key=lambda x: int(x.split("_")[-1]), reverse=True)
+    
+#     if checkpoints:
+#         logger.info(f"Found previous checkpoint at {checkpoints[0]}")
+#         return checkpoints[0]
+        
+#     return None
 
 
 def train(encoded_data_dir):
+    global results_dir
     # Hyperparameters
     hidden_dim = 256
     batch_size = 64
@@ -610,7 +614,6 @@ def train(encoded_data_dir):
     # Set output directory
     if output_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        results_dir = "training_results"
         os.makedirs(results_dir, exist_ok=True)
         output_dir = os.path.join(results_dir, f"cb_{timestamp}")
     
@@ -622,7 +625,8 @@ def train(encoded_data_dir):
     # Check if we should continue training from a previous model
     previous_model_path = None
     if continue_training:
-        previous_model_path = load_previous_model(encoded_data_dir)
+        # previous_model_path = load_previous_model(encoded_data_dir)
+        previous_model_path = load_previous_model()
         logger.info(f"Continue training from previous model: {previous_model_path}")
     
     # Create configuration
@@ -725,8 +729,7 @@ def train(encoded_data_dir):
             rewards = batch['reward'].to(device).unsqueeze(1)
             
             # Store all data of this batch in agent memory
-            logger.debug(f"Batch iter: {batch_iter_idx+1}/{final_total_num_iteration}. "
-                        f"Storing {len(rewards)} experiences in memory")
+            logger.debug(f"Batch iter: {batch_iter_idx+1}/{final_total_num_iteration}. Storing {len(rewards)} experiences in memory")
             
             for j in range(len(rewards)):
                 agent.remember(
@@ -740,13 +743,10 @@ def train(encoded_data_dir):
             # Trigger learning every 5th batch iteration
             trigger_learning = (batch_iter_idx+1) % 5 == 0 or batch_iter_idx == final_total_num_iteration - 1
             if trigger_learning:
-                logger.debug(f"Learning triggered! (Batch iter: {batch_iter_idx+1}/{final_total_num_iteration}), "
-                            f"Memory size: {len(agent.pod_features)}")
-                
+                logger.debug(f"Learning triggered! (Batch iter: {batch_iter_idx+1}/{final_total_num_iteration}), Memory size: {len(agent.pod_features)}")
                 if len(agent.pod_features) > 0:  # Only learn if we have collected experiences
                     try:
                         update_metrics = agent.learn()
-                        
                         total_updates += 1
                         epoch_updates += 1
                         epoch_loss += update_metrics['loss']
@@ -754,7 +754,7 @@ def train(encoded_data_dir):
                         epoch_entropy += update_metrics['entropy']
                         
                         # Log progress
-                        if batch_iter_idx % 100 == 0:
+                        if batch_iter_idx % (final_total_num_iteration//5) == 0:
                             logger.info(f"Batch: {batch_iter_idx+1}/{final_total_num_iteration}, "
                                        f"Loss: {update_metrics['loss']:.4f}, "
                                        f"Reward: {update_metrics['reward']:.4f}, "
@@ -784,11 +784,11 @@ def train(encoded_data_dir):
                     logger.info(f"Evaluation metrics - Accuracy: {metrics['accuracy']:.4f}, "
                                f"True Reward: {metrics['true_reward']:.4f}")
                     
-                    # Save checkpoint
-                    checkpoint_dir = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}_batch_{batch_iter_idx+1}")
-                    os.makedirs(checkpoint_dir, exist_ok=True)
-                    agent.save(checkpoint_dir)
-                    logger.info(f"Saved checkpoint to {checkpoint_dir}")
+                    ## Save checkpoint
+                    # checkpoint_dir = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}_batch_{batch_iter_idx+1}")
+                    # os.makedirs(checkpoint_dir, exist_ok=True)
+                    # agent.save(checkpoint_dir)
+                    # logger.info(f"Saved checkpoint to {checkpoint_dir}")
                     
                 except Exception as e:
                     logger.error(f"Error during evaluation: {e}")
@@ -832,52 +832,34 @@ def train(encoded_data_dir):
     }
 
 # Add this new function to contextual_bandit.py
-def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, exploration_rate=0.1):
-    """
-    Perform inference using the latest trained contextual bandit model with in-memory tensor data
-    
-    Args:
-        tensor_data: Dictionary containing tensor data for inference
-        model_dir: Optional directory containing the model to use (if None, use the latest)
-        exploration_enabled: Whether to enable exploration during inference
-        exploration_rate: Exploration rate if exploration is enabled (default 0.1)
-    
-    Returns:
-        Dictionary with selected pod index, probabilities, and metadata
-    """
-    import torch
-    import os
-    import glob
-    from logger import logger
-    
+def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0.1):
+    global final_model_path
     # Find the latest model if not specified
-    if model_dir is None:
-        results_dir = "training_results"
-        if not os.path.exists(results_dir):
-            raise ValueError("No trained models found")
+    # if model_dir is None:
+    #     if not os.path.exists(results_dir):
+    #         raise ValueError("No trained models found")
             
-        model_dirs = sorted(glob.glob(os.path.join(results_dir, "cb_*")), reverse=True)
-        if not model_dirs:
-            raise ValueError("No trained contextual bandit models found")
+    #     if not final_model_path:
+    #         raise ValueError("No trained contextual bandit models found")
             
-        # Get the most recent model directory
-        latest_model_dir = model_dirs[0]
+        # # Get the most recent model directory
+        # latest_model_dir = model_dirs[0]
         
-        # Check if it has a final_model subdirectory
-        final_model_path = os.path.join(latest_model_dir, "final_model")
-        if os.path.exists(final_model_path):
-            model_dir = final_model_path
-        else:
-            # If no final_model, look for the latest checkpoint
-            checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
-                                key=lambda x: int(x.split("_")[-1]), 
-                                reverse=True)
-            if checkpoints:
-                model_dir = checkpoints[0]
-            else:
-                raise ValueError("No trained model checkpoints found")
+        # # Check if it has a final_model subdirectory
+        # final_model_path = os.path.join(latest_model_dir, "final_model")
+        # if os.path.exists(final_model_path):
+        #     model_dir = final_model_path
+        # else:
+        #     # If no final_model, look for the latest checkpoint
+        #     checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
+        #                         key=lambda x: int(x.split("_")[-1]), 
+        #                         reverse=True)
+        #     if checkpoints:
+        #         model_dir = checkpoints[0]
+        #     else:
+        #         raise ValueError("No trained model checkpoints found")
     
-    logger.info(f"Using model from {model_dir} for inference")
+    logger.info(f"Using model from {final_model_path} for inference")
     
     ###########################################################
     # Print all available keys in tensor_data
@@ -894,9 +876,6 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
     feature_indices_map_file = "feature_indices_map.pkl"
     
     try:
-        import json
-        import pickle
-        
         feature_names = {
             "pod_features": [],
             "request_features": []
@@ -1008,8 +987,8 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
         action_dim=action_dim,
         exploration_rate=exploration_rate
     )
-    agent.load(model_dir)
-    logger.info(f"Loaded model from {model_dir}")
+    agent.load(final_model_path)
+    logger.info(f"Loaded model from {final_model_path}")
 
     # Set to evaluation mode
     agent.policy.eval()
@@ -1036,6 +1015,6 @@ def infer_from_tensor(tensor_data, model_dir=None, exploration_enabled=False, ex
         'selected_pod_index': selected_action,
         'confidence': confidence,
         'pod_probabilities': action_probs[0].cpu().numpy().tolist(),
-        'model_dir': model_dir,
+        'final_model_path': final_model_path,
         'exploration_enabled': exploration_enabled
     }

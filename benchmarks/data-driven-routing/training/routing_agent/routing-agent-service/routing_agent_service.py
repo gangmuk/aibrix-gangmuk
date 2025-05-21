@@ -161,7 +161,9 @@ def handle_flush():
             first_key = list(log_data.keys())[0]
             logger.debug(f"First raw log: {log_data[first_key]}")
 
-        raw_data = f"raw_training_data_batch_{BATCH_ID}.csv"
+        if os.path.exists(raw_data):
+            os.mkdir(f"raw_training_data")
+        raw_data = f"raw_training_data/batch_{BATCH_ID}.csv"
         BATCH_ID += 1
         
         # Write raw data to file
@@ -294,14 +296,18 @@ def handle_infer():
         logger.info(f"Processing inference request for request ID: {request_id}")
         
         # Create a temporary file with the single log message
-        raw_data = f"infer_request_{request_id}.csv"
+        if not os.path.exists("infer_request"):
+            os.mkdir("infer_request")
+        raw_data = f"infer_request/{request_id}.csv"
         with open(raw_data, "w") as log_file:
             log_file.write(f"{log_message}\n")
         
         # Use the existing preprocessing function to parse the log
         processed_df, _, all_pods = preprocess.main(raw_data)
         logger.info(f"Successfully parsed data for request_{request_id}")
-        
+        # raw_data file is not needed anymore. delete it
+        os.remove(raw_data)
+
         # Print essential request features immediately after preprocessing
         logger.info("Important request features after preprocessing:")
         for feature in ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot']:
