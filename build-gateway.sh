@@ -29,4 +29,4 @@ else
     docker push aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gateway-plugins:$tag
 fi
 
-# krrdgateway
+kubectl rollout restart deploy aibrix-gateway-plugins -n aibrix-system && kubectl rollout restart deploy routing-agent-service

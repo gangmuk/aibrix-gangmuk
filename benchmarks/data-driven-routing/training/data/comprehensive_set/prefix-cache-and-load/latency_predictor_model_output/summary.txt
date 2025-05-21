@@ -1,8 +1,8 @@
 LLM Latency Prediction Model Summary
 ========================================
 
-Total samples: 3241
-Training samples: 2592
+Total samples: 3242
+Training samples: 2593
 Test samples: 649
 Target variables: avg_tpot, ttft
 
@@ -16,47 +16,47 @@ Cross-Validation Results:
 ----------------------------------------
 
 avg_tpot:
-  RMSE: 2.3199 ± 0.2621
-  Stability: Stable (CV variation ratio: 0.11)
+  RMSE: 2.2495 ± 0.2026
+  Stability: Very stable (CV variation ratio: 0.09)
 
 ttft:
-  RMSE: 272.9322 ± 33.7445
-  Stability: Stable (CV variation ratio: 0.12)
+  RMSE: 270.0826 ± 24.2033
+  Stability: Very stable (CV variation ratio: 0.09)
 
 Test Results:
 ----------------------------------------
 
 avg_tpot:
-  mse: 4.2733
-  rmse: 2.0672
-  mae: 1.3871
-  r2: 0.9939
-  mape: 3.2812
+  mse: 3.7270
+  rmse: 1.9305
+  mae: 1.3159
+  r2: 0.9944
+  mape: 3.1175
   Quality: Excellent - Model explains >90% of variance
   No signs of overfitting detected
 
 ttft:
-  mse: 43197.6211
-  rmse: 207.8404
-  mae: 138.4295
-  r2: 0.9645
-  mape: 31.8568
+  mse: 51134.7969
+  rmse: 226.1300
+  mae: 142.1567
+  r2: 0.9465
+  mape: 32.7657
   Quality: Excellent - Model explains >90% of variance
-  Warning: Potential overfitting detected
+  No signs of overfitting detected
 
 Top Features:
 ----------------------------------------
 
 avg_tpot:
-  last_second_avg_tpot_ms: 0.4806
-  output_tokens: 0.2153
-  decode_tokens: 0.1192
-  running_requests: 0.0481
-  last_second_total_requests: 0.0385
+  last_second_avg_tpot_ms: 0.4927
+  output_tokens: 0.2033
+  decode_tokens: 0.1373
+  running_requests: 0.0423
+  gpu_kv_cache: 0.0273
 
 ttft:
-  waiting_requests: 0.5882
-  output_tokens: 0.0880
-  decode_tokens: 0.0687
-  last_second_avg_tpot_ms: 0.0586
-  running_requests: 0.0266
+  waiting_requests: 0.6141
+  output_tokens: 0.0946
+  last_second_avg_tpot_ms: 0.0680
+  decode_tokens: 0.0553
+  running_requests: 0.0246

@@ -47,3 +47,6 @@ benchmarks/generator/traces/*
 # simulator cache and output
 development/simulator/simulator_output
 development/simulator/cache
+
+*.jsonl
+*.json

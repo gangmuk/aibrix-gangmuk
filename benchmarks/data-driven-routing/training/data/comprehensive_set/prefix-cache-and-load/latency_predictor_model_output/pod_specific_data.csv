@@ -1,4 +1,5 @@
 kv_hit_ratio,inflight_requests,gpu_kv_cache,cpu_kv_cache,running_requests,waiting_requests,prefill_tokens,decode_tokens,gpu_model,last_second_avg_ttft_ms,last_second_avg_tpot_ms,last_second_p99_ttft_ms,last_second_p99_tpot_ms,last_second_total_requests,last_second_total_tokens,last_second_total_decode_tokens,last_second_total_prefill_tokens,input_tokens,output_tokens,total_tokens,avg_tpot,ttft
+0,1,0.0,0,0,0,0,18168,NVIDIA-L20,-1.0,22.801136363636363,-1,26,0,352,352,0,2480,256,2736,28,421
 0,1,0.0,0,0,0,0,20791,NVIDIA-L20,-1.0,23.041343669250647,-1,29,0,387,387,0,2470,256,2726,27,425
 0,1,0.0,0,0,0,0,18348,NVIDIA-L20,-1.0,22.519886363636363,-1,26,0,352,352,0,2478,256,2734,28,429
 79,2,0.0,0,0,0,0,18229,NVIDIA-L20,138.0,23.85904255319149,138,70,1,2819,376,2443,2480,256,2736,26,393
