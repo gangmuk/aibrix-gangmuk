@@ -157,11 +157,11 @@ func FlushLogMessageToRLAgent() {
 						continue // Skip this iteration and check again on the next tick
 					}
 
-					// if flushed {
-					// 	// flush only once to simplify experiment
-					// 	klog.Infof("Skip flushing. Configured to flush only once for Fake data, utils.UseRealRequest == true")
-					// 	continue
-					// }
+					if flushed {
+						// flush only once to simplify experiment
+						klog.Infof("Skip flushing. Configured to flush only once for Fake data, utils.UseRealRequest == false")
+						continue
+					}
 
 					// If we got here, the first request has been received
 					klog.Infof("Start flushing log messages to RL agent, %dth flush", numFlush)

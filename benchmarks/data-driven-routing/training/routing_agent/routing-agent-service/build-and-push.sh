@@ -1,3 +1,5 @@
+#!/bin/bash
+
 target=$1
 
 if [ -z "$target" ]; then
@@ -24,4 +26,4 @@ elif [ "$target" == "local" ]; then
     docker tag aibrix/gangmuk-routing-agent:latest aibrix/gangmuk-routing-agent:latest
 fi
 
-kubectl rollout restart deploy routing-agent-service
+# kubectl rollout restart deploy routing-agent-service
