@@ -768,10 +768,8 @@ func init() {
 func AddPodToRegistry(podIP string, podName string) {
 	RunningPodRegistryMutex.Lock()
 	defer RunningPodRegistryMutex.Unlock()
-
-	// Add the pod to the registry
 	RunningPodRegistry[podIP] = podName
-	klog.Infof("Registered podIP %s, podName %s", podIP, podName)
+	klog.V(5).Infof("Registered podIP %s, podName %s", podIP, podName)
 }
 
 func SyncPodRegistry(readyPods []*v1.Pod) {
@@ -786,7 +784,7 @@ func SyncPodRegistry(readyPods []*v1.Pod) {
 		podIP := pod.Status.PodIP
 		podName := pod.Name
 		RunningPodRegistry[podIP] = podName
-		klog.Infof("Registered podIP %s, podName %s", podIP, podName)
+		klog.V(5).Infof("Registered podIP %s, podName %s", podIP, podName)
 	}
 }
 
