@@ -394,10 +394,12 @@ def preprocess_dataset(df):
     
     # Map pod IDs to integer indices for the action space
     unique_pods = processed_df['selected_pod'].unique()
-    pod_to_index = {pod: idx for idx, pod in enumerate(unique_pods)}
-    
+    # pod_to_index = {pod: idx for idx, pod in enumerate(unique_pods)}
+    pod_to_index = {str(pod): idx for idx, pod in enumerate(unique_pods)}
+
     # Add the action column (the pod index)
     processed_df['action'] = processed_df['selected_pod'].map(pod_to_index)
+    index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
 
     processed_df['avg_tpot_slo_satisfied'] = processed_df['avg_tpot'].apply(
         lambda x: x <= AVG_TPOT_SLO)
@@ -421,9 +423,14 @@ def preprocess_dataset(df):
         lambda x: min(1.0, max(0.0, float(x) / 25)) if x > 0 else 0)
 
     # Save mapping information
+    # mapping_info = {
+    #     'pod_to_index': pod_to_index,
+    #     'index_to_pod': {idx: pod for pod, idx in pod_to_index.items()},
+    #     'pod_gpu_models': pod_gpu_models,
+    # }
     mapping_info = {
         'pod_to_index': pod_to_index,
-        'index_to_pod': {idx: pod for pod, idx in pod_to_index.items()},
+        'index_to_pod': index_to_pod,
         'pod_gpu_models': pod_gpu_models,
     }
     
