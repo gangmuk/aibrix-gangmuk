@@ -161,8 +161,8 @@ def handle_flush():
             first_key = list(log_data.keys())[0]
             logger.debug(f"First raw log: {log_data[first_key]}")
 
-        if os.path.exists(raw_data):
-            os.mkdir(f"raw_training_data")
+        if not os.path.exists("raw_training_data"):
+            os.mkdir("raw_training_data")
         raw_data = f"raw_training_data/batch_{BATCH_ID}.csv"
         BATCH_ID += 1
         

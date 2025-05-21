@@ -21,7 +21,7 @@ import traceback
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Using device: {device}")
-results_dir = ""
+training_results_dir = "training_results"
 final_model_path = "final_model"
 
 class ParallelFeatureProcessor(nn.Module):
@@ -304,6 +304,7 @@ class ContextualBandit:
     def save(self, directory):
         """Save the agent's parameters to the specified directory"""
         os.makedirs(directory, exist_ok=True)
+        logger.info(f"Creating directory: {directory}")
         
         # Save policy network
         torch.save(self.policy.state_dict(), os.path.join(directory, 'policy.pth'))
@@ -317,7 +318,8 @@ class ContextualBandit:
         with open(os.path.join(directory, 'history.pkl'), 'wb') as f:
             pickle.dump(history, f)
             
-        os.system(f"cp -r {directory} final_model")
+        os.makedirs(final_model_path, exist_ok=True)
+        os.system(f"cp {directory}/* {final_model_path}")
         logger.info(f"Saved agent to {directory}")
     
     def load(self, directory):
@@ -594,7 +596,7 @@ def load_previous_model():
 
 
 def train(encoded_data_dir):
-    global results_dir
+    global training_results_dir
     # Hyperparameters
     hidden_dim = 256
     batch_size = 64
@@ -614,8 +616,8 @@ def train(encoded_data_dir):
     # Set output directory
     if output_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        os.makedirs(results_dir, exist_ok=True)
-        output_dir = os.path.join(results_dir, f"cb_{timestamp}")
+        os.makedirs(training_results_dir, exist_ok=True)
+        output_dir = os.path.join(training_results_dir, f"cb_{timestamp}")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -812,10 +814,10 @@ def train(encoded_data_dir):
     logger.info(f"Training completed with {total_updates} total updates")
     
     # Save final model
-    final_model_dir = os.path.join(output_dir, "final_model")
-    os.makedirs(final_model_dir, exist_ok=True)
-    agent.save(final_model_dir)
-    logger.info(f"Saved final model to {final_model_dir}")
+    final_model_dir_of_this_train = os.path.join(output_dir, "final_model")
+    os.makedirs(final_model_dir_of_this_train, exist_ok=True)
+    agent.save(final_model_dir_of_this_train)
+    logger.info(f"Saved final model to {final_model_dir_of_this_train}")
     
     # Plot training metrics
     try:
@@ -825,7 +827,7 @@ def train(encoded_data_dir):
     
     return {
         'agent': agent,
-        'final_model_dir': final_model_dir,
+        'final_model_dir_of_this_train': final_model_dir_of_this_train,
         'output_dir': output_dir,
         'config': config,
         'eval_metrics': eval_metrics
