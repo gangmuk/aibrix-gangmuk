@@ -247,6 +247,22 @@ def preprocess_dataset(df):
     if unknown_columns:
         logger.error(f"Error: Found unknown columns: {unknown_columns}")
 
+    # Filter out rows with empty 'podMetricsLastSecond'
+    df = df[df['podMetricsLastSecond'].notna()]
+    
+    # Additional filtering for empty dictionaries
+    valid_rows = []
+    num_filter = 0
+    for idx, row in df.iterrows():
+        pod_metrics = safe_parse_json(row['podMetricsLastSecond'])
+        if pod_metrics and len(pod_metrics) > 0:  # Check if dictionary is non-empty
+            valid_rows.append(idx)
+        else:
+            logger.warning(f"Warning: Empty podMetricsLastSecond for row {idx}. request_id: {row['requestID']}")
+            num_filter += 1
+    logger.info(f"Filtered out {num_filter} rows with empty podMetricsLastSecond.")
+    df = df.loc[valid_rows]
+
     # Process first row to check podMetricsLastSecond structure
     if 'podMetricsLastSecond' in df.columns and len(df) > 0:
         first_row = df.iloc[0]
@@ -265,7 +281,7 @@ def preprocess_dataset(df):
             # Check structure for each pod
             for pod_id, metrics in pod_metrics.items():
                 # logger.info(f"Checking metrics for pod {pod_id}")
-                logger.info(f"metrics: {metrics}")
+                logger.debug(f"metrics: {metrics}")
                 # Check for missing expected keys
                 missing_keys = [key for key in expected_last_second_pod_metrics_keys if key not in metrics]
                 if missing_keys:
@@ -304,7 +320,7 @@ def preprocess_dataset(df):
                 # logger.info(f"  Parsing as JSON string")
                 df[col] = df[col].apply(safe_parse_json)
             elif isinstance(sample_val, dict):
-                logger.info(f"  Already parsed as dictionary")
+                logger.debug(f"  Already parsed as dictionary")
             else:
                 logger.info(f"  Unknown type: {type(sample_val)}")
                 # Try to parse anyway
@@ -446,11 +462,61 @@ def main(input_file):
         output_file = os.path.join(input_dir, "processed_dataset.csv")
         logger.info(f"Saving processed dataset to {output_file}...")
         processed_df.to_csv(output_file, index=False)
+
+
+
+        # Debug: Print the structure and types of mapping_info
+        logger.info("Debugging mapping_info structure:")
+        logger.info(f"mapping_info keys: {list(mapping_info.keys())}")
+        
+        # Debug pod_to_index
+        logger.info("Inspecting pod_to_index:")
+        for pod, idx in mapping_info['pod_to_index'].items():
+            logger.info(f"  Pod {pod} (type: {type(pod)}) -> Index {idx} (type: {type(idx)})")
+        
+        # Debug index_to_pod
+        logger.info("Inspecting index_to_pod:")
+        for idx, pod in mapping_info['index_to_pod'].items():
+            logger.info(f"  Index {idx} (type: {type(idx)}) -> Pod {pod} (type: {type(pod)})")
+        
+        # Debug pod_gpu_models
+        logger.info("Inspecting pod_gpu_models:")
+        for pod, model in mapping_info['pod_gpu_models'].items():
+            logger.info(f"  Pod {pod} (type: {type(pod)}) -> Model {model} (type: {type(model)})")
+
+
+
         
         # Save mapping information
         mapping_file = output_file.replace('.csv', '_mapping.json')
         with open(mapping_file, 'w') as f:
-            json.dump(mapping_info, f, indent=2)
+            try:
+                json.dump(mapping_info, f, indent=2)
+                logger.info("JSON serialization successful")
+            except TypeError as e:
+                logger.error(f"JSON serialization failed: {e}")
+                # Try to identify the problematic part by serializing each part separately
+                logger.info("Trying to identify the problematic part:")
+                try:
+                    json.dumps(mapping_info['pod_to_index'])
+                    logger.info("pod_to_index serialization: OK")
+                except TypeError as e:
+                    logger.error(f"pod_to_index serialization failed: {e}")
+                
+                try:
+                    json.dumps(mapping_info['index_to_pod'])
+                    logger.info("index_to_pod serialization: OK")
+                except TypeError as e:
+                    logger.error(f"index_to_pod serialization failed: {e}")
+                
+                try:
+                    json.dumps(mapping_info['pod_gpu_models'])
+                    logger.info("pod_gpu_models serialization: OK")
+                except TypeError as e:
+                    logger.error(f"pod_gpu_models serialization failed: {e}")
+                
+                raise
+            
         logger.info(f"Mapping information saved to {mapping_file}")
         logger.info("\nPod mapping (for action space):")
         for pod, idx in mapping_info['pod_to_index'].items():
