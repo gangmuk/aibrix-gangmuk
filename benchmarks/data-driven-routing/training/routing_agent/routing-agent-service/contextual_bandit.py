@@ -443,8 +443,9 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
     plt.ylabel('Accuracy')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'training_metrics.pdf'))
-    
+    fn = f"{output_dir}/training_metrics.pdf"
+    plt.savefig(fn)
+    os.system(f"cp {fn} {final_model_path}")
     # Plot action distribution
     if len(eval_metrics) > 0:
         last_eval = eval_metrics[-1]
@@ -466,7 +467,9 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
         plt.ylabel('Count')
         
         plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'action_distribution.pdf'))
+        fn = f"{output_dir}/action_distribution.pdf"
+        plt.savefig(fn)
+        os.system(f"cp {fn} {final_model_path}")
         
         # Plot predicted probabilities
         if 'probs' in last_eval:
@@ -476,7 +479,9 @@ def plot_training_metrics(agent, eval_metrics, output_dir):
             plt.title('Average Action Probabilities')
             plt.xlabel('Action')
             plt.ylabel('Probability')
-            plt.savefig(os.path.join(output_dir, 'action_probabilities.pdf'))
+            fn = f"{output_dir}/action_probabilities.pdf"
+            plt.savefig(fn)
+            os.system(f"cp {fn} {final_model_path}")
     
     logger.info(f"Saved training metrics plots to {output_dir}")
 
@@ -606,7 +611,6 @@ def train(encoded_data_dir):
     max_updates_per_epoch = 1000
     eval_interval = 10
     seed = 42
-    output_dir = None
     continue_training = False
     
     # Set random seed
@@ -614,10 +618,9 @@ def train(encoded_data_dir):
     np.random.seed(seed)
     
     # Set output directory
-    if output_dir is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        os.makedirs(training_results_dir, exist_ok=True)
-        output_dir = os.path.join(training_results_dir, f"cb_{timestamp}")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.makedirs(training_results_dir, exist_ok=True)
+    output_dir = os.path.join(training_results_dir, f"cb_{timestamp}")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -814,10 +817,8 @@ def train(encoded_data_dir):
     logger.info(f"Training completed with {total_updates} total updates")
     
     # Save final model
-    final_model_dir_of_this_train = os.path.join(output_dir, "final_model")
-    os.makedirs(final_model_dir_of_this_train, exist_ok=True)
-    agent.save(final_model_dir_of_this_train)
-    logger.info(f"Saved final model to {final_model_dir_of_this_train}")
+    agent.save(output_dir)
+    logger.info(f"Saved final model to {output_dir}")
     
     # Plot training metrics
     try:
@@ -827,7 +828,7 @@ def train(encoded_data_dir):
     
     return {
         'agent': agent,
-        'final_model_dir_of_this_train': final_model_dir_of_this_train,
+        'model_dir': output_dir,
         'output_dir': output_dir,
         'config': config,
         'eval_metrics': eval_metrics
