@@ -292,13 +292,15 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	for _, pod := range readyPods {
 		readyPodsMap[pod.Status.PodIP] = struct{}{}
 	}
-
+	tokenizer_start_time := time.Now()
 	tokens, err := r.tokenizer.TokenizeInputText(ctx.Message)
+	tokenizer_overhead := time.Since(tokenizer_start_time).Milliseconds()
 	if err != nil {
 		klog.Errorf("requestID: %s, Tokenization failed: %v", ctx.RequestID, err)
 		return "", err
 	}
 	var log string
+	log_construction_start_time := time.Now()
 	if utils.UseRealRequest == "true" {
 		numInputTokens := len(tokens)
 		numOutputTokens := 128 // Placeholder for output tokens
@@ -380,6 +382,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		numLogs := 1
 		log = utils.GenerateLogMessages(allPodIPs, numLogs)[0]
 	}
+	log_construction_overhead := time.Since(log_construction_start_time).Milliseconds()
 
 	klog.V(5).Infof("/infer: %s", log)
 	reqBody, err := json.Marshal(log)
@@ -447,7 +450,8 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	ctx.SetTargetPod(targetPod)
 	response_process_overhead := time.Since(response_process_start).Milliseconds()
 	end_to_end_overhead := time.Since(route_start_time).Milliseconds()
-	klog.Infof("RL router, selected podIP: %s, \nRoute end-to-end took %dms, \ninfer_http_request took %dms, \nrequest_prepare_overhead: %dms, \nresponse_process_overhead: %dms, \nResponseBody: %s", ctx.TargetAddressWithoutPort(), end_to_end_overhead, infer_overhead, request_prepare_overhead, response_process_overhead, string(body))
+
+	klog.Infof("RL router, selected podIP: %s, \nRoute end-to-end took %dms, \ninfer_http_request took %dms, \n tokenizer_overhead: %dms, log_construction_overhead: %dms, \nrequest_prepare_overhead: %dms, \nresponse_process_overhead: %dms, \nResponseBody: %s", ctx.TargetAddressWithoutPort(), end_to_end_overhead, infer_overhead, tokenizer_overhead, log_construction_overhead, request_prepare_overhead, response_process_overhead, string(body))
 	return ctx.TargetAddress(), nil
 }
 
