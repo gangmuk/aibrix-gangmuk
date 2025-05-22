@@ -181,8 +181,8 @@ def handle_flush():
 
         # Preprocess raw data
         ts_preprocess = time.time()
-        df, preprocessed_file, all_pods = preprocess.main(raw_data, TTFT_SLO, AVG_TPOT_SLO)
-        logger.info(f"Successfully parsed data. (writte in  {preprocessed_file}), took {time.time() - ts_preprocess} seconds")
+        df, _, all_pods, preproces_dataset_overhead = preprocess.main(log_data, TTFT_SLO, AVG_TPOT_SLO)
+        logger.info(f"Successfully parsed data, took {time.time() - ts_preprocess} seconds")
         
         # Update running statistics
         # request_features = ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot', 'e2e_latency']
@@ -289,7 +289,8 @@ def handle_infer():
         # Get the log message as a string from the request body
         raw_data_write_start_time = time.time()
         log_message = request.data.decode('utf-8')
-        logger.info(f"Received inference request: {log_message[:100]}...")
+        # logger.info(f"Received inference request: {log_message[:100]}...")
+        logger.info(f"Received inference request:\n{log_message}")
         if NUM_TRAINS == 0:
             logger.warning("No training has been done yet, please train the model first.")
             return jsonify({"error": "No training has been done yet, please train the model first."}), 400
@@ -305,20 +306,19 @@ def handle_infer():
         
         logger.info(f"Processing inference request for request ID: {request_id}")
         
-        # Create a temporary file with the single log message
-        if not os.path.exists("infer_request"):
-            os.mkdir("infer_request")
-        raw_data = f"infer_request/{request_id}.csv"
-        with open(raw_data, "w") as log_file:
-            log_file.write(f"{log_message}\n")
-        raw_data_write_overhead = time.time() - raw_data_write_start_time
+        # # Create a temporary file with the single log message
+        # if not os.path.exists("infer_request"):
+        #     os.mkdir("infer_request")
+        # raw_data = f"infer_request/{request_id}.csv"
+        # with open(raw_data, "w") as log_file:
+        #     log_file.write(f"{log_message}\n")
+        # raw_data_write_overhead = time.time() - raw_data_write_start_time
 
         # Use the existing preprocessing function to parse the log
         preprocess_start_time = time.time()
-        processed_df, _, all_pods = preprocess.main(raw_data, TTFT_SLO, AVG_TPOT_SLO)
+        processed_df, _, all_pods, preproces_dataset_overhead = preprocess.main(log_message, TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data for request_{request_id}")
-        # raw_data file is not needed anymore. delete it
-        os.remove(raw_data)
+        # os.remove(raw_data)
         preprocess_overhead = time.time() - preprocess_start_time
 
         # # Print essential request features immediately after preprocessing
@@ -337,7 +337,7 @@ def handle_infer():
         
         ## new approach. in memory tensor dataset
         encode_start_time = time.time()
-        tensor_dataset = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
+        tensor_dataset, encoder_other_overhead, encoder_preprocess_overhead = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
         logger.info(f"Successfully encoded data in memory for inference")
         encode_overhead = time.time() - encode_start_time
 
@@ -367,12 +367,15 @@ def handle_infer():
             "selected_pod": selected_pod,
             "confidence": confidence,
             "request_id": request_id,
-            "raw_data_write_overhead": int(raw_data_write_overhead*1000),
+            # "raw_data_write_overhead": int(raw_data_write_overhead*1000),
             "preprocess_overhead": int(preprocess_overhead*1000),
             "get_stat_overhead": int(get_stat_overhead*1000),
             "encode_overhead": int(encode_overhead*1000),
             "infer_overhead": int(infer_overhead*1000),
             "total_overhead": int(total_overhead*1000),
+            "preproces_dataset_overhead": int(preproces_dataset_overhead*1000),
+            "encoder_other_overhead": int(encoder_other_overhead*1000),
+            "encoder_preprocess_overhead": int(encoder_preprocess_overhead*1000),
         }
         for key, value in detailed_inference_overhead.items():
             response[key] = value

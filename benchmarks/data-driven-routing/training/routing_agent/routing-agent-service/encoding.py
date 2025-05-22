@@ -29,7 +29,7 @@ import re
 import argparse
 from datetime import datetime
 from logger import logger
-
+import time
 class LLMRoutingDataProcessor:
     """Processes raw LLM request routing data into formatted tensors for RL training.
     
@@ -1022,7 +1022,7 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
     return train_path
 
 def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
-
+    encode_for_inference_start_time = time.time()
     # Check if we have running statistics for request features
     if request_stats is not None and request_stats.count > 0:
         logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
@@ -1065,7 +1065,9 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
         assert False
     
     processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+    encoder_preprocess_start = time.time()
     processed_data = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
+    encoder_preprocess_overhead = time.time() - encoder_preprocess_start
 
     # Log processed request features
     if 'request_features' in processed_data:
@@ -1100,8 +1102,9 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
         tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
     if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
         tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
-    
-    return tensor_data
+    total_overhead = encode_for_inference_start_time - time.time()
+    other_overhead = total_overhead - encoder_preprocess_overhead
+    return tensor_data, other_overhead, encoder_preprocess_overhead
 
 
 # Add this debug function to troubleshoot request feature encoding

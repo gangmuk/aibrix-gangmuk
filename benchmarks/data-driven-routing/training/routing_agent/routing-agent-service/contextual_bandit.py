@@ -834,9 +834,12 @@ def train(encoded_data_dir):
         'eval_metrics': eval_metrics
     }
 
+    
+_cached_metadata = None
+
 # Add this new function to contextual_bandit.py
 def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0.1):
-    global final_model_path
+    global final_model_path, _cached_metadata
     # Find the latest model if not specified
     # if model_dir is None:
     #     if not os.path.exists(results_dir):
@@ -862,57 +865,77 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
         #     else:
         #         raise ValueError("No trained model checkpoints found")
     
-    logger.info(f"Using model from {final_model_path} for inference")
+    # logger.info(f"Using model from {final_model_path} for inference")
     
-    ###########################################################
-    # Print all available keys in tensor_data
-    logger.info("Available tensor data keys:")
-    for key in tensor_data.keys():
-        if isinstance(tensor_data[key], torch.Tensor):
-            logger.info(f"  {key}: shape={tensor_data[key].shape}, dtype={tensor_data[key].dtype}")
-        else:
-            logger.info(f"  {key}: type={type(tensor_data[key])}")
+    # ###########################################################
+    # # Print all available keys in tensor_data
+    # logger.info("Available tensor data keys:")
+    # for key in tensor_data.keys():
+    #     if isinstance(tensor_data[key], torch.Tensor):
+    #         logger.info(f"  {key}: shape={tensor_data[key].shape}, dtype={tensor_data[key].dtype}")
+    #     else:
+    #         logger.info(f"  {key}: type={type(tensor_data[key])}")
     
-    # Try to load metadata to get feature names if available
-    metadata_file = "metadata.json"
-    pod_features_list_file = "pod_features_list.pkl"
-    feature_indices_map_file = "feature_indices_map.pkl"
-    
+    # Load metadata once and cache it
+    load_feature_map_start_time = time.time()
+    if _cached_metadata is None:
+        logger.info("Loading feature metadata into cache...")
+        
+        _cached_metadata = {
+            'metadata': None,
+            'pod_features_list': None,
+            'feature_indices_map': None
+        }
+        
+        try:
+            # Load metadata if available
+            if os.path.exists("metadata.json"):
+                with open("metadata.json", 'r') as f:
+                    _cached_metadata['metadata'] = json.load(f)
+
+            # Load pod feature names
+            if os.path.exists("pod_features_list.pkl"):
+                with open("pod_features_list.pkl", 'rb') as f:
+                    _cached_metadata['pod_features_list'] = pickle.load(f)
+
+            # Load feature indices map
+            if os.path.exists("feature_indices_map.pkl"):
+                with open("feature_indices_map.pkl", 'rb') as f:
+                    _cached_metadata['feature_indices_map'] = pickle.load(f)
+                    
+        except Exception as e:
+            logger.error(f"Error loading feature metadata: {e}")
+                
+    # Use cached metadata
     try:
         feature_names = {
             "pod_features": [],
             "request_features": []
         }
-        
-        load_feature_map_start_time = time.time()
-        # Load metadata if available
-        if os.path.exists(metadata_file):
-            with open(metadata_file, 'r') as f:
-                metadata = json.load(f)
-                logger.info("Loaded feature dimensions from metadata:")
-                for key, value in metadata.get('feature_dimensions', {}).items():
-                    logger.info(f"  {key}: {value}")
-        
-        # Try to load pod feature names
-        if os.path.exists(pod_features_list_file):
-            with open(pod_features_list_file, 'rb') as f:
-                pod_features_list = pickle.load(f)
-                feature_names["pod_features"] = pod_features_list
-                logger.info("Pod features used in inference:")
-                for i, feature in enumerate(pod_features_list):
-                    logger.info(f"  {i}: {feature}")
-        
-        # Try to load feature indices map
-        if os.path.exists(feature_indices_map_file):
-            with open(feature_indices_map_file, 'rb') as f:
-                feature_indices_map = pickle.load(f)
-                logger.info("Feature indices map:")
-                for feature, idx in feature_indices_map.items():
-                    logger.info(f"  {feature}: index={idx}")
-        load_feature_map_overhead = time.time() - load_feature_map_start_time
+
+        if _cached_metadata['metadata']:
+            logger.info("Loaded feature dimensions from metadata:")
+            for key, value in _cached_metadata['metadata'].get('feature_dimensions', {}).items():
+                logger.info(f"  {key}: {value}")
+
+        if _cached_metadata['pod_features_list']:
+            feature_names["pod_features"] = _cached_metadata['pod_features_list']
+            logger.info("Pod features used in inference:")
+            for i, feature in enumerate(_cached_metadata['pod_features_list']):
+                logger.info(f"  {i}: {feature}")
+
+        if _cached_metadata['feature_indices_map']:
+            logger.info("Feature indices map:")
+            for feature, idx in _cached_metadata['feature_indices_map'].items():
+                logger.info(f"  {feature}: index={idx}")
+
     except Exception as e:
         logger.error(f"Error loading feature metadata: {e}")
         logger.info("Continuing with inference without feature names")
+        logger.info("Continuing with inference without feature names")
+    
+    load_feature_map_overhead = time.time() - load_feature_map_start_time
+
     
     ###########################################################
     
