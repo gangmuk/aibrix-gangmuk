@@ -575,7 +575,7 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 		detailedMetrics.TTFTSamples = len(ttftValues)
 		detailedMetrics.TPOTSamples = len(tpotValues)
 		if len(ttftValues) > 0 {
-			klog.Infof("GetDetailedMetrics, Getting TTFT related values!!, %s, %d", podIP, len(ttftValues))
+			klog.V(5).Infof("GetDetailedMetrics, Getting TTFT related values!!, %s, %d", podIP, len(ttftValues))
 			detailedMetrics.AvgTTFT = float64(ttftSum) / float64(len(ttftValues))
 			detailedMetrics.MinTTFT = ttftValues[0]
 			detailedMetrics.MaxTTFT = ttftValues[len(ttftValues)-1]
@@ -585,7 +585,7 @@ func (t *PodMetricsTracker) GetDetailedMetrics(log_window_start_time time.Time) 
 			detailedMetrics.P99TTFT = percentile(ttftValues, 99)
 		}
 		if len(tpotValues) > 0 {
-			klog.Infof("GetDetailedMetrics, Getting TPOT related values!!, %s, %d", podIP, len(tpotValues))
+			klog.V(5).Infof("GetDetailedMetrics, Getting TPOT related values!!, %s, %d", podIP, len(tpotValues))
 			detailedMetrics.AvgTPOT = float64(tpotSum) / float64(len(tpotValues))
 			detailedMetrics.MinTPOT = tpotValues[0]
 			detailedMetrics.MaxTPOT = tpotValues[len(tpotValues)-1]

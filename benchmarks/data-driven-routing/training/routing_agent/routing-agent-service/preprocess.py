@@ -69,6 +69,73 @@ def parse_log_file(file_path):
         assert False
     return df, json_columns
 
+def parse_log_message(log_message):
+    """
+    Parse log message with format: **@latency_metrics@key1@value1@key2@value2@...
+    Based on working reference implementation.
+    
+    Args:
+        log_message (str): Log message to parse
+        
+    Returns:
+        tuple: (DataFrame with parsed data, list of JSON column names)
+    """
+    import pandas as pd
+    import json
+    import logging
+    
+    # Check if this is a metrics line
+    if "latency_metrics" not in log_message:
+        logging.error(f"Invalid line. {log_message}")
+        return pd.DataFrame(), []
+    
+    # Split on the prefix to get clean key-value pairs
+    if "**@" in log_message:
+        line = log_message.split("**@latency_metrics@")[1]
+    else:
+        line = log_message
+    
+    parts = line.split('@')
+    row = {}
+    json_columns = []
+    column_names = []
+    
+    for i in range(0, len(parts), 2):
+        if i + 1 >= len(parts):
+            break
+            
+        column_name = parts[i]
+        column_names.append(column_name)
+        value = parts[i + 1]
+        
+        if value.startswith('{') and value.endswith('}'):
+            try:
+                # Fix escaped quotes issue - replace \" with " before parsing
+                fixed_value = value.replace('\\"', '"')
+                json_columns.append(column_name)
+                row[column_name] = json.loads(fixed_value)
+            except Exception as e:
+                logging.error(f"Error decoding JSON, column: {column_name}, value: {value}")
+                logging.error(f"Error: {e}")
+                
+                # Since we can't parse it, store as string to avoid losing data
+                row[column_name] = value
+        else:
+            # Try to convert to appropriate data type
+            try:
+                row[column_name] = int(value)
+            except ValueError:
+                try:
+                    row[column_name] = float(value)
+                except ValueError:
+                    row[column_name] = value
+    
+    # Create DataFrame with single row
+    df = pd.DataFrame([row], columns=column_names)
+    
+    return df, json_columns
+
+
 def normalize_time(df):
     first_request_start_time = df['request_start_time'].min()
     df['normalized_start_time'] = df['request_start_time'] - first_request_start_time
@@ -97,11 +164,9 @@ def safe_parse_json(json_str):
     # If already a dictionary, return as is
     if isinstance(json_str, dict):
         return json_str
-        
     if pd.isna(json_str) or not json_str:
-        logger.warning(f"Warning: Empty or NaN JSON string: {str(json_str)[:50]}...")
-        return {}
-    
+        logger.error(f"ERROR: Empty or NaN JSON string: {str(json_str)}...")
+        assert False
     try:
         # Try standard JSON parsing
         return json.loads(json_str)
@@ -111,19 +176,19 @@ def safe_parse_json(json_str):
             if isinstance(json_str, str):
                 return json.loads(json_str.replace("'", '"'))
             else:
-                logger.warning(f"Warning: Invalid JSON string: {str(json_str)[:50]}...")
-                return {}
+                logger.error(f"ERROR: Invalid JSON string: {str(json_str)}...")
+                assert False
         except (json.JSONDecodeError, TypeError):
             try:
                 # Try using ast.literal_eval for Python dict literals
                 if isinstance(json_str, str):
                     return ast.literal_eval(json_str)
                 else:
-                    logger.warning(f"Warning: Invalid JSON string: {str(json_str)[:50]}...")
-                    return {}
+                    logger.error(f"ERROR: Invalid JSON string: {str(json_str)}...")
+                    assert False
             except (SyntaxError, ValueError, TypeError):
-                logger.warning(f"Warning: Could not parse JSON: {str(json_str)[:50]}...")
-                return {}
+                logger.error(f"ERROR: Could not parse JSON: {str(json_str)}...")
+                assert False
 
 def calculate_ttft_reward(row, ttft_slo):
     try:
@@ -177,18 +242,21 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     all_pods_set = set()
     logger.info("Collecting all unique pod IDs across the dataset...")
     for _, row in df.iterrows():
-        kv_cache_hit_ratios = safe_parse_json(row['allPodsKvCacheHitRatios'])
-        if kv_cache_hit_ratios:
-            all_pods_set.update(kv_cache_hit_ratios.keys())
-        inflight_requests = safe_parse_json(row['numInflightRequestsAllPods'])
-        if inflight_requests:
-            all_pods_set.update(inflight_requests.keys())
-        pod_metrics = safe_parse_json(row['podMetricsLastSecond'])
-        if pod_metrics:
-            all_pods_set.update(pod_metrics.keys())
-        if len(all_pods_set) == 8:
-            logger.info(f"Found all EIGHT pods: {all_pods_set}. break")
-            break
+        try:
+            kv_cache_hit_ratios = safe_parse_json(row['allPodsKvCacheHitRatios'])
+            if kv_cache_hit_ratios:
+                all_pods_set.update(kv_cache_hit_ratios.keys())
+            inflight_requests = safe_parse_json(row['numInflightRequestsAllPods'])
+            if inflight_requests:
+                all_pods_set.update(inflight_requests.keys())
+            pod_metrics = safe_parse_json(row['podMetricsLastSecond'])
+            if pod_metrics:
+                all_pods_set.update(pod_metrics.keys())
+        except Exception as e:
+            # logger.error(f"Error processing row: {row}")
+            logger.error(f"df.columns: {list(df.columns)}")
+            logger.error(f"Error: {e}")
+            assert False
     all_pods = list(all_pods_set)
     logger.info(f"Identified {len(all_pods)} pods: {all_pods}")
 
@@ -197,14 +265,28 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     logger.info(f"Columns: {df.columns.tolist()}")
     
     expected_columns = [
-        'normalized_start_time', 'time_bucket', 'normalized_end_time', 
-        'requestID', 'request_start_time', 'request_end_time', 
-        'selectedpod', 'ttft', 'avg_tpot', 'total_decode_time', 'e2e',
-        'numInputTokens', 'numOutputTokens', 'numTotalTokens',
-        'allPodsKvCacheHitRatios', 'numInflightRequestsAllPods',
-        'vllmGPUKVCacheUsage', 'vllmCPUKVCacheUsage',
-        'vllmNumRequestsRunning', 'vllmNumRequestsWaiting',
-        'podMetricsLastSecond', 'numPrefillTokensForAllPods',
+        # 'normalized_start_time', 
+        # 'time_bucket', 
+        # 'normalized_end_time', 
+        'requestID', 
+        # 'request_start_time', 
+        # 'request_end_time', 
+        'selectedpod', 
+        'ttft', 
+        'avg_tpot', 
+        'total_decode_time', 
+        'e2e',
+        'numInputTokens', 
+        'numOutputTokens', 
+        'numTotalTokens',
+        'allPodsKvCacheHitRatios', 
+        'numInflightRequestsAllPods',
+        'vllmGPUKVCacheUsage', 
+        'vllmCPUKVCacheUsage',
+        'vllmNumRequestsRunning', 
+        'vllmNumRequestsWaiting',
+        'podMetricsLastSecond', 
+        'numPrefillTokensForAllPods',
         'numDecodeTokensForAllPods'
     ]
 
@@ -243,7 +325,7 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     # Check for unknown columns
     unknown_columns = [col for col in df.columns if col not in expected_columns]
     if unknown_columns:
-        logger.error(f"Error: Found unknown columns: {unknown_columns}")
+        logger.warning(f"Warning: Unused columns: {unknown_columns}")
 
     # Filter out rows with empty 'podMetricsLastSecond'
     df = df[df['podMetricsLastSecond'].notna()]
@@ -296,19 +378,34 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
         assert False
     
     # Convert string columns to appropriate types
-    numeric_columns = ['normalized_start_time', 'normalized_end_time', 'ttft', 
-                      'avg_tpot', 'total_decode_time', 'e2e', 
-                      'numInputTokens', 'numOutputTokens', 'numTotalTokens']
+    numeric_columns = [
+                        # 'normalized_start_time', 
+                        # 'normalized_end_time', 
+                        'ttft', 
+                        'avg_tpot', 
+                        'total_decode_time', 
+                        'e2e', 
+                        'numInputTokens', 
+                        'numOutputTokens', 
+                        'numTotalTokens',
+                    ]
     
     for col in numeric_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
     # Parse JSON fields if they are strings
-    json_columns = ['allPodsKvCacheHitRatios', 'numInflightRequestsAllPods', 
-                   'vllmGPUKVCacheUsage', 'vllmCPUKVCacheUsage', 
-                   'vllmNumRequestsRunning', 'vllmNumRequestsWaiting', 
-                   'podMetricsLastSecond', 'numPrefillTokensForAllPods', 'numDecodeTokensForAllPods']
+    json_columns = [
+                    'allPodsKvCacheHitRatios', 
+                    'numInflightRequestsAllPods', 
+                    'vllmGPUKVCacheUsage', 
+                    'vllmCPUKVCacheUsage', 
+                    'vllmNumRequestsRunning', 
+                    'vllmNumRequestsWaiting', 
+                    'podMetricsLastSecond', 
+                    'numPrefillTokensForAllPods', 
+                    'numDecodeTokensForAllPods',
+                   ]
     
     for col in json_columns:
         if col in df.columns:
@@ -330,8 +427,8 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     for _, row in df.iterrows():
         base_features = {
             'request_id': row['requestID'],
-            'request_start_time': row['request_start_time'],
-            'request_end_time': row['request_end_time'],
+            # 'request_start_time': row['request_start_time'],
+            # 'request_end_time': row['request_end_time'],
             'selected_pod': row['selectedpod'],
             'input_tokens': row['numInputTokens'],
             'output_tokens': row['numOutputTokens'],
@@ -440,161 +537,68 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     
     return processed_df, mapping_info, all_pods
 
-def parse_log_message(log_message):
-    """
-    Parse a single log message string and return a DataFrame with json_columns info.
-    This replaces the parse_log_file function for direct string processing.
-    """
-    import pandas as pd
-    import re
-    
-    # Split the log message by '@' delimiter
-    parts = log_message.strip().split('@')
-    
-    if len(parts) < 2:
-        logger.warning("Log message doesn't contain expected format")
-        return pd.DataFrame(), []
-    
-    # Create a dictionary to store the parsed data
-    data = {}
-    json_columns = []
-    
-    # Process each part (skip the first empty part if it starts with @)
-    i = 1 if parts[0] == '**' else 0
-    
-    while i < len(parts) - 1:
-        key = parts[i]
-        value = parts[i + 1]
-        
-        # Check if this looks like JSON data
-        if value.startswith('{') and value.endswith('}'):
-            json_columns.append(key)
-        
-        data[key] = value
-        i += 2
-    
-    # Create DataFrame with single row
-    df = pd.DataFrame([data])
-    
-    return df, json_columns
 
-def main(log_message, TTFT_SLO, AVG_TPOT_SLO):
-    # df, json_columns = parse_log_file(input_file)
-    # if len(df) == 0:
-    #     logger.error("No data found in the log file.")
-
-    # df = parse_json_columns(df, json_columns)
-    # if len(df) == 0:
-    #     logger.error("No data found after parsing JSON columns.")
-    #     logger.info(f"Parsed {len(df)} records")
-    #     assert False
-
-    # Parse the log message directly instead of reading from file
-    df, json_columns = parse_log_message(log_message)
-    if len(df) == 0:
-        logger.error("No data found in the log message.")
-
+def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
+    # input_file is None for inference workload, valid only for training workflow.
+    if input_file is not None:
+        df, json_columns = parse_log_file(input_file)
+        if len(df) == 0:
+            logger.error("No data found in the log file.")
+    else:
+        df, json_columns = parse_log_message(log_message)
+        if len(df) == 0:
+            logger.error("No data found in the log message.")
+    logger.info(f"df.columns: {list(df.columns)}, json_columns: {json_columns}")
     df = parse_json_columns(df, json_columns)
     if len(df) == 0:
         logger.error("No data found after parsing JSON columns.")
-        logger.info(f"Parsed {len(df)} records")
+        logger.info(f"Parsed {len(df)} records from {input_file}")
         assert False
-
-
-
-
-
-
-
-
-
-
-
-
-    # df = normalize_time(df)
-    # if len(df) == 0:
-    #     logger.error("No data found after normalization")
-    #     logger.info(f"Normalized {len(df)} records")
-    #     assert False
-
-    input_dir = os.path.dirname(input_file)
-    try:
-        preprocess_dataset_start_time = time.time()
-        processed_df, mapping_info, all_pods = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
-        preprocess_dataset_overhead = time.time() - preprocess_dataset_start_time
-
-        # # Save the processed dataset
-        # output_file = os.path.join(input_dir, "processed_dataset.csv")
-        # logger.info(f"Saving processed dataset to {output_file}...")
-        # processed_df.to_csv(output_file, index=False)
-
-        # # Debug: Print the structure and types of mapping_info
-        # logger.info("Debugging mapping_info structure:")
-        # logger.info(f"mapping_info keys: {list(mapping_info.keys())}")
-        
-        # # Debug pod_to_index
-        # logger.info("Inspecting pod_to_index:")
-        # for pod, idx in mapping_info['pod_to_index'].items():
-        #     logger.info(f"  Pod {pod} (type: {type(pod)}) -> Index {idx} (type: {type(idx)})")
-        
-        # # Debug index_to_pod
-        # logger.info("Inspecting index_to_pod:")
-        # for idx, pod in mapping_info['index_to_pod'].items():
-        #     logger.info(f"  Index {idx} (type: {type(idx)}) -> Pod {pod} (type: {type(pod)})")
-        
-        # # Debug pod_gpu_models
-        # logger.info("Inspecting pod_gpu_models:")
-        # for pod, model in mapping_info['pod_gpu_models'].items():
-        #     logger.info(f"  Pod {pod} (type: {type(pod)}) -> Model {model} (type: {type(model)})")
-
-        # Save mapping information
-        mapping_file = output_file.replace('.csv', '_mapping.json')
-        if not os.path.exists(input_dir):
-            with open(mapping_file, 'w') as f:
-                try:
-                    json.dump(mapping_info, f, indent=2)
-                    logger.info("JSON serialization successful")
-                except TypeError as e:
-                    logger.error(f"JSON serialization failed: {e}")
-                    # Try to identify the problematic part by serializing each part separately
-                    logger.info("Trying to identify the problematic part:")
+    preprocess_dataset_start_time = time.time()
+    processed_df, mapping_info, all_pods = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
+    preprocess_dataset_overhead = time.time() - preprocess_dataset_start_time
+    output_file = None
+    if input_file is not None:
+        try:
+            input_dir = os.path.dirname(input_file)
+            # Save mapping information
+            output_file = os.path.join(input_dir, "processed_dataset.csv")
+            mapping_file = output_file.replace('.csv', '_mapping.json')
+            if not os.path.exists(mapping_file):
+                with open(mapping_file, 'w') as f:
                     try:
-                        json.dumps(mapping_info['pod_to_index'])
-                        logger.info("pod_to_index serialization: OK")
+                        json.dump(mapping_info, f, indent=2)
+                        logger.info("JSON serialization successful")
                     except TypeError as e:
-                        logger.error(f"pod_to_index serialization failed: {e}")
-                    
-                    try:
-                        json.dumps(mapping_info['index_to_pod'])
-                        logger.info("index_to_pod serialization: OK")
-                    except TypeError as e:
-                        logger.error(f"index_to_pod serialization failed: {e}")
-                    
-                    try:
-                        json.dumps(mapping_info['pod_gpu_models'])
-                        logger.info("pod_gpu_models serialization: OK")
-                    except TypeError as e:
-                        logger.error(f"pod_gpu_models serialization failed: {e}")
-                    
-                    raise
-            
-        logger.info(f"Mapping information saved to {mapping_file}")
-        logger.info("\nPod mapping (for action space):")
-        for pod, idx in mapping_info['pod_to_index'].items():
-            logger.info(f"  Pod {pod} -> Action {idx}")
-    except Exception as e:
-        logger.error(f"Error processing dataset: {e}")
-        assert False
+                        logger.error(f"JSON serialization failed: {e}")
+                        # Try to identify the problematic part by serializing each part separately
+                        logger.info("Trying to identify the problematic part:")
+                        try:
+                            json.dumps(mapping_info['pod_to_index'])
+                            logger.info("pod_to_index serialization: OK")
+                        except TypeError as e:
+                            logger.error(f"pod_to_index serialization failed: {e}")
+                        
+                        try:
+                            json.dumps(mapping_info['index_to_pod'])
+                            logger.info("index_to_pod serialization: OK")
+                        except TypeError as e:
+                            logger.error(f"index_to_pod serialization failed: {e}")
+                        
+                        try:
+                            json.dumps(mapping_info['pod_gpu_models'])
+                            logger.info("pod_gpu_models serialization: OK")
+                        except TypeError as e:
+                            logger.error(f"pod_gpu_models serialization failed: {e}")
+                        
+                        raise
+                
+            logger.info(f"Mapping information saved to {mapping_file}")
+            logger.info("\nPod mapping (for action space):")
+            for pod, idx in mapping_info['pod_to_index'].items():
+                logger.info(f"  Pod {pod} -> Action {idx}")
+        except Exception as e:
+            logger.error(f"Error processing dataset: {e}")
+            assert False
+
     return processed_df, output_file, all_pods, preprocess_dataset_overhead
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        logger.error("Usage: python reorg.py <input_dir>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
-    if not os.path.exists(input_file):
-        logger.error("ERROR: Input file does not exist. exiting...")
-        exit()
-    processed_df, output_file = main(input_file)
-    logger.info(f"Processed dataset saved to {output_file}")

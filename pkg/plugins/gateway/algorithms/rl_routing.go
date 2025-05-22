@@ -302,12 +302,19 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	var log string
 	log_construction_start_time := time.Now()
 	if utils.UseRealRequest == "true" {
+		klog.Infof("utils.UseRealRequest:%s, requestID: %s", utils.UseRealRequest, ctx.RequestID)
 		numInputTokens := len(tokens)
 		numOutputTokens := 128 // Placeholder for output tokens
 		numTotalTokens := numInputTokens + numOutputTokens
 
 		matchedPods, prefixHashes = r.prefixCacheIndexer.MatchPrefix(tokens, ctx.Model, readyPodsMap)
-		klog.V(5).Infof("Matched pods: %v, prefixHashes: %v", matchedPods, prefixHashes)
+		if len(matchedPods) == 0 {
+			klog.Infof("No matched pods found. Filled all readypods with 0 kv cache hit ratio")
+			for _, pod := range readyPods {
+				matchedPods[pod.Status.PodIP] = 0
+			}
+		}
+		klog.Infof("matchedPods: %v", matchedPods)
 		utils.StoreKVCacheHitRatio(ctx.RequestID, matchedPods)
 
 		// Prepare for JSON strings to use in logging
@@ -316,6 +323,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		// 1. KV cache hit ratios
 		allPodsKvCacheHitRatios := utils.GetAllPodsKVCacheHitRatios(ctx.RequestID)
 		jsonStrings["allPodsKvCacheHitRatios"] = jsonStringify(allPodsKvCacheHitRatios, utils.GetrequestAllPodsKVCacheMutex())
+		klog.V(5).Infof("allPodsKvCacheHitRatios: %s", jsonStrings["allPodsKvCacheHitRatios"])
 
 		// 2. Inflight requests
 		numInflightRequestsAllPods := utils.GetInflightRequestsForAllPods(ctx.RequestID)
@@ -362,7 +370,8 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		podDetailedMetrics := utils.GetRequestPodMetrics(ctx.RequestID)
 		jsonStrings["podMetricsLastSecond"] = jsonStringify(podDetailedMetrics, utils.MetricsTracker.GetMutex())
 		logFormat := `**@latency_metrics@requestID@%s@request_start_time@%d@request_end_time@-9999@selectedpod@-9999@ttft@-9999@avg_tpot@-9999@total_decode_time@-9999@e2e@-9999@numInputTokens@%d@numOutputTokens@%d@numTotalTokens@%d@allPodsKvCacheHitRatios@%s@numInflightRequestsAllPods@%s@vllmGPUKVCacheUsage@%s@vllmCPUKVCacheUsage@%s@vllmNumRequestsRunning@%s@vllmNumRequestsWaiting@%s@podMetricsLastSecond@%s@numPrefillTokensForAllPods@%s@numDecodeTokensForAllPods@%s`
-		log = fmt.Sprintf(logFormat,
+		log = fmt.Sprintf(
+			logFormat,
 			ctx.RequestID,
 			time.Now().UnixMicro(),
 			numInputTokens,
@@ -387,7 +396,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	klog.V(5).Infof("/infer: %s", log)
 	reqBody, err := json.Marshal(log)
 	if err != nil {
-		klog.Errorf("Failed to marshal RequestToLogMessage: %v", err)
+		klog.Errorf("Failed to marshal RequestToLogMessage: %v, requestID: %s", err, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
@@ -398,7 +407,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	url := fmt.Sprintf("%s%s", routingAgentURL, inferEndpoint)
 	req, reqErr := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if reqErr != nil {
-		klog.Errorf("Failed to create request: %v", reqErr)
+		klog.Errorf("Failed to create request: %v, requestID: %s", reqErr, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
@@ -406,17 +415,17 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	req.Header.Set("Content-Type", "application/json")
 	resp, sendErr := httpClientForRLAgent.Do(req)
 	if sendErr != nil {
-		klog.Errorf("Failed to send request: %v", sendErr)
+		klog.Errorf("Failed to send request: %v, requestID: %s", sendErr, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		klog.Errorf("Received non-200 response: %s", resp.Status)
+		klog.Errorf("Received non-200 response: %s, requestID: %s", resp.Status, ctx.RequestID)
 	}
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		klog.Errorf("Failed to read response body: %v", readErr)
+		klog.Errorf("Failed to read response body: %v, requestID: %s", readErr, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
@@ -427,14 +436,14 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	// body: {"confidence":0.4398832619190216,"request_id":"10","selected_pod":"10.0.1.30"}
 	var routeResponse RouteResponse
 	if err := json.Unmarshal(body, &routeResponse); err != nil {
-		klog.Errorf("Failed to unmarshal response body: %v", err)
+		klog.Errorf("Failed to unmarshal response body: %v, requestID: %s", err, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
 	}
 	targetPod = GetPod(routeResponse.SelectedPod, readyPods)
 	if targetPod == nil {
-		klog.Errorf("No suitable pod found for selected pod IP: %s", routeResponse.SelectedPod)
+		klog.Errorf("No suitable pod found for selected pod IP: %s, requestID: %s", routeResponse.SelectedPod, ctx.RequestID)
 		targetPod, _ = r.fallbackRouting(ctx, readyPods)
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
@@ -443,11 +452,13 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 
 	/////////////////////////////////////////////////////////////
 
+	ctx.SetTargetPod(targetPod)
+
 	if len(prefixHashes) > 0 {
 		klog.Infof("Adding prefix hashes to cache. pod: %s", targetPod.Status.PodIP)
 		r.prefixCacheIndexer.AddPrefix(prefixHashes, ctx.Model, targetPod.Status.PodIP)
 	}
-	ctx.SetTargetPod(targetPod)
+
 	response_process_overhead := time.Since(response_process_start).Milliseconds()
 	end_to_end_overhead := time.Since(route_start_time).Milliseconds()
 

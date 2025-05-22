@@ -165,10 +165,6 @@ def handle_flush():
     log_data = request.json
     try:
         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
-        if log_data and len(log_data) > 0:
-            first_key = list(log_data.keys())[0]
-            logger.debug(f"First raw log: {log_data[first_key]}")
-
         if not os.path.exists("raw_training_data"):
             os.mkdir("raw_training_data")
         raw_data = f"raw_training_data/batch_{BATCH_ID}.csv"
@@ -181,7 +177,7 @@ def handle_flush():
 
         # Preprocess raw data
         ts_preprocess = time.time()
-        df, _, all_pods, preproces_dataset_overhead = preprocess.main(log_data, TTFT_SLO, AVG_TPOT_SLO)
+        df, _, all_pods, _ = preprocess.main(raw_data, "", TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data, took {time.time() - ts_preprocess} seconds")
         
         # Update running statistics
@@ -221,65 +217,6 @@ def handle_flush():
         logger.error(f"Traceback: {error_traceback}")
         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
 
-# @app.route("/flush", methods=["POST"])
-# def handle_flush():
-#     global BATCH_ID, ENCODED_DATA_DIR
-#     log_data = request.json
-    
-#     try:
-#         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
-#         raw_data = f"raw_data_batch_{BATCH_ID}.csv"
-#         BATCH_ID += 1
-        
-#         # Write raw data to file
-#         write_to_file(log_data, raw_data)
-        
-#         # Start background processing
-#         threading.Thread(target=process_data_in_background, 
-#                          args=(raw_data, BATCH_ID, ENCODED_DATA_DIR), 
-#                          daemon=True).start()
-        
-#         # Return response immediately
-#         return jsonify({"status": "success", "message": f"Data received. Processing {len(log_data)} log messages in background"}), 200
-        
-#     except Exception as e:
-#         import traceback
-#         error_traceback = traceback.format_exc()
-#         logger.error(f"Unhandled exception: {str(e)}")
-#         logger.error(f"Traceback: {error_traceback}")
-#         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
-
-# def process_data_in_background(raw_data, batch_id, encoded_data_dir):
-#     try:
-#         # Preprocess raw data
-#         df, preprocessed_file, all_pods = preprocess.main(raw_data)
-#         logger.info(f"Successfully parsed data. (written in {preprocessed_file})")
-        
-#         # Update running statistics
-#         request_features = ['input_tokens', 'output_tokens', 'total_tokens']
-#         stats = get_request_stats()
-#         stats.update(df[request_features].values)
-#         stats.save(STATS_FILE)
-        
-#         # Apply normalization using the updated running statistics
-#         normalized_values = stats.normalize(df[request_features_train].values)
-#         for i, feature in enumerate(request_features):
-#             df[feature] = normalized_values[:, i]
-        
-#         # Encode preprocessed data
-#         encoded_data_subdir = f"{encoded_data_dir}/batch_{batch_id}"
-#         encoding.encode_for_train(all_pods, df, encoded_data_subdir, stats, request_features_train, request_features_reward)
-#         logger.info(f"Successfully encoded data to {encoded_data_subdir}")
-        
-#         # Train model
-#         contextual_bandit.train(encoded_data_dir)
-#         logger.info("Successfully trained routing agent")
-        
-#     except Exception as e:
-#         import traceback
-#         error_traceback = traceback.format_exc()
-#         logger.error(f"Background processing error: {str(e)}")
-#         logger.error(f"Traceback: {error_traceback}")
 
 @app.route("/infer", methods=["POST"])
 def handle_infer():
@@ -288,23 +225,27 @@ def handle_infer():
     try:
         # Get the log message as a string from the request body
         raw_data_write_start_time = time.time()
-        log_message = request.data.decode('utf-8')
-        # logger.info(f"Received inference request: {log_message[:100]}...")
+        log_data = request.json
+        # Handle string input directly
+        if isinstance(log_data, str):
+            log_message = log_data
+            request_id = "default"  # or extract from log_message
+        else:
+            # Handle dict input (original logic)
+            if len(list(log_data.keys())) != 1:
+                logger.error(f"There must be only one request for inference, but got {len(list(log_data.keys()))} requests")
+                return jsonify({"error": "Invalid request format"}), 400
+            
+            first_key = list(log_data.keys())[0]
+            log_message = log_data[first_key]
         logger.info(f"Received inference request:\n{log_message}")
-        if NUM_TRAINS == 0:
-            logger.warning("No training has been done yet, please train the model first.")
-            return jsonify({"error": "No training has been done yet, please train the model first."}), 400
 
         # Extract request ID for logging purposes
-        request_id = "unknown"
-        if "requestID@" in log_message:
-            parts = log_message.split("requestID@")
-            if len(parts) > 1:
-                request_id_parts = parts[1].split("@")
-                if request_id_parts:
-                    request_id = request_id_parts[0]
-        
-        logger.info(f"Processing inference request for request ID: {request_id}")
+        parts = log_message.split("requestID@")
+        if len(parts) > 1:
+            request_id_parts = parts[1].split("@")
+            if request_id_parts:
+                request_id = request_id_parts[0]
         
         # # Create a temporary file with the single log message
         # if not os.path.exists("infer_request"):
@@ -316,7 +257,7 @@ def handle_infer():
 
         # Use the existing preprocessing function to parse the log
         preprocess_start_time = time.time()
-        processed_df, _, all_pods, preproces_dataset_overhead = preprocess.main(log_message, TTFT_SLO, AVG_TPOT_SLO)
+        processed_df, _, all_pods, preprocess_dataset_overhead = preprocess.main(None, log_message, TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data for request_{request_id}")
         # os.remove(raw_data)
         preprocess_overhead = time.time() - preprocess_start_time
@@ -373,7 +314,7 @@ def handle_infer():
             "encode_overhead": int(encode_overhead*1000),
             "infer_overhead": int(infer_overhead*1000),
             "total_overhead": int(total_overhead*1000),
-            "preproces_dataset_overhead": int(preproces_dataset_overhead*1000),
+            "preprocess_dataset_overhead": int(preprocess_dataset_overhead*1000),
             "encoder_other_overhead": int(encoder_other_overhead*1000),
             "encoder_preprocess_overhead": int(encoder_preprocess_overhead*1000),
         }
