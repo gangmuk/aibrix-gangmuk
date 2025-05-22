@@ -884,6 +884,7 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
             "request_features": []
         }
         
+        load_feature_map_start_time = time.time()
         # Load metadata if available
         if os.path.exists(metadata_file):
             with open(metadata_file, 'r') as f:
@@ -908,7 +909,7 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
                 logger.info("Feature indices map:")
                 for feature, idx in feature_indices_map.items():
                     logger.info(f"  {feature}: index={idx}")
-    
+        load_feature_map_overhead = time.time() - load_feature_map_start_time
     except Exception as e:
         logger.error(f"Error loading feature metadata: {e}")
         logger.info("Continuing with inference without feature names")
@@ -917,9 +918,11 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
     
     # Extract data from tensor dataset and move to device
     try:
+        data_move_start_time = time.time()
         pod_features = tensor_data['pod_features_with_staleness'].to(device)
         kv_hit_ratios = tensor_data['kv_hit_ratios'].to(device)
         request_features = tensor_data['request_features'].to(device)
+        data_move_overhead = time.time() - data_move_start_time
     except KeyError as e:
         logger.error(f"Missing key in tensor data: {e}")
         raise ValueError(f"Missing key in tensor data: {e}")
@@ -934,44 +937,43 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
 
 
      # Analyze request features
-    if request_features is not None:
-        logger.info("Analyzing request features used for inference:")
-        try:
-            # Get information about the request features from tensor_data
-            if 'feature_info' in tensor_data:
-                feature_info = tensor_data['feature_info']
-                if 'numeric_request_features' in feature_info:
-                    numeric_features = feature_info['numeric_request_features']
-                    logger.info(f"Numeric request features ({len(numeric_features)}):")
-                    for i, feature in enumerate(numeric_features):
-                        logger.info(f"  {i}: {feature}")
+    analyze_request_features = False
+    if analyze_request_features:
+        if request_features is not None:
+            logger.info("Analyzing request features used for inference:")
+            try:
+                # Get information about the request features from tensor_data
+                if 'feature_info' in tensor_data:
+                    feature_info = tensor_data['feature_info']
+                    if 'numeric_request_features' in feature_info:
+                        numeric_features = feature_info['numeric_request_features']
+                        logger.info(f"Numeric request features ({len(numeric_features)}):")
+                        for i, feature in enumerate(numeric_features):
+                            logger.info(f"  {i}: {feature}")
+                    
+                    if 'categorical_request_features' in feature_info:
+                        categorical_features = feature_info['categorical_request_features']
+                        logger.info(f"Categorical request features ({len(categorical_features)}):")
+                        for i, feature in enumerate(categorical_features):
+                            logger.info(f"  {i}: {feature}")
                 
-                if 'categorical_request_features' in feature_info:
-                    categorical_features = feature_info['categorical_request_features']
-                    logger.info(f"Categorical request features ({len(categorical_features)}):")
-                    for i, feature in enumerate(categorical_features):
-                        logger.info(f"  {i}: {feature}")
+                # Print the actual values in the tensor
+                logger.info("Request features tensor values:")
+                if request_features.shape[0] > 0:
+                    # Print the first row of features
+                    feature_values = request_features[0].cpu().numpy().flatten()
+                    logger.info(f"  Values (first row, {len(feature_values)} features): {feature_values}")
+                    
+                    # Check for values that might indicate important features
+                    non_zero_indices = np.nonzero(feature_values)[0]
+                    logger.info(f"  Non-zero features (may be most important): {non_zero_indices}")
+                    for idx in non_zero_indices:
+                        logger.info(f"    Feature index {idx}: Value = {feature_values[idx]}")
             
-            # Print the actual values in the tensor
-            logger.info("Request features tensor values:")
-            if request_features.shape[0] > 0:
-                # Print the first row of features
-                feature_values = request_features[0].cpu().numpy().flatten()
-                logger.info(f"  Values (first row, {len(feature_values)} features): {feature_values}")
-                
-                # Check for values that might indicate important features
-                non_zero_indices = np.nonzero(feature_values)[0]
-                logger.info(f"  Non-zero features (may be most important): {non_zero_indices}")
-                for idx in non_zero_indices:
-                    logger.info(f"    Feature index {idx}: Value = {feature_values[idx]}")
-        
-        except Exception as e:
-            logger.error(f"Error analyzing request features: {e}")
-            logger.error(traceback.format_exc())
-            logger.info("Continuing with inference despite feature analysis error")
-    
-    
-    
+            except Exception as e:
+                logger.error(f"Error analyzing request features: {e}")
+                logger.error(traceback.format_exc())
+                logger.info("Continuing with inference despite feature analysis error")
     
     # Determine state dimensions
     state_dim = {
@@ -990,10 +992,13 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
         action_dim=action_dim,
         exploration_rate=exploration_rate
     )
+    agent_model_load_start_time = time.time()
     agent.load(final_model_path)
     logger.info(f"Loaded model from {final_model_path}")
+    agent_model_load_overhead = time.time() - agent_model_load_start_time
 
     # Set to evaluation mode
+    agent_eval_start_time = time.time()
     agent.policy.eval()
     with torch.no_grad():
         # Get action probabilities
@@ -1012,12 +1017,20 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
             # Use pure exploitation (select best pod)
             selected_action = torch.argmax(action_probs, dim=1).item()
             confidence = action_probs[0, selected_action].item()
-    
+    agent_eval_overhead = time.time() - agent_eval_start_time
+    detailed_inference_overhead = {
+        'agent_load_feature_map_overhead': int(load_feature_map_overhead*1000),
+        'agent_data_move_overhead': int(data_move_overhead*1000),
+        'agent_model_load_overhead': int(agent_model_load_overhead*1000),
+        'agent_eval_overhead': int(agent_eval_overhead*1000),
+        'agent_total_inference_overhead': int((load_feature_map_overhead + data_move_overhead + agent_model_load_overhead + agent_eval_overhead) * 1000)
+    }
     # Return inference results
     return {
         'selected_pod_index': selected_action,
         'confidence': confidence,
         'pod_probabilities': action_probs[0].cpu().numpy().tolist(),
         'final_model_path': final_model_path,
-        'exploration_enabled': exploration_enabled
+        'exploration_enabled': exploration_enabled,
+        'detailed_inference_overhead': detailed_inference_overhead,
     }

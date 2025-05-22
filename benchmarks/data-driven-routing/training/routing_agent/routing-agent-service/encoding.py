@@ -629,7 +629,7 @@ class LLMRoutingDataProcessor:
         
         return processed_data
 
-    def save_processed_data(self, processed_data, prefix="train"):
+    def save_processed_data(self, processed_data):
         """Save the processed data to disk.
         
         Args:
@@ -638,7 +638,7 @@ class LLMRoutingDataProcessor:
         """
         # Create a timestamped output directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = os.path.join(self.output_dir, f"{prefix}")
+        output_dir = f"{self.output_dir}"
         os.makedirs(output_dir, exist_ok=True)
         
         # Save each component
@@ -698,7 +698,11 @@ class LLMRoutingDataProcessor:
             
         # Save tensor dataset
         torch.save(tensor_data, os.path.join(output_dir, "tensor_dataset.pt"))
-        
+
+        global_tensor_path = "global_tensor_dataset.pt"
+        # Append to global tensor dataset if requested
+        self._append_to_global_tensor_dataset(tensor_data, global_tensor_path)
+
         # Save a metadata JSON with shapes and statistics
         import json
         metadata = {
@@ -736,6 +740,103 @@ class LLMRoutingDataProcessor:
         
         # Return the output directory for reference
         return output_dir
+    
+    def _append_to_global_tensor_dataset(self, new_tensor_data, global_tensor_path):
+        """Append new tensor data to the global tensor dataset file.
+        
+        Args:
+            new_tensor_data: Dictionary of new tensors to append
+            global_tensor_path: Path to the global tensor dataset file
+        """
+        try:
+            # Check if global dataset already exists
+            if os.path.exists(global_tensor_path):
+                logger.info(f"Loading existing global tensor dataset from {global_tensor_path}")
+                
+                # Load existing data
+                existing_data = torch.load(global_tensor_path, map_location='cpu')
+                
+                # # Validate compatibility
+                if not self._validate_tensor_compatibility(existing_data, new_tensor_data):
+                    logger.error("New tensor data incompatible with existing global dataset")
+                    return
+                
+                # Concatenate tensors
+                merged_data = {}
+                for key in existing_data.keys():
+                    if key in new_tensor_data:
+                        if isinstance(existing_data[key], torch.Tensor) and isinstance(new_tensor_data[key], torch.Tensor):
+                            # Concatenate along batch dimension (dim=0)
+                            merged_data[key] = torch.cat([existing_data[key], new_tensor_data[key]], dim=0)
+                            logger.debug(f"Concatenated {key}: {existing_data[key].shape[0]} + {new_tensor_data[key].shape[0]} = {merged_data[key].shape[0]}")
+                        else:
+                            # For non-tensors, keep the existing value or update if needed
+                            merged_data[key] = existing_data[key]
+                    else:
+                        # Keep existing data for keys not in new data
+                        merged_data[key] = existing_data[key]
+                
+                # Add any new keys from new_tensor_data that weren't in existing_data
+                for key in new_tensor_data.keys():
+                    if key not in merged_data:
+                        logger.warning(f"New key {key} found in new data, adding to global dataset")
+                        merged_data[key] = new_tensor_data[key]
+                
+            else:
+                logger.info(f"Creating new global tensor dataset at {global_tensor_path}")
+                merged_data = new_tensor_data.copy()
+            
+            # Save the merged dataset
+            torch.save(merged_data, global_tensor_path)
+            
+            # Log the final sizes
+            total_samples = merged_data['actions'].shape[0] if 'actions' in merged_data else 0
+            new_samples = new_tensor_data['actions'].shape[0] if 'actions' in new_tensor_data else 0
+            logger.info(f"Successfully appended {new_samples} samples to global dataset. Total samples: {total_samples}")
+            
+        except Exception as e:
+            logger.error(f"Failed to append to global tensor dataset: {e}")
+            # Don't raise the exception to avoid breaking the main processing
+
+    def _validate_tensor_compatibility(self, existing_data, new_data):
+        """Validate that new tensor data is compatible with existing data for concatenation.
+        
+        Args:
+            existing_data: Existing tensor dataset
+            new_data: New tensor data to append
+            
+        Returns:
+            True if compatible, False otherwise
+        """
+        # Check if both datasets have the same keys (for tensors)
+        existing_tensor_keys = {k for k, v in existing_data.items() if isinstance(v, torch.Tensor)}
+        new_tensor_keys = {k for k, v in new_data.items() if isinstance(v, torch.Tensor)}
+        
+        missing_keys = existing_tensor_keys - new_tensor_keys
+        extra_keys = new_tensor_keys - existing_tensor_keys
+        
+        if missing_keys:
+            logger.error(f"New data missing tensor keys: {missing_keys}")
+            return False
+        
+        if extra_keys:
+            logger.warning(f"New data has extra tensor keys: {extra_keys}")
+            # We can still proceed, just add the new keys
+        
+        # Check tensor shape compatibility (all dimensions except batch should match)
+        for key in existing_tensor_keys.intersection(new_tensor_keys):
+            existing_shape = existing_data[key].shape
+            new_shape = new_data[key].shape
+            
+            if len(existing_shape) != len(new_shape):
+                logger.error(f"Tensor {key}: dimension mismatch - existing: {existing_shape}, new: {new_shape}")
+                return False
+            
+            if len(existing_shape) > 1 and existing_shape[1:] != new_shape[1:]:
+                logger.error(f"Tensor {key}: shape mismatch - existing: {existing_shape}, new: {new_shape}")
+                return False
+        
+        return True
 
     def create_dataset_loaders(self, processed_data, batch_size=32, val_split=0.1):
         """Create PyTorch DataLoader objects for training and validation.
@@ -881,7 +982,7 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
     # Process training data
     logger.info("Processing training data...")
     train_processed = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
-    train_path = processor.save_processed_data(train_processed, prefix="train")
+    train_path = processor.save_processed_data(train_processed)
     
     # # Process test data
     # logger.info("Processing test data...")

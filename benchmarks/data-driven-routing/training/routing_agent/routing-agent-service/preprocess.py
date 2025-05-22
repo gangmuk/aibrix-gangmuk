@@ -13,9 +13,6 @@ import argparse
 import sys
 from logger import logger
 
-AVG_TPOT_SLO = 50
-TTFT_SLO = 1000
-
 def parse_json_columns(df, json_columns):
         for col in json_columns:
             if col in df.columns:
@@ -127,34 +124,34 @@ def safe_parse_json(json_str):
                 logger.warning(f"Warning: Could not parse JSON: {str(json_str)[:50]}...")
                 return {}
 
-def calculate_ttft_reward(row, ttft_slo_threshold):
+def calculate_ttft_reward(row, ttft_slo):
     try:
         ttft = float(row['ttft'])
         
         if ttft <= 0:
             return 0.5  # Maximum reward for perfect performance
-        elif ttft <= ttft_slo_threshold:
+        elif ttft <= ttft_slo:
             # Linear scaling from 0.5 (best) to 0.1 (at threshold)
-            return 0.5 - (0.4 * ttft / ttft_slo_threshold)
+            return 0.5 - (0.4 * ttft / ttft_slo)
         else:
             # Negative reward scaling with how much it exceeds threshold
-            excess_factor = min(1.0, (ttft - ttft_slo_threshold) / ttft_slo_threshold)
+            excess_factor = min(1.0, (ttft - ttft_slo) / ttft_slo)
             return -0.1 - (0.4 * excess_factor)
     except (ValueError, TypeError, ZeroDivisionError):
         return -0.5  # Default penalty for invalid data
 
-def calculate_tpot_reward(row, AVG_TPOT_SLO):
+def calculate_tpot_reward(row, avg_tpot_slo):
     try:
         avg_tpot = float(row['avg_tpot'])
         
         if avg_tpot <= 0:
             return -0.5  # Penalize invalid values
-        elif avg_tpot <= AVG_TPOT_SLO:
+        elif avg_tpot <= avg_tpot_slo:
             # Linear scaling from 0.5 (best) to 0.1 (at threshold)
-            return 0.1 + (0.4 * (1 - avg_tpot / AVG_TPOT_SLO))
+            return 0.1 + (0.4 * (1 - avg_tpot / avg_tpot_slo))
         else:
             # Negative reward scaling with how much it exceeds threshold
-            excess_factor = min(1.0, (avg_tpot - AVG_TPOT_SLO) / AVG_TPOT_SLO)
+            excess_factor = min(1.0, (avg_tpot - avg_tpot_slo) / avg_tpot_slo)
             return -0.1 - (0.4 * excess_factor)
     except (ValueError, TypeError, ZeroDivisionError):
         return -0.5  # Default penalty for invalid data
@@ -175,7 +172,7 @@ def extract_key_pod_metrics(pod_metrics, pod_id):
         'last_second_total_prefill_tokens': pod_metrics[pod_id]['last_second_total_prefill_tokens'],
     }
 
-def preprocess_dataset(df):
+def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     all_pods_set = set()
     logger.info("Collecting all unique pod IDs across the dataset...")
     for _, row in df.iterrows():
@@ -402,15 +399,15 @@ def preprocess_dataset(df):
     index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
 
     processed_df['avg_tpot_slo_satisfied'] = processed_df['avg_tpot'].apply(
-        lambda x: x <= AVG_TPOT_SLO)
+        lambda x: x <= avg_tpot_slo)
     processed_df['avg_ttft_slo_satisfied'] = processed_df['ttft'].apply(
-        lambda x: x <= TTFT_SLO)
+        lambda x: x <= ttft_slo)
 
     processed_df['ttft_reward'] = processed_df.apply(
-        lambda row: calculate_ttft_reward(row, ttft_slo_threshold=TTFT_SLO), axis=1)
+        lambda row: calculate_ttft_reward(row, ttft_slo=ttft_slo), axis=1)
     
     processed_df['tpot_reward'] = processed_df.apply(
-        lambda row: calculate_tpot_reward(row, AVG_TPOT_SLO=AVG_TPOT_SLO), axis=1)
+        lambda row: calculate_tpot_reward(row, avg_tpot_slo=avg_tpot_slo), axis=1)
     
     # Combined reward
     processed_df['reward'] = processed_df['ttft_reward'] + processed_df['tpot_reward']
@@ -444,7 +441,7 @@ def preprocess_dataset(df):
     
     return processed_df, mapping_info, all_pods
 
-def main(input_file):
+def main(input_file, TTFT_SLO, AVG_TPOT_SLO):
     df, json_columns = parse_log_file(input_file)
     if len(df) == 0:
         logger.error("No data found in the log file.")
@@ -463,7 +460,7 @@ def main(input_file):
 
     input_dir = os.path.dirname(input_file)
     try:
-        processed_df, mapping_info, all_pods = preprocess_dataset(df)
+        processed_df, mapping_info, all_pods = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
         
         # Save the processed dataset
         output_file = os.path.join(input_dir, "processed_dataset.csv")
@@ -491,9 +488,6 @@ def main(input_file):
         for pod, model in mapping_info['pod_gpu_models'].items():
             logger.info(f"  Pod {pod} (type: {type(pod)}) -> Model {model} (type: {type(model)})")
 
-
-
-        
         # Save mapping information
         mapping_file = output_file.replace('.csv', '_mapping.json')
         with open(mapping_file, 'w') as f:
@@ -543,6 +537,4 @@ if __name__ == "__main__":
         logger.error("ERROR: Input file does not exist. exiting...")
         exit()
     processed_df, output_file = main(input_file)
-    logger.info(f"* AVG_TPOT_SLO: {AVG_TPOT_SLO} ms")
-    logger.info(f"* TTFT_SLO: {TTFT_SLO} ms")
     logger.info(f"Processed dataset saved to {output_file}")

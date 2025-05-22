@@ -33,6 +33,14 @@ ENCODED_DATA_DIR = "encoded_data"
 STATS_FILE = "request_feature_stats.pkl"  # Add this near the top with your other constants
 NUM_TRAINS = 0
 
+# read it from env variable
+# AVG_TPOT_SLO = 30
+# TTFT_SLO = 200
+TTFT_SLO = int(os.getenv("TTFT_SLO", 200))
+AVG_TPOT_SLO = int(os.getenv("AVG_TPOT_SLO", 30))
+logger.info(f"TTFT_SLO: {TTFT_SLO}")
+logger.info(f"AVG_TPOT_SLO: {AVG_TPOT_SLO}")
+
 class RunningStats:
     """Maintains running mean and standard deviation for feature normalization"""
     def __init__(self, feature_names=None):
@@ -173,7 +181,7 @@ def handle_flush():
 
         # Preprocess raw data
         ts_preprocess = time.time()
-        df, preprocessed_file, all_pods = preprocess.main(raw_data)
+        df, preprocessed_file, all_pods = preprocess.main(raw_data, TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data. (writte in  {preprocessed_file}), took {time.time() - ts_preprocess} seconds")
         
         # Update running statistics
@@ -275,9 +283,11 @@ def handle_flush():
 
 @app.route("/infer", methods=["POST"])
 def handle_infer():
+    handle_infer_start_time = time.time()
     global NUM_TRAINS
     try:
         # Get the log message as a string from the request body
+        raw_data_write_start_time = time.time()
         log_message = request.data.decode('utf-8')
         logger.info(f"Received inference request: {log_message[:100]}...")
         if NUM_TRAINS == 0:
@@ -301,28 +311,39 @@ def handle_infer():
         raw_data = f"infer_request/{request_id}.csv"
         with open(raw_data, "w") as log_file:
             log_file.write(f"{log_message}\n")
-        
+        raw_data_write_overhead = time.time() - raw_data_write_start_time
+
         # Use the existing preprocessing function to parse the log
-        processed_df, _, all_pods = preprocess.main(raw_data)
+        preprocess_start_time = time.time()
+        processed_df, _, all_pods = preprocess.main(raw_data, TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data for request_{request_id}")
         # raw_data file is not needed anymore. delete it
         os.remove(raw_data)
+        preprocess_overhead = time.time() - preprocess_start_time
 
-        # Print essential request features immediately after preprocessing
-        logger.info("Important request features after preprocessing:")
-        for feature in ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot']:
-            if feature in processed_df.columns:
-                value = processed_df[feature].iloc[0] if len(processed_df) > 0 else "N/A"
-                logger.info(f"  {feature}: {value}")
+        # # Print essential request features immediately after preprocessing
+        # logger.info("Important request features after preprocessing:")
+        # for feature in ['input_tokens', 'output_tokens', 'total_tokens', 'ttft', 'avg_tpot']:
+        #     if feature in processed_df.columns:
+        #         value = processed_df[feature].iloc[0] if len(processed_df) > 0 else "N/A"
+        #         logger.info(f"  {feature}: {value}")
 
         # Get running statistics
+        get_stat_start_time = time.time()
         stats = get_request_stats()
         if stats is None or stats.count == 0:
             logger.warning(f"No running statistics available, stats: {stats}, stats.count: {stats.count}, stats.mean: {stats.mean}, stats.var: {stats.var}")
+        get_stat_overhead = time.time() - get_stat_start_time
+        
         ## new approach. in memory tensor dataset
+        encode_start_time = time.time()
         tensor_dataset = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
         logger.info(f"Successfully encoded data in memory for inference")
+        encode_overhead = time.time() - encode_start_time
+
+        infer_start_time = time.time()
         result = contextual_bandit.infer_from_tensor(tensor_dataset)
+        infer_overhead = time.time() - infer_start_time
 
         # ## debugging
         # tensor_dataset = encoding.fix_encode_for_inference_with_feature_info(all_pods, processed_df, request_features_train, request_features_reward)
@@ -339,13 +360,22 @@ def handle_infer():
             
         selected_pod = all_pods[selected_pod_index]
         confidence = result.get('confidence', 1.0)
-        
+        detailed_inference_overhead = result.get('detailed_inference_overhead', {})
+        total_overhead = time.time() - handle_infer_start_time
         # Return the result
         response = {
             "selected_pod": selected_pod,
             "confidence": confidence,
-            "request_id": request_id
+            "request_id": request_id,
+            "raw_data_write_overhead": int(raw_data_write_overhead*1000),
+            "preprocess_overhead": int(preprocess_overhead*1000),
+            "get_stat_overhead": int(get_stat_overhead*1000),
+            "encode_overhead": int(encode_overhead*1000),
+            "infer_overhead": int(infer_overhead*1000),
+            "total_overhead": int(total_overhead*1000),
         }
+        for key, value in detailed_inference_overhead.items():
+            response[key] = value
         
         logger.info(f"Selected pod {selected_pod} with confidence {confidence}")
         return jsonify(response), 200

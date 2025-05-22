@@ -389,6 +389,8 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
 	}
+	request_prepare_overhead := time.Since(route_start_time).Milliseconds()
+
 	infer_http_req_start_time := time.Now()
 	url := fmt.Sprintf("%s%s", routingAgentURL, inferEndpoint)
 	req, reqErr := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
@@ -418,6 +420,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	}
 	infer_overhead := time.Since(infer_http_req_start_time).Milliseconds()
 
+	response_process_start := time.Now()
 	// body: {"confidence":0.4398832619190216,"request_id":"10","selected_pod":"10.0.1.30"}
 	var routeResponse RouteResponse
 	if err := json.Unmarshal(body, &routeResponse); err != nil {
@@ -426,8 +429,6 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
 	}
-	klog.Infof("RouteResponse: %s", string(body))
-	klog.Infof("requestID: %s, selectedPod: %s, confidence: %f", routeResponse.RequestID, routeResponse.SelectedPod, routeResponse.Confidence)
 	targetPod = GetPod(routeResponse.SelectedPod, readyPods)
 	if targetPod == nil {
 		klog.Errorf("No suitable pod found for selected pod IP: %s", routeResponse.SelectedPod)
@@ -444,7 +445,9 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		r.prefixCacheIndexer.AddPrefix(prefixHashes, ctx.Model, targetPod.Status.PodIP)
 	}
 	ctx.SetTargetPod(targetPod)
-	klog.Infof("RL router, selected podIP: %s, Route end-to-end took %dms, infer_http_request took %dms, response body: %s", ctx.TargetAddressWithoutPort(), time.Since(route_start_time).Milliseconds(), infer_overhead, string(body))
+	response_process_overhead := time.Since(response_process_start).Milliseconds()
+	end_to_end_overhead := time.Since(route_start_time).Milliseconds()
+	klog.Infof("RL router, selected podIP: %s, \nRoute end-to-end took %dms, \ninfer_http_request took %dms, \nrequest_prepare_overhead: %dms, \nresponse_process_overhead: %dms, \nResponseBody: %s", ctx.TargetAddressWithoutPort(), end_to_end_overhead, infer_overhead, request_prepare_overhead, response_process_overhead, string(body))
 	return ctx.TargetAddress(), nil
 }
 
