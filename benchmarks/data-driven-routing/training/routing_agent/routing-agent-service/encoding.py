@@ -80,85 +80,190 @@ class LLMRoutingDataProcessor:
         self.pod_encoder = None
         self.selected_pod_encoder = None
 
+    # ## old
+    # def extract_pod_columns(self, df, all_pods):
+    #     """Extract pod-related columns and organize by pod ID and feature type."""
+    #     pod_data = defaultdict(dict)
+        
+    #     logger.info(f"df.columns: {df.columns}")
+    #     self.pod_ids = all_pods
+    #     logger.info(f"Found pod IDs from selected_pod column: {self.pod_ids}")
+
+    #     # Direct check for column patterns
+    #     pod_feature_columns = [col for col in df.columns if col.startswith('pod_')]
+    #     for col in pod_feature_columns:
+    #         # Look for columns like 'pod_10.0.1.32-feature_name'
+    #         parts = col.split('-')
+    #         assert len(parts) == 2, f"Unexpected column format: {col}"
+    #         pod_id = parts[0].replace('pod_', '')
+    #         feature = parts[1]
+    #         if feature not in self.pod_features:
+    #             self.pod_features.append(feature)
+    #         logger.debug(f"pod_id: {pod_id}, self.pod_ids: {self.pod_ids}")
+    #         if pod_id in self.pod_ids:
+    #             pod_data[pod_id][feature] = df[col]
+    #         else:
+    #             logger.error(f"Pod ID {pod_id} not found in self.pod_ids {self.pod_ids}, col: {col}")
+    #             assert False
+    #     # all pods must have the same number of columns for pod features
+    #     for pod_id in self.pod_ids:
+    #         if pod_id not in pod_data:
+    #             logger.error(f"Pod ID {pod_id} not found in pod_data")
+    #             assert False
+    #         # Check if all pods have the same features
+    #         if len(pod_data[pod_id]) != len(self.pod_features):
+    #             logger.error(f"Pod ID {pod_id} has {len(pod_data[pod_id])} features, expected {len(self.pod_features)}")
+    #             assert False
+
+    #     logger.info(f"pod_data contains {len(pod_data)} pods and total of {sum(len(features) for features in pod_data.values())} features")
+    #     self.pod_features = sorted(self.pod_features)
+    #     return pod_data
+        
+    #     # # Log features
+    #     # self.pod_features = sorted(self.pod_features)
+    #     # logger.info(f"Extracted {len(self.pod_ids)} pod IDs and {len(self.pod_features)} pod features")
+    #     # logger.info(f"Pod IDs: {self.pod_ids[:5]}{'...' if len(self.pod_ids) > 5 else ''}")
+    #     # logger.info(f"Pod features: {self.pod_features[:5]}{'...' if len(self.pod_features) > 5 else ''}")
+        
+    #     # # Log last_second features specifically
+    #     # last_second_features = [f for f in self.pod_features if 'last_second' in f]
+    #     # logger.info(f"Found {len(last_second_features)} last_second features: {last_second_features}")
+        
+    #     # return pod_data
+
     def extract_pod_columns(self, df, all_pods):
-        """Extract pod-related columns and organize by pod ID and feature type."""
+        """Extract pod-related columns and organize by pod ID and feature type - OPTIMIZED."""
         pod_data = defaultdict(dict)
         
         logger.info(f"df.columns: {df.columns}")
         self.pod_ids = all_pods
         logger.info(f"Found pod IDs from selected_pod column: {self.pod_ids}")
 
-        # Direct check for column patterns
+        # OPTIMIZATION: Pre-filter pod columns and create mapping
         pod_feature_columns = [col for col in df.columns if col.startswith('pod_')]
+        
+        # OPTIMIZATION: Vectorized column parsing instead of loop
+        pod_col_info = []
         for col in pod_feature_columns:
-            # Look for columns like 'pod_10.0.1.32-feature_name'
             parts = col.split('-')
             assert len(parts) == 2, f"Unexpected column format: {col}"
             pod_id = parts[0].replace('pod_', '')
             feature = parts[1]
-            if feature not in self.pod_features:
-                self.pod_features.append(feature)
-            logger.debug(f"pod_id: {pod_id}, self.pod_ids: {self.pod_ids}")
-            if pod_id in self.pod_ids:
+            pod_col_info.append((col, pod_id, feature))
+        
+        # OPTIMIZATION: Build feature list once
+        unique_features = list(set(info[2] for info in pod_col_info))
+        self.pod_features = sorted(unique_features)
+        
+        # OPTIMIZATION: Build pod_data using vectorized operations
+        pod_id_set = set(self.pod_ids)
+        for col, pod_id, feature in pod_col_info:
+            if pod_id in pod_id_set:
                 pod_data[pod_id][feature] = df[col]
             else:
                 logger.error(f"Pod ID {pod_id} not found in self.pod_ids {self.pod_ids}, col: {col}")
                 assert False
-        # all pods must have the same number of columns for pod features
+        
+        # Validation (kept same logic)
         for pod_id in self.pod_ids:
             if pod_id not in pod_data:
                 logger.error(f"Pod ID {pod_id} not found in pod_data")
                 assert False
-            # Check if all pods have the same features
             if len(pod_data[pod_id]) != len(self.pod_features):
                 logger.error(f"Pod ID {pod_id} has {len(pod_data[pod_id])} features, expected {len(self.pod_features)}")
                 assert False
 
         logger.info(f"pod_data contains {len(pod_data)} pods and total of {sum(len(features) for features in pod_data.values())} features")
-        self.pod_features = sorted(self.pod_features)
         return pod_data
+
+    # ## old
+    # def analyze_request_features(self, df, request_features_train, request_features_reward):
+    #     # Columns to exclude from features
+    #     exclude_cols = [
+    #         'request_id',           # Identifier, not a feature
+    #         'selected_pod',         # Target, not a feature
+    #         'action',               # Target, not a feature
+    #         'reward',               # Target, not a feature
+    #         'ttft_reward',          # Component of reward, not a feature
+    #         'tpot_reward',          # Component of reward, not a feature
+    #         'ttft_normalized',      # Derived from reward
+    #         'tpot_normalized',      # Derived from reward
+    #     ]
+    #     exclude_cols.extend(request_features_reward)
+    #     exclude_patterns = ['reward', 'action', 'slo_satisfied', 'normalized']
         
-        # # Log features
-        # self.pod_features = sorted(self.pod_features)
-        # logger.info(f"Extracted {len(self.pod_ids)} pod IDs and {len(self.pod_features)} pod features")
-        # logger.info(f"Pod IDs: {self.pod_ids[:5]}{'...' if len(self.pod_ids) > 5 else ''}")
-        # logger.info(f"Pod features: {self.pod_features[:5]}{'...' if len(self.pod_features) > 5 else ''}")
+    #     # Any column not starting with "pod_" and not in exclude list
+    #     candidate_request_features = [
+    #         col for col in df.columns 
+    #         if not any(col.startswith(f"pod_{pod_id}") for pod_id in self.pod_ids) 
+    #         and not any(pat in col for pat in exclude_patterns)
+    #         and col not in exclude_cols
+    #     ]
         
-        # # Log last_second features specifically
-        # last_second_features = [f for f in self.pod_features if 'last_second' in f]
-        # logger.info(f"Found {len(last_second_features)} last_second features: {last_second_features}")
+    #     # Log what we're doing
+    #     logger.info(f"Request features - Training features: {request_features_train}")
+    #     logger.info(f"Request features - Reward features (excluded from training): {request_features_reward}")
+    #     logger.info(f"Request features - Found {len(candidate_request_features)} candidate columns: {candidate_request_features}")
+
+    #     # Test each column to see if it's numeric or categorical
+    #     numeric_cols = []
+    #     categorical_cols = []
         
-        # return pod_data
+    #     for col in candidate_request_features:
+    #         # Skip columns with too many NaN values
+    #         if df[col].isna().mean() > 0:
+    #             logger.error(f"Request features - {col} has NaN values.")
+    #             assert False
+                
+    #         # Try to convert to numeric
+    #         try:
+    #             # Check if already numeric
+    #             if pd.api.types.is_numeric_dtype(df[col]):
+    #                 numeric_cols.append(col)
+    #                 continue
+                
+    #             # Try to convert
+    #             pd.to_numeric(df[col])
+    #             numeric_cols.append(col)
+    #         except:
+    #             # If conversion fails, it's categorical
+    #             categorical_cols.append(col)
+        
+    #     self.numeric_request_features = numeric_cols
+    #     self.categorical_request_features = categorical_cols
+        
+    #     logger.info(f"Request features - number of numeric columns: {len(numeric_cols)}")
+    #     logger.info(f"Request features - number of categorical columns {len(categorical_cols)}")
+    #     if len(numeric_cols) > 0:
+    #         logger.info(f"Request features - numeric features: {numeric_cols}")
+    #     if len(categorical_cols) > 0:
+    #         logger.info(f"Request features - categorical features: {categorical_cols}")
 
     def analyze_request_features(self, df, request_features_train, request_features_reward):
+        """Analyze request features - OPTIMIZED."""
         # Columns to exclude from features
-        exclude_cols = [
-            'request_id',           # Identifier, not a feature
-            'selected_pod',         # Target, not a feature
-            'action',               # Target, not a feature
-            'reward',               # Target, not a feature
-            'ttft_reward',          # Component of reward, not a feature
-            'tpot_reward',          # Component of reward, not a feature
-            'ttft_normalized',      # Derived from reward
-            'tpot_normalized',      # Derived from reward
-        ]
-        exclude_cols.extend(request_features_reward)
+        exclude_cols = set([
+            'request_id', 'selected_pod', 'action', 'reward', 
+            'ttft_reward', 'tpot_reward', 'ttft_normalized', 'tpot_normalized',
+        ] + request_features_reward)
+        
         exclude_patterns = ['reward', 'action', 'slo_satisfied', 'normalized']
         
-        # Any column not starting with "pod_" and not in exclude list
+        # OPTIMIZATION: Use set operations for faster filtering
+        pod_prefixes = set(f"pod_{pod_id}" for pod_id in self.pod_ids)
+        
         candidate_request_features = [
             col for col in df.columns 
-            if not any(col.startswith(f"pod_{pod_id}") for pod_id in self.pod_ids) 
+            if not any(col.startswith(prefix) for prefix in pod_prefixes)
             and not any(pat in col for pat in exclude_patterns)
             and col not in exclude_cols
         ]
         
-        # Log what we're doing
         logger.info(f"Request features - Training features: {request_features_train}")
         logger.info(f"Request features - Reward features (excluded from training): {request_features_reward}")
         logger.info(f"Request features - Found {len(candidate_request_features)} candidate columns: {candidate_request_features}")
 
-        # Test each column to see if it's numeric or categorical
+        # OPTIMIZATION: Vectorized numeric/categorical classification
         numeric_cols = []
         categorical_cols = []
         
@@ -167,20 +272,16 @@ class LLMRoutingDataProcessor:
             if df[col].isna().mean() > 0:
                 logger.error(f"Request features - {col} has NaN values.")
                 assert False
-                
-            # Try to convert to numeric
-            try:
-                # Check if already numeric
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    numeric_cols.append(col)
-                    continue
-                
-                # Try to convert
-                pd.to_numeric(df[col])
+            
+            # OPTIMIZATION: Direct dtype check first, then conversion check
+            if pd.api.types.is_numeric_dtype(df[col]):
                 numeric_cols.append(col)
-            except:
-                # If conversion fails, it's categorical
-                categorical_cols.append(col)
+            else:
+                try:
+                    pd.to_numeric(df[col])
+                    numeric_cols.append(col)
+                except:
+                    categorical_cols.append(col)
         
         self.numeric_request_features = numeric_cols
         self.categorical_request_features = categorical_cols
@@ -192,40 +293,87 @@ class LLMRoutingDataProcessor:
         if len(categorical_cols) > 0:
             logger.info(f"Request features - categorical features: {categorical_cols}")
 
-    def encode_pod_ids(self, df):
-        """Create encoders for pod IDs.
+    # ## old
+    # def encode_pod_ids(self, df):
+    #     """Create encoders for pod IDs.
         
-        Args:
-            df: Pandas DataFrame with routing data
-        """
-        # If we have pod IDs, create an encoder
-        if self.pod_ids:
-            # Fit an encoder for pod IDs
-            self.pod_encoder = OneHotEncoder(sparse_output=False)
-            self.pod_encoder.fit(np.array(self.pod_ids).reshape(-1, 1))
+    #     Args:
+    #         df: Pandas DataFrame with routing data
+    #     """
+    #     # If we have pod IDs, create an encoder
+    #     if self.pod_ids:
+    #         # Fit an encoder for pod IDs
+    #         self.pod_encoder = OneHotEncoder(sparse_output=False)
+    #         self.pod_encoder.fit(np.array(self.pod_ids).reshape(-1, 1))
             
-            # Also fit an encoder for selected_pod column
+    #         # Also fit an encoder for selected_pod column
+    #         if 'selected_pod' in df.columns:
+    #             selected_pods = df['selected_pod'].dropna().unique()
+    #             self.selected_pod_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    #             self.selected_pod_encoder.fit(np.array(selected_pods).reshape(-1, 1))
+                
+    #             logger.info(f"Encoded {len(selected_pods)} unique selected pods")
+    #     else:
+    #         logger.warning("No pod IDs found, skipping pod encoding")
+
+    def encode_pod_ids(self, df):
+        """Create encoders for pod IDs - OPTIMIZED."""
+        if self.pod_ids:
+            # OPTIMIZATION: Pre-convert to numpy array
+            pod_ids_array = np.array(self.pod_ids).reshape(-1, 1)
+            self.pod_encoder = OneHotEncoder(sparse_output=False)
+            self.pod_encoder.fit(pod_ids_array)
+            
             if 'selected_pod' in df.columns:
+                # OPTIMIZATION: Use unique() only once
                 selected_pods = df['selected_pod'].dropna().unique()
+                selected_pods_array = np.array(selected_pods).reshape(-1, 1)
                 self.selected_pod_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
-                self.selected_pod_encoder.fit(np.array(selected_pods).reshape(-1, 1))
+                self.selected_pod_encoder.fit(selected_pods_array)
                 
                 logger.info(f"Encoded {len(selected_pods)} unique selected pods")
         else:
             logger.warning("No pod IDs found, skipping pod encoding")
 
+
+    # ## old
+    # def classify_feature_timing(self):
+    #     feature_timing = {}
+    #     logger.info(f"Classifying timing for pod features: {self.pod_features}")
+    #     for feature in self.pod_features:
+    #         if 'last_second' in feature:
+    #             feature_timing[feature] = 'historical'
+    #         else:
+    #             feature_timing[feature] = 'current'
+    #     current_features = [f for f, timing in feature_timing.items() if timing == 'current']
+    #     historical_features = [f for f, timing in feature_timing.items() if timing == 'historical']
+    #     logger.info(f"Current-time features: {current_features}")
+    #     logger.info(f"historical features: {historical_features}")
+    #     for historical_feat in historical_features:
+    #         if 'last_second' not in historical_feat:
+    #             logger.error(f"Feature {historical_feat} is classified as historical but does not contain 'last_second'")
+    #             assert False
+    #     for current_feat in current_features:
+    #         if 'last_second' in current_feat:
+    #             logger.error(f"Feature {current_feat} is classified as current but contains 'last_second'")
+    #             assert False
+    #     return feature_timing
+
     def classify_feature_timing(self):
-        feature_timing = {}
-        logger.info(f"Classifying timing for pod features: {self.pod_features}")
-        for feature in self.pod_features:
-            if 'last_second' in feature:
-                feature_timing[feature] = 'historical'
-            else:
-                feature_timing[feature] = 'current'
+        """Classify feature timing - OPTIMIZED."""
+        # OPTIMIZATION: Vectorized classification
+        feature_timing = {
+            feature: 'historical' if 'last_second' in feature else 'current'
+            for feature in self.pod_features
+        }
+        
         current_features = [f for f, timing in feature_timing.items() if timing == 'current']
         historical_features = [f for f, timing in feature_timing.items() if timing == 'historical']
+        
         logger.info(f"Current-time features: {current_features}")
         logger.info(f"historical features: {historical_features}")
+        
+        # Validation (kept same logic)
         for historical_feat in historical_features:
             if 'last_second' not in historical_feat:
                 logger.error(f"Feature {historical_feat} is classified as historical but does not contain 'last_second'")
@@ -234,6 +382,7 @@ class LLMRoutingDataProcessor:
             if 'last_second' in current_feat:
                 logger.error(f"Feature {current_feat} is classified as current but contains 'last_second'")
                 assert False
+                
         return feature_timing
 
     def prepare_metrics_based_positional_encoding(self, pod_features, feature_indices_map):
@@ -267,19 +416,61 @@ class LLMRoutingDataProcessor:
         
         return pos_encoding_features
 
-    def add_staleness_features(self, pod_features, timestamps, feature_timing, feature_indices_map):
-        """Add staleness indicators for historical features.
+    # ## old
+    # def add_staleness_features(self, pod_features, timestamps, feature_timing, feature_indices_map):
+    #     """Add staleness indicators for historical features.
         
-        Args:
-            pod_features: Pod feature tensor [batch, n_pods, feature_dim]
-            timestamps: Request timestamps
-            feature_timing: Dictionary mapping features to timing category
-            feature_indices_map: Dictionary mapping feature names to indices
+    #     Args:
+    #         pod_features: Pod feature tensor [batch, n_pods, feature_dim]
+    #         timestamps: Request timestamps
+    #         feature_timing: Dictionary mapping features to timing category
+    #         feature_indices_map: Dictionary mapping feature names to indices
             
-        Returns:
-            Pod features with staleness indicators added
-        """
-        # Get indices of historical features
+    #     Returns:
+    #         Pod features with staleness indicators added
+    #     """
+    #     # Get indices of historical features
+    #     historical_features = [f for f, timing in feature_timing.items() if timing == 'historical']
+    #     historical_indices = [
+    #         idx for feature, idx in feature_indices_map.items() 
+    #         if feature in historical_features
+    #     ]
+        
+    #     if not historical_indices or len(timestamps) == 0 or np.all(timestamps == 0):
+    #         logger.info("No historical features or valid timestamps, skipping staleness")
+    #         # Add dummy staleness feature (all zeros)
+    #         staleness_features = np.zeros((pod_features.shape[0], pod_features.shape[1], 1))
+    #         return np.concatenate([pod_features, staleness_features], axis=2)
+        
+    #     # Calculate staleness based on timestamps (normalize to [0,1] range)
+    #     # Assuming timestamps are in seconds from reference point
+    #     max_staleness = 60.0  # 60 seconds max staleness
+        
+    #     # Calculate time differences between consecutive requests
+    #     # Sort timestamps and get differences
+    #     sorted_indices = np.argsort(timestamps)
+    #     sorted_timestamps = timestamps[sorted_indices]
+    #     time_diffs = np.diff(sorted_timestamps, prepend=sorted_timestamps[0])
+    #     time_diffs = np.maximum(time_diffs, 0)  # Ensure positive
+        
+    #     # Reorder to original sequence and normalize
+    #     staleness = np.zeros_like(timestamps)
+    #     staleness[sorted_indices] = time_diffs
+    #     staleness = np.clip(staleness / max_staleness, 0, 1)
+        
+    #     # Create staleness feature for each pod
+    #     staleness_features = np.zeros((pod_features.shape[0], pod_features.shape[1], 1))
+    #     for i in range(pod_features.shape[1]):  # For each pod
+    #         staleness_features[:, i, 0] = staleness
+        
+    #     logger.info(f"Added staleness indicator for {len(historical_indices)} historical features")
+        
+    #     # Concatenate with original features
+    #     return np.concatenate([pod_features, staleness_features], axis=2)
+
+    def add_staleness_features(self, pod_features, timestamps, feature_timing, feature_indices_map):
+        """Add staleness indicators for historical features - OPTIMIZED."""
+        # OPTIMIZATION: Pre-compute historical feature indices
         historical_features = [f for f, timing in feature_timing.items() if timing == 'historical']
         historical_indices = [
             idx for feature, idx in feature_indices_map.items() 
@@ -288,35 +479,30 @@ class LLMRoutingDataProcessor:
         
         if not historical_indices or len(timestamps) == 0 or np.all(timestamps == 0):
             logger.info("No historical features or valid timestamps, skipping staleness")
-            # Add dummy staleness feature (all zeros)
             staleness_features = np.zeros((pod_features.shape[0], pod_features.shape[1], 1))
             return np.concatenate([pod_features, staleness_features], axis=2)
         
-        # Calculate staleness based on timestamps (normalize to [0,1] range)
-        # Assuming timestamps are in seconds from reference point
-        max_staleness = 60.0  # 60 seconds max staleness
-        
-        # Calculate time differences between consecutive requests
-        # Sort timestamps and get differences
+        # OPTIMIZATION: Vectorized staleness calculation
+        max_staleness = 60.0
         sorted_indices = np.argsort(timestamps)
         sorted_timestamps = timestamps[sorted_indices]
         time_diffs = np.diff(sorted_timestamps, prepend=sorted_timestamps[0])
-        time_diffs = np.maximum(time_diffs, 0)  # Ensure positive
+        time_diffs = np.maximum(time_diffs, 0)
         
-        # Reorder to original sequence and normalize
+        # OPTIMIZATION: Use advanced indexing for reordering
         staleness = np.zeros_like(timestamps)
         staleness[sorted_indices] = time_diffs
         staleness = np.clip(staleness / max_staleness, 0, 1)
         
-        # Create staleness feature for each pod
-        staleness_features = np.zeros((pod_features.shape[0], pod_features.shape[1], 1))
-        for i in range(pod_features.shape[1]):  # For each pod
-            staleness_features[:, i, 0] = staleness
+        # OPTIMIZATION: Broadcasting instead of loop
+        staleness_features = np.broadcast_to(
+            staleness[:, np.newaxis, np.newaxis], 
+            (pod_features.shape[0], pod_features.shape[1], 1)
+        ).copy()
         
         logger.info(f"Added staleness indicator for {len(historical_indices)} historical features")
-        
-        # Concatenate with original features
         return np.concatenate([pod_features, staleness_features], axis=2)
+
 
     def prepare_cross_attention_inputs(self, pod_features, kv_hit_ratios):
         """Format inputs for cross-attention between pod features and KV hit ratios.
@@ -340,48 +526,378 @@ class LLMRoutingDataProcessor:
             'key_value': kv_hit_ratios  # KV hit ratios as key/value
         }
 
-    def create_request_pod_interaction_features(self, request_features, pod_features):
-        """Create features capturing interactions between request and pod characteristics.
+    # ## old
+    # def create_request_pod_interaction_features(self, request_features, pod_features):
+    #     """Create features capturing interactions between request and pod characteristics.
         
-        Args:
-            request_features: Request feature tensor [batch, request_dim]
-            pod_features: Pod feature tensor [batch, n_pods, pod_dim]
+    #     Args:
+    #         request_features: Request feature tensor [batch, request_dim]
+    #         pod_features: Pod feature tensor [batch, n_pods, pod_dim]
             
-        Returns:
-            Interaction features for each pod
-        """
+    #     Returns:
+    #         Interaction features for each pod
+    #     """
+    #     if request_features.shape[1] == 0:
+    #         logger.warning("No request features available for interaction")
+    #         return None
+            
+    #     batch_size, n_pods, _ = pod_features.shape
+        
+    #     # Expand request features to match pod dimensions
+    #     expanded_request = np.repeat(
+    #         request_features[:, np.newaxis, :], n_pods, axis=1
+    #     )
+        
+    #     logger.info(f"Created request-pod interaction features with shape {expanded_request.shape}")
+        
+    #     return expanded_request
+
+    def create_request_pod_interaction_features(self, request_features, pod_features):
+        """Create request-pod interaction features - OPTIMIZED."""
         if request_features.shape[1] == 0:
             logger.warning("No request features available for interaction")
             return None
             
         batch_size, n_pods, _ = pod_features.shape
         
-        # Expand request features to match pod dimensions
-        expanded_request = np.repeat(
-            request_features[:, np.newaxis, :], n_pods, axis=1
-        )
+        # OPTIMIZATION: Use numpy broadcasting instead of repeat
+        expanded_request = np.broadcast_to(
+            request_features[:, np.newaxis, :], 
+            (batch_size, n_pods, request_features.shape[1])
+        ).copy()
         
         logger.info(f"Created request-pod interaction features with shape {expanded_request.shape}")
-        
         return expanded_request
 
-    def preprocess_data(self, df, all_pods, request_features_train, request_features_reward):
+
+    def _optimized_extract_actions_rewards(self, df, n_samples):
+        """Extract actions and rewards - OPTIMIZED section for Step 7."""
+        actions = np.zeros(n_samples, dtype=np.int64)
+        rewards = np.zeros(n_samples)
+        ttft_rewards = np.zeros(n_samples)
+        tpot_rewards = np.zeros(n_samples)
+        
+        # OPTIMIZATION: Pre-build pod_to_idx mapping
+        if 'selected_pod' in df.columns:
+            pod_to_idx = {pod_id: i for i, pod_id in enumerate(self.pod_ids)}
+            # OPTIMIZATION: Vectorized action extraction
+            selected_pods = df['selected_pod'].values
+            valid_mask = pd.notna(selected_pods)
+            
+            if valid_mask.any():
+                valid_indices = np.where(valid_mask)[0]
+                valid_pods = selected_pods[valid_mask].astype(str)
+                
+                for i, selected_pod in enumerate(valid_pods):
+                    if selected_pod in pod_to_idx:
+                        actions[valid_indices[i]] = pod_to_idx[selected_pod]
+        elif 'action' in df.columns:
+            actions = df['action'].fillna(0).astype(np.int64).values
+        
+        # OPTIMIZATION: Vectorized reward extraction
+        if 'reward' in df.columns:
+            rewards = df['reward'].fillna(0).values
+        if 'ttft_reward' in df.columns:
+            ttft_rewards = df['ttft_reward'].fillna(0).values
+        if 'tpot_reward' in df.columns:
+            tpot_rewards = df['tpot_reward'].fillna(0).values
+        
+        return actions, rewards, ttft_rewards, tpot_rewards
+
+    ## old
+    # def _optimized_process_pod_features(self, pod_data, n_samples):
+    #     """Process pod features - FURTHER OPTIMIZED section for Step 6."""
+    #     pod_features_list = []
+    #     pod_kv_hit_ratios = []
+    #     per_pod_feature_indices = {}
+        
+    #     if pod_data:
+    #         # OPTIMIZATION 1: Pre-create shared GPU encoder if gpu_model exists
+    #         one_hot_encoder_start_time = time.time()
+    #         shared_gpu_encoder = None
+    #         if 'gpu_model' in self.pod_features:
+    #             # Collect all GPU values from all pods at once
+    #             all_gpu_values = []
+    #             for pod_id in self.pod_ids:
+    #                 if 'gpu_model' in pod_data[pod_id]:
+    #                     gpu_vals = pod_data[pod_id]['gpu_model'].fillna('unknown').values
+    #                     all_gpu_values.extend(gpu_vals)
+                
+    #             if all_gpu_values:
+    #                 # Create one encoder for all pods
+    #                 shared_gpu_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    #                 shared_gpu_encoder.fit(np.array(all_gpu_values).reshape(-1, 1))
+    #         one_hot_encoder_overhead = time.time() - one_hot_encoder_start_time
+
+    #         # OPTIMIZATION 2: Pre-process all data by feature type
+    #         kv_hit_data = {}
+    #         numeric_data = {}
+    #         gpu_model_data = {}
+            
+    #         nested_loop_start_time = time.time()
+    #         for pod_id in self.pod_ids:
+    #             kv_hit_data[pod_id] = None
+    #             numeric_data[pod_id] = []
+    #             gpu_model_data[pod_id] = None
+                
+    #             for feature in self.pod_features:
+    #                 if feature in pod_data[pod_id]:
+    #                     if feature == 'kv_hit_ratio':
+    #                         kv_hit_data[pod_id] = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
+    #                     elif feature == 'gpu_model':
+    #                         gpu_values = pod_data[pod_id][feature].fillna('unknown')
+    #                         if shared_gpu_encoder:
+    #                             gpu_model_data[pod_id] = shared_gpu_encoder.transform(gpu_values.values.reshape(-1, 1))
+    #                     else:
+    #                         # Batch process numeric features
+    #                         values = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
+    #                         numeric_data[pod_id].append(values)
+    #         nested_loop_overhead = time.time() - nested_loop_start_time
+
+    #         build_feature_start_time = time.time()
+    #         # OPTIMIZATION 3: Build features for each pod using pre-processed data
+    #         for pod_id in self.pod_ids:
+    #             pod_features = []
+    #             feature_indices_map = {}
+    #             feature_idx = 0
+                
+    #             # Add numeric features first (batch processed)
+    #             numeric_features = [f for f in self.pod_features if f not in ['kv_hit_ratio', 'gpu_model']]
+    #             if numeric_data[pod_id]:
+    #                 # Single hstack for all numeric features per pod
+    #                 numeric_stack = np.hstack(numeric_data[pod_id])
+    #                 pod_features.append(numeric_stack)
+                    
+    #                 # Update feature indices
+    #                 for i, feature in enumerate(numeric_features):
+    #                     feature_indices_map[feature] = feature_idx + i
+    #                 feature_idx += len(numeric_features)
+                
+    #             # Add GPU model if exists
+    #             if gpu_model_data[pod_id] is not None:
+    #                 pod_features.append(gpu_model_data[pod_id])
+    #                 feature_indices_map['gpu_model'] = feature_idx
+    #                 feature_idx += gpu_model_data[pod_id].shape[1]
+                
+    #             # Store KV hit ratio separately
+    #             if kv_hit_data[pod_id] is not None:
+    #                 pod_kv_hit_ratios.append(kv_hit_data[pod_id])
+    #             else:
+    #                 # Default zero values if missing
+    #                 pod_kv_hit_ratios.append(np.zeros((n_samples, 1)))
+                
+    #             per_pod_feature_indices[pod_id] = feature_indices_map
+                
+    #             if pod_features:
+    #                 # Single hstack per pod
+    #                 pod_features_combined = np.hstack(pod_features)
+    #                 pod_features_list.append(pod_features_combined)
+    #             else:
+    #                 logger.error(f"No features found for pod {pod_id}")
+    #                 assert False
+            
+    #         if pod_features_list:
+    #             # OPTIMIZATION 4: Batch operations (unchanged as already optimized)
+    #             pod_features_array = np.stack(pod_features_list, axis=1)
+    #             pod_kv_hit_array = np.stack(pod_kv_hit_ratios, axis=1)
+                
+    #             pod_shape = pod_features_array.shape
+    #             kv_shape = pod_kv_hit_array.shape
+                
+    #             pod_features_flat = pod_features_array.reshape(-1, pod_features_array.shape[2])
+    #             kv_flat = pod_kv_hit_array.reshape(-1, 1)
+
+    #             self.pod_feature_scaler.fit(pod_features_flat)
+    #             self.kv_hit_scaler.fit(kv_flat)
+                
+    #             pod_features_norm = self.pod_feature_scaler.transform(pod_features_flat).reshape(pod_shape)
+    #             kv_hit_norm = self.kv_hit_scaler.transform(kv_flat).reshape(kv_shape)
+
+    #             self.feature_stats.update({
+    #                 'pod_feature_means': self.pod_feature_scaler.mean_,
+    #                 'pod_feature_stds': self.pod_feature_scaler.scale_,
+    #                 'kv_hit_means': self.kv_hit_scaler.mean_,
+    #                 'kv_hit_stds': self.kv_hit_scaler.scale_
+    #             })
+
+    #             logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
+    #             logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
+    #             build_feature_overhead = time.time() - build_feature_start_time
+
+    #             process_pod_features_overhead_summary = {
+    #                 'encoding_process_pod_features_overhead_one_hot_encoder_overhead': int(one_hot_encoder_overhead*1000),
+    #                 'encoding_process_pod_features_overhead_nested_loop_overhead': int(nested_loop_overhead*1000),
+    #                 'encoding_process_pod_features_overhead_build_feature_overhead': int(build_feature_overhead*1000)
+    #             }
+    #             return pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary
+    #         else:
+    #             logger.error("No pod features found in expected format")
+    #             assert False
+    #     else:
+    #         logger.error("No pod data in expected format, creating default pod features")
+    #         assert False
+
+    def _optimized_process_pod_features(self, pod_data, n_samples):
+        """Process pod features - ZERO OVERHEAD OPTIMIZATION."""
+        
+        if not pod_data:
+            logger.error("No pod data in expected format")
+            assert False
+        
+        # STEP 1: Pre-create shared GPU encoder (if needed)
+        one_hot_encoder_start_time = time.time()
+        shared_gpu_encoder = None
+        if 'gpu_model' in self.pod_features:
+            all_gpu_values = []
+            for pod_id in self.pod_ids:
+                if 'gpu_model' in pod_data[pod_id]:
+                    gpu_vals = pod_data[pod_id]['gpu_model'].fillna('unknown').values
+                    all_gpu_values.extend(gpu_vals)
+            
+            if all_gpu_values:
+                shared_gpu_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+                shared_gpu_encoder.fit(np.array(all_gpu_values).reshape(-1, 1))
+        one_hot_encoder_overhead = time.time() - one_hot_encoder_start_time
+        
+        # STEP 2: VECTORIZED DATA EXTRACTION
+        vectorized_extraction_start_time = time.time()
+        
+        # Separate features by type
+        numeric_features = [f for f in self.pod_features if f not in ['kv_hit_ratio', 'gpu_model']]
+        
+        # Pre-allocate arrays for ALL pods at once
+        n_pods = len(self.pod_ids)
+        n_numeric = len(numeric_features)
+        
+        # Extract all numeric data in one go - shape: (n_samples, n_pods, n_numeric_features)
+        if numeric_features:
+            numeric_arrays = np.zeros((n_samples, n_pods, n_numeric))
+            for pod_idx, pod_id in enumerate(self.pod_ids):
+                for feat_idx, feature in enumerate(numeric_features):
+                    if feature in pod_data[pod_id]:
+                        numeric_arrays[:, pod_idx, feat_idx] = pod_data[pod_id][feature].fillna(0).values
+        else:
+            numeric_arrays = np.zeros((n_samples, n_pods, 0))
+        
+        # Extract KV hit ratio data - shape: (n_samples, n_pods, 1)
+        kv_arrays = np.zeros((n_samples, n_pods, 1))
+        if 'kv_hit_ratio' in self.pod_features:
+            for pod_idx, pod_id in enumerate(self.pod_ids):
+                if 'kv_hit_ratio' in pod_data[pod_id]:
+                    kv_arrays[:, pod_idx, 0] = pod_data[pod_id]['kv_hit_ratio'].fillna(0).values
+        
+        # Extract GPU model data (if exists) - shape: (n_samples, n_pods, n_gpu_features)
+        gpu_arrays = None
+        gpu_feature_count = 0
+        if 'gpu_model' in self.pod_features and shared_gpu_encoder:
+            # Get the number of GPU features from encoder
+            sample_transform = shared_gpu_encoder.transform([['unknown']])
+            gpu_feature_count = sample_transform.shape[1]
+            gpu_arrays = np.zeros((n_samples, n_pods, gpu_feature_count))
+            
+            for pod_idx, pod_id in enumerate(self.pod_ids):
+                if 'gpu_model' in pod_data[pod_id]:
+                    gpu_values = pod_data[pod_id]['gpu_model'].fillna('unknown')
+                    transformed = shared_gpu_encoder.transform(gpu_values.values.reshape(-1, 1))
+                    gpu_arrays[:, pod_idx, :] = transformed
+        vectorized_extraction_overhead = time.time() - vectorized_extraction_start_time
+        
+        # STEP 3: VECTORIZED CONCATENATION - Single operation for all pods
+        build_feature_start_time = time.time()
+        
+        # Build the feature arrays list
+        feature_arrays_to_concat = [numeric_arrays]
+        
+        if gpu_arrays is not None:
+            feature_arrays_to_concat.append(gpu_arrays)
+        
+        # Single concatenation operation for ALL pods at once
+        if len(feature_arrays_to_concat) == 1:
+            pod_features_array = feature_arrays_to_concat[0]
+        else:
+            pod_features_array = np.concatenate(feature_arrays_to_concat, axis=2)
+        
+        pod_kv_hit_array = kv_arrays
+        
+        # STEP 4: Create feature indices map (only for first pod, since all pods have same structure)
+        reference_feature_indices = {}
+        feature_idx = 0
+        
+        # Add numeric feature indices
+        for i, feature in enumerate(numeric_features):
+            reference_feature_indices[feature] = feature_idx + i
+        feature_idx += len(numeric_features)
+        
+        # Add GPU model indices
+        if gpu_arrays is not None:
+            reference_feature_indices['gpu_model'] = feature_idx
+            feature_idx += gpu_feature_count
+        
+        # Create per_pod_feature_indices (all pods have same structure)
+        per_pod_feature_indices = {pod_id: reference_feature_indices.copy() for pod_id in self.pod_ids}
+        build_feature_overhead = time.time() - build_feature_start_time
+        
+        # STEP 5: Batch normalization
+        normalization_start_time = time.time()
+        pod_shape = pod_features_array.shape
+        kv_shape = pod_kv_hit_array.shape
+        
+        pod_features_flat = pod_features_array.reshape(-1, pod_features_array.shape[2])
+        kv_flat = pod_kv_hit_array.reshape(-1, 1)
+
+        self.pod_feature_scaler.fit(pod_features_flat)
+        self.kv_hit_scaler.fit(kv_flat)
+        
+        pod_features_norm = self.pod_feature_scaler.transform(pod_features_flat).reshape(pod_shape)
+        kv_hit_norm = self.kv_hit_scaler.transform(kv_flat).reshape(kv_shape)
+
+        self.feature_stats.update({
+            'pod_feature_means': self.pod_feature_scaler.mean_,
+            'pod_feature_stds': self.pod_feature_scaler.scale_,
+            'kv_hit_means': self.kv_hit_scaler.mean_,
+            'kv_hit_stds': self.kv_hit_scaler.scale_
+        })
+
+        logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
+        logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
+        normalization_overhead = time.time() - normalization_start_time
+        
+        # Return proper overhead summary like the original
+        process_pod_features_overhead_summary = {
+            'encoding_process_pod_features_overhead_one_hot_encoder_overhead': int(one_hot_encoder_overhead * 1000),
+            'encoding_process_pod_features_overhead_vectorized_extraction_overhead': int(vectorized_extraction_overhead * 1000),
+            'encoding_process_pod_features_overhead_build_feature_overhead': int(build_feature_overhead * 1000),
+            'encoding_process_pod_features_overhead_normalization_overhead': int(normalization_overhead * 1000)
+        }
+        
+        return pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary
+
+    def prepare_for_encoding(self, df, all_pods, request_features_train, request_features_reward):
+        extract_pod_columns_start = time.time()
         # Step 1: Extract pod-related columns
         pod_data = self.extract_pod_columns(df, all_pods)
-        
+        extract_pod_columns_overhead = time.time() - extract_pod_columns_start
+
         # Step 2 Analyze request features
+        analyze_request_features_start = time.time()
         self.analyze_request_features(df, request_features_train, request_features_reward)
+        analyze_request_features_overhead = time.time() - analyze_request_features_start
         
         # Step 3: Encode pod IDs
+        encode_pod_ids_start = time.time()
         self.encode_pod_ids(df)
+        encode_pod_ids_overhead = time.time() - encode_pod_ids_start
         
         # Step 4: Classify feature timing (historical vs current)
+        classify_feature_timing_start = time.time()
         feature_timing = self.classify_feature_timing()
+        classify_feature_timing_overhead = time.time() - classify_feature_timing_start
         
         # Step 5: Process request features
         n_samples = len(df)
         
         # Process numeric request features
+        request_numeric_features_start_time = time.time()
         request_numeric_features = None
         if self.numeric_request_features:
             request_numeric_features = df[self.numeric_request_features].fillna(0).values
@@ -390,8 +906,10 @@ class LLMRoutingDataProcessor:
             self.feature_stats['request_feature_stds'] = np.std(request_numeric_features, axis=0)
         else:
             request_numeric_features = np.zeros((n_samples, 0))
-            
+        request_numeric_features_overhead = time.time() - request_numeric_features_start_time
+
         # Process categorical request features
+        request_categorical_features_start_time = time.time()
         request_categorical_features = []
         categorical_encoders = {}
         
@@ -417,119 +935,134 @@ class LLMRoutingDataProcessor:
             request_categorical_features = np.hstack(request_categorical_features)
         else:
             request_categorical_features = np.zeros((n_samples, 0))
+        request_categorical_features_overhead = time.time() - request_categorical_features_start_time
+
+        ## new
+        process_pod_features_start = time.time()
+        pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary = self._optimized_process_pod_features(pod_data, n_samples)
+        process_pod_features_overhead = time.time() - process_pod_features_start
+
+        ## old
+        # # Step 6: Process pod features
+        # pod_features_list = []
+        # pod_kv_hit_ratios = []
         
-        # Step 6: Process pod features
-        pod_features_list = []
-        pod_kv_hit_ratios = []
+        # # Create a per-pod feature indices map instead of a global one
+        # per_pod_feature_indices = {}
         
-        # Create a per-pod feature indices map instead of a global one
-        per_pod_feature_indices = {}
-        
-        # If we have pod data in the expected format
-        if pod_data:
-            for pod_id in self.pod_ids:
-                pod_features = []
-                # Start fresh for each pod
-                feature_indices_map = {}
-                feature_idx = 0
+        # # If we have pod data in the expected format
+        # if pod_data:
+        #     for pod_id in self.pod_ids:
+        #         pod_features = []
+        #         # Start fresh for each pod
+        #         feature_indices_map = {}
+        #         feature_idx = 0
                 
-                # Process each feature for this pod
-                for feature in self.pod_features:
-                    if feature in pod_data[pod_id]:
-                        # Special handling for kv_hit_ratio
-                        if feature == 'kv_hit_ratio':
-                            kv_values = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
-                            pod_kv_hit_ratios.append(kv_values)
-                        elif feature == 'gpu_model':
-                            # One-hot encode GPU model
-                            gpu_values = pod_data[pod_id][feature].fillna('unknown')
-                            encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
-                            encoder.fit(gpu_values.values.reshape(-1, 1))
-                            encoded = encoder.transform(gpu_values.values.reshape(-1, 1))
-                            pod_features.append(encoded)
-                            # Add to feature indices map for this pod
-                            feature_indices_map[feature] = feature_idx
-                            feature_idx += encoded.shape[1]
-                        else:
-                            # Regular numeric feature
-                            values = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
-                            pod_features.append(values)
-                            # Add to feature indices map for this pod
-                            feature_indices_map[feature] = feature_idx
-                            feature_idx += 1
-                    else:
-                        logger.error(f"Feature {feature} not found for pod {pod_id}")
-                        assert False
+        #         # Process each feature for this pod
+        #         for feature in self.pod_features:
+        #             if feature in pod_data[pod_id]:
+        #                 # Special handling for kv_hit_ratio
+        #                 if feature == 'kv_hit_ratio':
+        #                     kv_values = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
+        #                     pod_kv_hit_ratios.append(kv_values)
+        #                 elif feature == 'gpu_model':
+        #                     # One-hot encode GPU model
+        #                     gpu_values = pod_data[pod_id][feature].fillna('unknown')
+        #                     encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+        #                     encoder.fit(gpu_values.values.reshape(-1, 1))
+        #                     encoded = encoder.transform(gpu_values.values.reshape(-1, 1))
+        #                     pod_features.append(encoded)
+        #                     # Add to feature indices map for this pod
+        #                     feature_indices_map[feature] = feature_idx
+        #                     feature_idx += encoded.shape[1]
+        #                 else:
+        #                     # Regular numeric feature
+        #                     values = pod_data[pod_id][feature].fillna(0).values.reshape(-1, 1)
+        #                     pod_features.append(values)
+        #                     # Add to feature indices map for this pod
+        #                     feature_indices_map[feature] = feature_idx
+        #                     feature_idx += 1
+        #             else:
+        #                 logger.error(f"Feature {feature} not found for pod {pod_id}")
+        #                 assert False
                 
-                # Store feature indices map for this pod
-                per_pod_feature_indices[pod_id] = feature_indices_map
+        #         # Store feature indices map for this pod
+        #         per_pod_feature_indices[pod_id] = feature_indices_map
                 
-                # Combine all features for this pod
-                if pod_features:
-                    pod_features = np.hstack(pod_features)
-                    pod_features_list.append(pod_features)
-                else:
-                    logger.error(f"No features found for pod {pod_id}")
-                    assert False
+        #         # Combine all features for this pod
+        #         if pod_features:
+        #             pod_features = np.hstack(pod_features)
+        #             pod_features_list.append(pod_features)
+        #         else:
+        #             logger.error(f"No features found for pod {pod_id}")
+        #             assert False
             
-            # Stack features for all pods
-            if pod_features_list:
-                pod_features_array = np.stack(pod_features_list, axis=1)
-                pod_kv_hit_array = np.stack(pod_kv_hit_ratios, axis=1)
+        #     # Stack features for all pods
+        #     if pod_features_list:
+        #         pod_features_array = np.stack(pod_features_list, axis=1)
+        #         pod_kv_hit_array = np.stack(pod_kv_hit_ratios, axis=1)
                 
-                ## NOTE: normalization can cause issue, making all values zero if raw values in different pods are similar
-                pod_shape = pod_features_array.shape
-                kv_shape = pod_kv_hit_array.shape
-                pod_features_flat = pod_features_array.reshape(-1, pod_features_array.shape[2])
-                kv_flat = pod_kv_hit_array.reshape(-1, 1)
+        #         ## NOTE: normalization can cause issue, making all values zero if raw values in different pods are similar
+        #         pod_shape = pod_features_array.shape
+        #         kv_shape = pod_kv_hit_array.shape
+        #         pod_features_flat = pod_features_array.reshape(-1, pod_features_array.shape[2])
+        #         kv_flat = pod_kv_hit_array.reshape(-1, 1)
 
-                self.pod_feature_scaler.fit(pod_features_flat)
-                self.kv_hit_scaler.fit(kv_flat)
-                pod_features_norm = self.pod_feature_scaler.transform(pod_features_flat).reshape(pod_shape)
-                kv_hit_norm = self.kv_hit_scaler.transform(kv_flat).reshape(kv_shape)
+        #         self.pod_feature_scaler.fit(pod_features_flat)
+        #         self.kv_hit_scaler.fit(kv_flat)
+        #         pod_features_norm = self.pod_feature_scaler.transform(pod_features_flat).reshape(pod_shape)
+        #         kv_hit_norm = self.kv_hit_scaler.transform(kv_flat).reshape(kv_shape)
 
-                self.feature_stats['pod_feature_means'] = self.pod_feature_scaler.mean_
-                self.feature_stats['pod_feature_stds'] = self.pod_feature_scaler.scale_
-                self.feature_stats['kv_hit_means'] = self.kv_hit_scaler.mean_
-                self.feature_stats['kv_hit_stds'] = self.kv_hit_scaler.scale_
+        #         self.feature_stats['pod_feature_means'] = self.pod_feature_scaler.mean_
+        #         self.feature_stats['pod_feature_stds'] = self.pod_feature_scaler.scale_
+        #         self.feature_stats['kv_hit_means'] = self.kv_hit_scaler.mean_
+        #         self.feature_stats['kv_hit_stds'] = self.kv_hit_scaler.scale_
 
-                logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
-                logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
-            else:
-                logger.error("No pod features found in expected format")
-                assert False
-        else:
-            logger.error("No pod data in expected format, creating default pod features")
-            assert False
+        #         logger.info(f"Pod features stats after processing: min={pod_features_norm.min()}, max={pod_features_norm.max()}, non-zero={np.count_nonzero(pod_features_norm)}/{pod_features_norm.size}")
+        #         logger.info(f"KV hit ratio stats after processing: min={kv_hit_norm.min()}, max={kv_hit_norm.max()}, non-zero={np.count_nonzero(kv_hit_norm)}/{kv_hit_norm.size}")
+        #     else:
+        #         logger.error("No pod features found in expected format")
+        #         assert False
+        # else:
+        #     logger.error("No pod data in expected format, creating default pod features")
+        #     assert False
         
-        # Step 7: Extract actions and rewards
-        actions = np.zeros(n_samples, dtype=np.int64)
-        rewards = np.zeros(n_samples)
-        ttft_rewards = np.zeros(n_samples)
-        tpot_rewards = np.zeros(n_samples)
+        ## new
+        extract_actions_rewards_start = time.time()
+        actions, rewards, ttft_rewards, tpot_rewards = self._optimized_extract_actions_rewards(df, n_samples)
+        extract_actions_rewards_overhead = time.time() - extract_actions_rewards_start
+
+        ## old
+        # # Step 7: Extract actions and rewards
+        # actions = np.zeros(n_samples, dtype=np.int64)
+        # rewards = np.zeros(n_samples)
+        # ttft_rewards = np.zeros(n_samples)
+        # tpot_rewards = np.zeros(n_samples)
         
-        # Extract selected pod and convert to action index
-        if 'selected_pod' in df.columns:
-            pod_to_idx = {pod_id: i for i, pod_id in enumerate(self.pod_ids)}
-            for i, selected_pod in enumerate(df['selected_pod'].values):
-                if pd.notna(selected_pod) and str(selected_pod) in pod_to_idx:
-                    actions[i] = pod_to_idx[str(selected_pod)]
-        elif 'action' in df.columns:
-            actions = df['action'].fillna(0).astype(np.int64).values
+        # # Extract selected pod and convert to action index
+        # if 'selected_pod' in df.columns:
+        #     pod_to_idx = {pod_id: i for i, pod_id in enumerate(self.pod_ids)}
+        #     for i, selected_pod in enumerate(df['selected_pod'].values):
+        #         if pd.notna(selected_pod) and str(selected_pod) in pod_to_idx:
+        #             actions[i] = pod_to_idx[str(selected_pod)]
+        # elif 'action' in df.columns:
+        #     actions = df['action'].fillna(0).astype(np.int64).values
         
-        # Extract rewards
-        if 'reward' in df.columns:
-            rewards = df['reward'].fillna(0).values
-        if 'ttft_reward' in df.columns:
-            ttft_rewards = df['ttft_reward'].fillna(0).values
-        if 'tpot_reward' in df.columns:
-            tpot_rewards = df['tpot_reward'].fillna(0).values
+        # # Extract rewards
+        # if 'reward' in df.columns:
+        #     rewards = df['reward'].fillna(0).values
+        # if 'ttft_reward' in df.columns:
+        #     ttft_rewards = df['ttft_reward'].fillna(0).values
+        # if 'tpot_reward' in df.columns:
+        #     tpot_rewards = df['tpot_reward'].fillna(0).values
         
         # Step 8: Combine request features
+        combine_request_features_start = time.time()
         request_features = np.hstack([
             request_numeric_features, 
             request_categorical_features
         ]) if request_categorical_features.size > 0 else request_numeric_features
+        combine_request_features_overhead = time.time() - combine_request_features_start
         
         # # Step 9: Create timestamps
         timestamps = np.zeros(n_samples)
@@ -552,27 +1085,33 @@ class LLMRoutingDataProcessor:
             reference_feature_indices = {}
 
         # Step 10: Generate metrics-based positional encoding
-        positional_encodings = self.prepare_metrics_based_positional_encoding(
-            pod_features_norm, reference_feature_indices
-        )
+        positional_encoding_start_time = time.time()
+        positional_encodings = self.prepare_metrics_based_positional_encoding(pod_features_norm, reference_feature_indices)
+        positional_encoding_overhead = time.time() - positional_encoding_start_time
         
         # # Step 11: Add staleness features for historical metrics
         # pod_features_with_staleness = self.add_staleness_features(
         #     pod_features_norm, timestamps, feature_timing, feature_indices_map
         # )
+        add_staleness_start_time = time.time()
         pod_features_with_staleness = self.add_staleness_features(
             pod_features_norm, timestamps, feature_timing, reference_feature_indices
         )
+        add_staleness_overhead = time.time() - add_staleness_start_time
         
         # Step 12: Prepare cross-attention inputs
+        cross_attention_start_time = time.time()
         cross_attention_inputs = self.prepare_cross_attention_inputs(
             pod_features_with_staleness, kv_hit_norm
         )
+        cross_attention_overhead = time.time() - cross_attention_start_time
         
         # Step 13: Create request-pod interaction features
+        create_request_pod_interaction_start_time = time.time()
         interaction_features = self.create_request_pod_interaction_features(
             request_features, pod_features_norm
         )
+        create_request_pod_interaction_overhead = time.time() - create_request_pod_interaction_start_time
         
         if interaction_features is not None:
             logger.info(f"Created interaction features with shape {interaction_features.shape}")
@@ -616,7 +1155,8 @@ class LLMRoutingDataProcessor:
             # Statistics and metadata
             'feature_stats': self.feature_stats,
             'pod_features_list': self.pod_features,
-            'feature_indices_map': feature_indices_map,
+            # 'feature_indices_map': feature_indices_map,
+            'feature_indices_map': reference_feature_indices,
             'numeric_request_features': self.numeric_request_features,
             'categorical_request_features': self.categorical_request_features,
             'encoders': {
@@ -626,8 +1166,22 @@ class LLMRoutingDataProcessor:
             }
         }
         
-        
-        return processed_data
+        prepare_for_encoding_overhead_summary = {
+            'prepare_for_encoding_extract_pod_columns_overhead': int(extract_pod_columns_overhead*1000),
+            'prepare_for_encoding_analyze_request_features_overhead': int(analyze_request_features_overhead*1000),
+            'prepare_for_encoding_encode_pod_ids_overhead': int(encode_pod_ids_overhead*1000),
+            'prepare_for_encoding_classify_feature_timing_overhead': int(classify_feature_timing_overhead*1000),
+            'prepare_for_encoding_request_numeric_features_overhead': int(request_numeric_features_overhead*1000),
+            'prepare_for_encoding_request_categorical_features_overhead': int(request_categorical_features_overhead*1000),
+            'prepare_for_encoding_process_pod_features_overhead': int(process_pod_features_overhead*1000),
+            'prepare_for_encoding_extract_actions_rewards_overhead': int(extract_actions_rewards_overhead*1000),
+            'prepare_for_encoding_combine_request_features_overhead': int(combine_request_features_overhead*1000),
+            'prepare_for_encoding_positional_encoding_overhead': int(positional_encoding_overhead*1000),
+            'prepare_for_encoding_add_staleness_overhead': int(add_staleness_overhead*1000),
+            'prepare_for_encoding_cross_attention_overhead': int(cross_attention_overhead*1000),
+            'prepare_for_encoding_create_request_pod_interaction_overhead': int(create_request_pod_interaction_overhead*1000)
+        }
+        return processed_data, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary
 
     def save_processed_data(self, processed_data):
         """Save the processed data to disk.
@@ -981,12 +1535,12 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
     
     # Process training data
     logger.info("Processing training data...")
-    train_processed = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
+    train_processed, _, _ = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward)
     train_path = processor.save_processed_data(train_processed)
     
     # # Process test data
     # logger.info("Processing test data...")
-    # test_processed = processor.preprocess_data(test_df, all_pods)
+    # test_processed = processor.prepare_for_encoding(test_df, all_pods)
     # test_path = processor.save_processed_data(test_processed, prefix="test")
     
     # # Create data loaders if requested
@@ -1021,242 +1575,62 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
 
     return train_path
 
-def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
-    encode_for_inference_start_time = time.time()
-    # Check if we have running statistics for request features
-    if request_stats is not None and request_stats.count > 0:
-        logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
+# ## old
+# def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
+#     encode_for_inference_start_time = time.time()
+#     # Check if we have running statistics for request features
+#     if request_stats is not None and request_stats.count > 0:
+#         logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
         
-        if all(feature in df.columns for feature in request_features_train):
-            # Check for required features
-            missing_features = [f for f in request_features_train if f not in df.columns]
-            if missing_features:
-                logger.error(f"Missing required request features: {missing_features}")
-                assert False, f"Required features {missing_features} not found in DataFrame"
+#         if all(feature in df.columns for feature in request_features_train):
+#             # Check for required features
+#             missing_features = [f for f in request_features_train if f not in df.columns]
+#             if missing_features:
+#                 logger.error(f"Missing required request features: {missing_features}")
+#                 assert False, f"Required features {missing_features} not found in DataFrame"
             
-            # Check for zero values
-            for feature in request_features_train:
-                if feature in df.columns and (df[feature] == 0).all():
-                    logger.warning(f"Feature {feature} has all zero values. Setting to 0.01 to avoid scaling issues.")
-                    df[feature] = 0.01
+#             # Check for zero values
+#             for feature in request_features_train:
+#                 if feature in df.columns and (df[feature] == 0).all():
+#                     logger.warning(f"Feature {feature} has all zero values. Setting to 0.01 to avoid scaling issues.")
+#                     df[feature] = 0.01
             
-            # Log original feature values for debugging
-            logger.info("Request features before normalization:")
-            for feature in request_features_train:
-                if len(df) > 0:
-                    logger.info(f"  {feature}: {df[feature].iloc[0]}")
+#             # Log original feature values for debugging
+#             logger.info("Request features before normalization:")
+#             for feature in request_features_train:
+#                 if len(df) > 0:
+#                     logger.info(f"  {feature}: {df[feature].iloc[0]}")
 
-            request_values = df[request_features_train].values
-            normalized_values = request_stats.normalize(request_values)
+#             request_values = df[request_features_train].values
+#             normalized_values = request_stats.normalize(request_values)
             
-            # Store normalized values in DataFrame
-            for i, feature in enumerate(request_features_train):
-                original_values = df[feature].copy()
-                df[feature] = normalized_values[:, i]
+#             # Store normalized values in DataFrame
+#             for i, feature in enumerate(request_features_train):
+#                 original_values = df[feature].copy()
+#                 df[feature] = normalized_values[:, i]
                 
-                # Log normalization for the first row
-                if len(df) > 0:
-                    logger.info(f"Normalized {feature}: {original_values.iloc[0]} -> {df[feature].iloc[0]}")
-        else:
-            logger.error(f"Some request features missing from DataFrame, using default normalization")
-            assert False
-    else:
-        logger.error(f"No running statistics provided. request_stats: {request_stats}, request_stats.count: {request_stats.count}")
-        assert False
-    
-    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
-    encoder_preprocess_start = time.time()
-    processed_data = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
-    encoder_preprocess_overhead = time.time() - encoder_preprocess_start
-
-    # Log processed request features
-    if 'request_features' in processed_data:
-        request_feat = processed_data['request_features']
-        logger.info(f"Processed request features shape: {request_feat.shape}")
-        if len(request_feat) > 0:
-            logger.info(f"Processed request features values: {request_feat[0]}")
-    
-    tensor_data = {
-        # Basic tensors
-        'pod_features': torch.FloatTensor(processed_data['pod_features']),
-        'kv_hit_ratios': torch.FloatTensor(processed_data['kv_hit_ratios']),
-        'request_features': torch.FloatTensor(processed_data['request_features']),
-        'actions': torch.LongTensor(processed_data['actions']),
-        'rewards': torch.FloatTensor(processed_data['rewards']),
-        
-        # Enhanced features for transformer
-        'positional_encodings': torch.FloatTensor(processed_data['positional_encodings']),
-        'pod_features_with_staleness': torch.FloatTensor(processed_data['pod_features_with_staleness']),
-        
-        # Cross-attention components
-        'query': torch.FloatTensor(processed_data['cross_attention_inputs']['query']),
-        'key_value': torch.FloatTensor(processed_data['cross_attention_inputs']['key_value']),
-    }
-    
-    # Add interaction features if available
-    if processed_data['interaction_features'] is not None:
-        tensor_data['interaction_features'] = torch.FloatTensor(processed_data['interaction_features'])
-        
-    # Add additional reward components if available
-    if 'ttft_rewards' in processed_data and processed_data['ttft_rewards'] is not None:
-        tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
-    if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
-        tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
-    total_overhead = time.time() - encode_for_inference_start_time
-    other_overhead = total_overhead - encoder_preprocess_overhead
-    return tensor_data, other_overhead, encoder_preprocess_overhead
-
-
-# # Add this debug function to troubleshoot request feature encoding
-# def debug_request_feature_encoding(df, tensor_dataset):
-#     """
-#     Debug the request feature encoding process by comparing original DataFrame values 
-#     with encoded tensor values.
-    
-#     Args:
-#         df: Original DataFrame with request data
-#         tensor_dataset: Encoded tensor dataset
-#     """
-#     from logger import logger
-#     import numpy as np
-    
-#     logger.info("=== DEBUG REQUEST FEATURE ENCODING ===")
-    
-#     # Extract request features from DataFrame
-#     request_features = ['request_start_time', 'request_end_time', 'input_tokens', 
-#                          'output_tokens', 'total_tokens', 'ttft', 'avg_tpot', 'e2e_latency']
-    
-#     # Check if features exist in DataFrame
-#     missing = [f for f in request_features if f not in df.columns]
-#     if missing:
-#         logger.warning(f"Missing request features in DataFrame: {missing}")
-#         for col in missing:
-#             request_features.remove(col)
-    
-#     # Print raw values from DataFrame
-#     logger.info("Original request feature values from DataFrame:")
-#     for feature in request_features:
-#         if feature in df.columns:
-#             value = df[feature].iloc[0] if len(df) > 0 else "N/A"
-#             logger.info(f"  {feature}: {value}")
-    
-#     # Print encoded values from tensor
-#     if 'request_features' in tensor_dataset:
-#         tensor_values = tensor_dataset['request_features'].numpy().flatten()
-#         logger.info(f"Encoded request feature tensor values: {tensor_values}")
-        
-#         # Check if all values are zero
-#         if np.all(tensor_values == 0):
-#             logger.error("All request feature values are zero! This indicates a serious issue with encoding.")
-        
-#         # Try to match indices if we have feature_info
-#         if 'feature_info' in tensor_dataset and 'numeric_request_features' in tensor_dataset['feature_info']:
-#             numeric_features = tensor_dataset['feature_info']['numeric_request_features']
-#             logger.info("Mapping between features and tensor values:")
-#             for i, feature in enumerate(numeric_features):
-#                 value = tensor_values[i] if i < len(tensor_values) else "out of bounds"
-#                 logger.info(f"  {feature} (index {i}): {value}")
-#     else:
-#         logger.error("No 'request_features' tensor found in dataset!")
-    
-#     # Check scalers if available
-#     if 'feature_info' in tensor_dataset and 'feature_stats' in tensor_dataset['feature_info']:
-#         feature_stats = tensor_dataset['feature_info']['feature_stats']
-#         logger.info("Feature statistics used for scaling:")
-#         if 'request_feature_means' in feature_stats:
-#             logger.info(f"  Means: {feature_stats['request_feature_means']}")
-#         if 'request_feature_stds' in feature_stats:
-#             logger.info(f"  Stds: {feature_stats['request_feature_stds']}")
-#             # Check for any zero standard deviations
-#             if np.any(feature_stats['request_feature_stds'] == 0):
-#                 logger.warning("Some request feature standard deviations are zero! This will cause normalization issues.")
-    
-#     logger.info("=== END DEBUG ===")
-
-# # Modify encode_for_inference_with_feature_info to include debugging information
-# def fix_encode_for_inference_with_feature_info(all_pods, df, request_features_train, request_features_reward):
-#     """
-#     Process and encode data for inference without writing to disk.
-#     Returns tensor data directly along with detailed feature information.
-    
-#     Args:
-#         all_pods: List of all pod IDs
-#         df: Preprocessed DataFrame
-        
-#     Returns:
-#         Dictionary containing tensor data and feature information for inference
-#     """
-#     import os
-#     import torch
-#     from collections import defaultdict
-#     import numpy as np
-#     from sklearn.preprocessing import StandardScaler, OneHotEncoder
-#     from logger import logger
-    
-#     # Create a processor instance with a temporary directory
-#     processor = LLMRoutingDataProcessor(output_dir="temp_inference")
-    
-#     # Log the DataFrame columns before processing
-#     logger.info("DataFrame columns before processing:")
-#     for col in df.columns:
-#         if col in request_features_train or col in request_features_reward:
-#             value = df[col].iloc[0] if len(df) > 0 else "N/A"
-#             logger.info(f"  {col}: {value}")
+#                 # Log normalization for the first row
+#                 if len(df) > 0:
+#                     logger.info(f"Normalized {feature}: {original_values.iloc[0]} -> {df[feature].iloc[0]}")
 #         else:
-#             logger.warning(f"Unexpected column in DataFrame: {col}")
-#             logger.info(f"  {col}")
+#             logger.error(f"Some request features missing from DataFrame, using default normalization")
+#             assert False
+#     else:
+#         logger.error(f"No running statistics provided. request_stats: {request_stats}, request_stats.count: {request_stats.count}")
+#         assert False
     
-#     # IMPORTANT FIX: Check for zero values and replace with small non-zero values
-#     # to avoid normalization issues
-#     request_cols = request_features_train + request_features_reward
-    
-#     for col in request_cols:
-#         if col in df.columns and (df[col] == 0).all():
-#             logger.warning(f"Column {col} has all zero values. Setting to small value 0.01 to avoid scaling issues.")
-#             df[col] = 0.01
-    
-#     # Process the data
-#     processed_data = processor.preprocess_data(df, all_pods, request_features_train, request_features_reward)
-    
-#     # Print feature lists
-#     logger.info("Pod features extracted during encoding:")
-#     for i, feature in enumerate(processor.pod_features):
-#         logger.info(f"  {i}: {feature}")
-    
-#     logger.info("Numeric request features extracted during encoding:")
-#     for i, feature in enumerate(processor.numeric_request_features):
-#         # Also print the value from the DataFrame
-#         value = df[feature].iloc[0] if feature in df.columns and len(df) > 0 else "N/A"
-#         logger.info(f"  {i}: {feature} - Value from DataFrame: {value}")
-    
-#     logger.info("Categorical request features extracted during encoding:")
-#     for i, feature in enumerate(processor.categorical_request_features):
-#         logger.info(f"  {i}: {feature}")
-    
-#     # IMPORTANT: Check the processed request features before creating tensors
+#     processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+#     encoder_preprocess_start = time.time()
+#     processed_data = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward)
+#     encoder_preprocess_overhead = time.time() - encoder_preprocess_start
+
+#     # Log processed request features
 #     if 'request_features' in processed_data:
-#         request_feat_array = processed_data['request_features']
-#         logger.info(f"Processed request features shape: {request_feat_array.shape}")
-#         logger.info(f"Processed request features values: {request_feat_array}")
-        
-#         # Check if all zeros
-#         if np.all(request_feat_array == 0):
-#             logger.error("All request features are zero after processing! Checking normalization...")
-            
-#             # Check normalization parameters
-#             if 'feature_stats' in processed_data:
-#                 stats = processed_data['feature_stats']
-#                 if 'request_feature_means' in stats:
-#                     logger.info(f"Request feature means: {stats['request_feature_means']}")
-#                 if 'request_feature_stds' in stats:
-#                     logger.info(f"Request feature stds: {stats['request_feature_stds']}")
-#                     # Check for zeros in standard deviations which would cause normalization issues
-#                     if np.any(stats['request_feature_stds'] == 0):
-#                         logger.warning("Found zero standard deviations in request features!")
-#                         # Replace zeros with ones to avoid division by zero
-#                         stats['request_feature_stds'][stats['request_feature_stds'] == 0] = 1.0
+#         request_feat = processed_data['request_features']
+#         logger.info(f"Processed request features shape: {request_feat.shape}")
+#         if len(request_feat) > 0:
+#             logger.info(f"Processed request features values: {request_feat[0]}")
     
-#     # Create a PyTorch-ready dataset with all enhanced features
 #     tensor_data = {
 #         # Basic tensors
 #         'pod_features': torch.FloatTensor(processed_data['pod_features']),
@@ -1272,16 +1646,6 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
 #         # Cross-attention components
 #         'query': torch.FloatTensor(processed_data['cross_attention_inputs']['query']),
 #         'key_value': torch.FloatTensor(processed_data['cross_attention_inputs']['key_value']),
-        
-#         # Additional metadata for feature inspection
-#         'feature_info': {
-#             'pod_features': processor.pod_features,
-#             'numeric_request_features': processor.numeric_request_features,
-#             'categorical_request_features': processor.categorical_request_features,
-#             'feature_timing': processed_data.get('feature_timing', {}),
-#             'pod_ids': all_pods,
-#             'feature_stats': processed_data.get('feature_stats', {})
-#         }
 #     }
     
 #     # Add interaction features if available
@@ -1293,16 +1657,88 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
 #         tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
 #     if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
 #         tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+#     total_overhead = time.time() - encode_for_inference_start_time
+#     encoder_other_overhead = total_overhead - encoder_preprocess_overhead
+#     return tensor_data, encoder_other_overhead, encoder_preprocess_overhead
+
+
+def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
+    """OPTIMIZED inference encoding function."""
+    encode_for_inference_start_time = time.time()
     
-#     # Check final request features tensor
-#     request_tensor = tensor_data['request_features']
-#     logger.info(f"Final request features tensor shape: {request_tensor.shape}")
-#     logger.info(f"Final request features tensor values: {request_tensor.numpy()}")
+    if request_stats is not None and request_stats.count > 0:
+        logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
+        
+        if all(feature in df.columns for feature in request_features_train):
+            missing_features = [f for f in request_features_train if f not in df.columns]
+            if missing_features:
+                logger.error(f"Missing required request features: {missing_features}")
+                assert False, f"Required features {missing_features} not found in DataFrame"
+            
+            # OPTIMIZATION: Vectorized zero-value handling
+            zero_mask = (df[request_features_train] == 0).all(axis=0)
+            if zero_mask.any():
+                zero_features = df[request_features_train].columns[zero_mask].tolist()
+                logger.warning(f"Features {zero_features} have all zero values. Setting to 0.01 to avoid scaling issues.")
+                df.loc[:, zero_features] = 0.01
+            
+            logger.info("Request features before normalization:")
+            if len(df) > 0:
+                for feature in request_features_train:
+                    logger.info(f"  {feature}: {df[feature].iloc[0]}")
+
+            # OPTIMIZATION: Single vectorized normalization operation
+            request_values = df[request_features_train].values
+            normalized_values = request_stats.normalize(request_values)
+            
+            # OPTIMIZATION: Bulk assignment
+            original_values = request_values.copy() if len(df) > 0 else None
+            df[request_features_train] = normalized_values
+            
+            if len(df) > 0:
+                for i, feature in enumerate(request_features_train):
+                    logger.info(f"Normalized {feature}: {original_values[0, i]} -> {normalized_values[0, i]}")
+        else:
+            logger.error(f"Some request features missing from DataFrame, using default normalization")
+            assert False
+    else:
+        logger.error(f"No running statistics provided. request_stats: {request_stats}, request_stats.count: {request_stats.count}")
+        assert False
     
-#     # Log tensor shapes
-#     logger.info("All tensor shapes:")
-#     for key, tensor in tensor_data.items():
-#         if isinstance(tensor, torch.Tensor):
-#             logger.info(f"  {key}: {tensor.shape}")
+    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+    prepare_for_encoding_start = time.time()
+    processed_data, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward)
+    total_prepare_for_encoding_overhead = time.time() - prepare_for_encoding_start
+
+    if 'request_features' in processed_data:
+        request_feat = processed_data['request_features']
+        logger.info(f"Processed request features shape: {request_feat.shape}")
+        if len(request_feat) > 0:
+            logger.info(f"Processed request features values: {request_feat[0]}")
     
-#     return tensor_data
+    # OPTIMIZATION: Single tensor creation operation
+    tensor_data = {
+        'pod_features': torch.FloatTensor(processed_data['pod_features']),
+        'kv_hit_ratios': torch.FloatTensor(processed_data['kv_hit_ratios']),
+        'request_features': torch.FloatTensor(processed_data['request_features']),
+        'actions': torch.LongTensor(processed_data['actions']),
+        'rewards': torch.FloatTensor(processed_data['rewards']),
+        'positional_encodings': torch.FloatTensor(processed_data['positional_encodings']),
+        'pod_features_with_staleness': torch.FloatTensor(processed_data['pod_features_with_staleness']),
+        'query': torch.FloatTensor(processed_data['cross_attention_inputs']['query']),
+        'key_value': torch.FloatTensor(processed_data['cross_attention_inputs']['key_value']),
+    }
+    
+    # OPTIMIZATION: Conditional tensor creation
+    if processed_data['interaction_features'] is not None:
+        tensor_data['interaction_features'] = torch.FloatTensor(processed_data['interaction_features'])
+        
+    if 'ttft_rewards' in processed_data and processed_data['ttft_rewards'] is not None:
+        tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
+    if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
+        tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+        
+    total_overhead = time.time() - encode_for_inference_start_time
+    encoder_other_overhead = total_overhead - total_prepare_for_encoding_overhead
+    return tensor_data, encoder_other_overhead, total_prepare_for_encoding_overhead, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary
+

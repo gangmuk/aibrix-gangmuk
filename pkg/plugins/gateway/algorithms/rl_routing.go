@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,7 +60,8 @@ type rlOnlineRouter struct {
 
 func NewRLOnlineRouter() (types.Router, error) {
 	var tokenizerObj tokenizer.Tokenizer
-	tokenizerObj = tokenizer.NewTiktokenTokenizer()
+	// tokenizerObj = tokenizer.NewTiktokenTokenizer()
+	tokenizerObj = tokenizer.NewCharacterTokenizer()
 
 	router := &rlOnlineRouter{
 		tokenizer:          tokenizerObj,
@@ -292,9 +294,9 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	for _, pod := range readyPods {
 		readyPodsMap[pod.Status.PodIP] = struct{}{}
 	}
-	tokenizer_start_time := time.Now()
+	// tokenizer_start_time := time.Now()
 	tokens, err := r.tokenizer.TokenizeInputText(ctx.Message)
-	tokenizer_overhead := time.Since(tokenizer_start_time).Milliseconds()
+	// tokenizer_overhead := time.Since(tokenizer_start_time).Milliseconds()
 	if err != nil {
 		klog.Errorf("requestID: %s, Tokenization failed: %v", ctx.RequestID, err)
 		return "", err
@@ -402,8 +404,6 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		return ctx.TargetAddress(), nil
 	}
 	request_prepare_overhead := time.Since(route_start_time).Milliseconds()
-
-	infer_http_req_start_time := time.Now()
 	url := fmt.Sprintf("%s%s", routingAgentURL, inferEndpoint)
 	req, reqErr := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if reqErr != nil {
@@ -430,7 +430,6 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		ctx.SetTargetPod(targetPod)
 		return ctx.TargetAddress(), nil
 	}
-	infer_overhead := time.Since(infer_http_req_start_time).Milliseconds()
 
 	response_process_start := time.Now()
 	// body: {"confidence":0.4398832619190216,"request_id":"10","selected_pod":"10.0.1.30"}
@@ -461,9 +460,37 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 
 	response_process_overhead := time.Since(response_process_start).Milliseconds()
 	end_to_end_overhead := time.Since(route_start_time).Milliseconds()
-
-	klog.Infof("RL router, selected podIP: %s, \nRoute end-to-end took %dms, \ninfer_http_request took %dms, \n tokenizer_overhead: %dms, log_construction_overhead: %dms, \nrequest_prepare_overhead: %dms, \nresponse_process_overhead: %dms, \nResponseBody: %s", ctx.TargetAddressWithoutPort(), end_to_end_overhead, infer_overhead, tokenizer_overhead, log_construction_overhead, request_prepare_overhead, response_process_overhead, string(body))
+	formattedResponseBody := formatJSONResponse(ctx.RequestID, body)
+	klog.Infof("RL router, selected podIP: %s, \n"+
+		"requestID: %s, Route end_to_end_overhead %dms, \n"+
+		// "requestID: %s, infer_http_request took %dms, \n"+
+		// "requestID: %s, tokenizer_overhead: %dms, \n"+
+		"requestID: %s, log_construction_overhead: %dms, \n"+
+		"requestID: %s, request_prepare_overhead: %dms, \n"+
+		"requestID: %s, response_process_overhead: %dms, \n"+
+		"ResponseBody: \n%s",
+		ctx.TargetAddressWithoutPort(),
+		ctx.RequestID, end_to_end_overhead,
+		// ctx.RequestID, infer_overhead,
+		// ctx.RequestID, tokenizer_overhead,
+		ctx.RequestID, log_construction_overhead,
+		ctx.RequestID, request_prepare_overhead,
+		ctx.RequestID, response_process_overhead, // 1ms
+		formattedResponseBody)
 	return ctx.TargetAddress(), nil
+}
+
+func formatJSONResponse(RequestID string, jsonBytes []byte) string {
+	var data map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return string(jsonBytes) // Return original if parsing fails
+	}
+
+	var result strings.Builder
+	for key, value := range data {
+		result.WriteString(fmt.Sprintf("requestID: %s, %s:%v\n", RequestID, key, value))
+	}
+	return strings.TrimSuffix(result.String(), "\n")
 }
 
 func (r *rlOnlineRouter) fallbackRouting(ctx *types.RoutingContext, readyPods []*v1.Pod) (*v1.Pod, error) {
