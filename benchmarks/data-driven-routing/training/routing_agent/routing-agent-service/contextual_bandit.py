@@ -834,50 +834,64 @@ def train(encoded_data_dir):
         'eval_metrics': eval_metrics
     }
 
+
+def print_tensor_data_summary(tensor_data):
+    """Print a comprehensive summary of tensor_data for AI debugging context"""
     
+    logger.info("=" * 60)
+    logger.info("TENSOR_DATA SUMMARY FOR AI DEBUGGING")
+    logger.info("=" * 60)
+    
+    # 1. Basic structure
+    logger.info(f"Total number of keys: {len(tensor_data)}")
+    logger.info(f"Keys: {list(tensor_data.keys())}")
+    
+    # 2. Detailed tensor information
+    for key, tensor in tensor_data.items():
+        if hasattr(tensor, 'shape'):  # It's a tensor
+            logger.info(f"\n{key}:")
+            logger.info(f"  Shape: {tensor.shape}")
+            logger.info(f"  Dtype: {tensor.dtype}")
+            logger.info(f"  Device: {tensor.device if hasattr(tensor, 'device') else 'N/A'}")
+            logger.info(f"  Min: {tensor.min().item() if tensor.numel() > 0 else 'Empty'}")
+            logger.info(f"  Max: {tensor.max().item() if tensor.numel() > 0 else 'Empty'}")
+            logger.info(f"  Mean: {tensor.float().mean().item() if tensor.numel() > 0 else 'Empty'}")
+            logger.info(f"  Non-zero elements: {torch.count_nonzero(tensor).item()}/{tensor.numel()}")
+            
+            # Sample data for small tensors
+            if tensor.numel() <= 50:
+                logger.info(f"  Full data: {tensor}")
+            else:
+                # Show first few elements
+                flat = tensor.flatten()
+                logger.info(f"  First 10 elements: {flat[:10]}")
+                
+                # For 3D tensors (batch, pods, features), show structure
+                if len(tensor.shape) == 3:
+                    batch_size, n_pods, n_features = tensor.shape
+                    logger.info(f"  Batch size: {batch_size}, Pods: {n_pods}, Features: {n_features}")
+                    if batch_size > 0 and n_pods > 0:
+                        logger.info(f"  First pod features: {tensor[0, 0, :]}")
+                        if n_pods > 1:
+                            logger.info(f"  Second pod features: {tensor[0, 1, :]}")
+        else:
+            logger.info(f"\n{key}: {type(tensor)} - {tensor}")
+    
+    logger.info("=" * 60)
+
+# Clean final version - add this to contextual_bandit.py
+
+# Global cache for agent instance
+_cached_agent = None
+_cached_agent_config = None
 _cached_metadata = None
 
-# Add this new function to contextual_bandit.py
-def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0.1):
+def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0.1, model_updated=False):
+    global final_model_path, _cached_metadata, _cached_agent, _cached_agent_config
+    
     infer_from_tensor_start_time = time.time()
-    global final_model_path, _cached_metadata
-    # Find the latest model if not specified
-    # if model_dir is None:
-    #     if not os.path.exists(results_dir):
-    #         raise ValueError("No trained models found")
-            
-    #     if not final_model_path:
-    #         raise ValueError("No trained contextual bandit models found")
-            
-        # # Get the most recent model directory
-        # latest_model_dir = model_dirs[0]
-        
-        # # Check if it has a final_model subdirectory
-        # final_model_path = os.path.join(latest_model_dir, "final_model")
-        # if os.path.exists(final_model_path):
-        #     model_dir = final_model_path
-        # else:
-        #     # If no final_model, look for the latest checkpoint
-        #     checkpoints = sorted(glob.glob(os.path.join(latest_model_dir, "checkpoint_epoch_*")), 
-        #                         key=lambda x: int(x.split("_")[-1]), 
-        #                         reverse=True)
-        #     if checkpoints:
-        #         model_dir = checkpoints[0]
-        #     else:
-        #         raise ValueError("No trained model checkpoints found")
     
-    # logger.info(f"Using model from {final_model_path} for inference")
-    
-    # ###########################################################
-    # # Print all available keys in tensor_data
-    # logger.info("Available tensor data keys:")
-    # for key in tensor_data.keys():
-    #     if isinstance(tensor_data[key], torch.Tensor):
-    #         logger.info(f"  {key}: shape={tensor_data[key].shape}, dtype={tensor_data[key].dtype}")
-    #     else:
-    #         logger.info(f"  {key}: type={type(tensor_data[key])}")
-    
-    # Load metadata once and cache it
+    # Load feature metadata (already optimized with caching)
     load_feature_map_start_time = time.time()
     if _cached_metadata is None:
         logger.info("Loading feature metadata into cache...")
@@ -906,50 +920,19 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
                     
         except Exception as e:
             logger.error(f"Error loading feature metadata: {e}")
-                
-    # Use cached metadata
-    try:
-        feature_names = {
-            "pod_features": [],
-            "request_features": []
-        }
-
-        if _cached_metadata['metadata']:
-            logger.info("Loaded feature dimensions from metadata:")
-            for key, value in _cached_metadata['metadata'].get('feature_dimensions', {}).items():
-                logger.info(f"  {key}: {value}")
-
-        if _cached_metadata['pod_features_list']:
-            feature_names["pod_features"] = _cached_metadata['pod_features_list']
-            logger.info("Pod features used in inference:")
-            for i, feature in enumerate(_cached_metadata['pod_features_list']):
-                logger.info(f"  {i}: {feature}")
-
-        if _cached_metadata['feature_indices_map']:
-            logger.info("Feature indices map:")
-            for feature, idx in _cached_metadata['feature_indices_map'].items():
-                logger.info(f"  {feature}: index={idx}")
-
-    except Exception as e:
-        logger.error(f"Error loading feature metadata: {e}")
-        logger.info("Continuing with inference without feature names")
-        logger.info("Continuing with inference without feature names")
     
     load_feature_map_overhead = time.time() - load_feature_map_start_time
 
-    
-    ###########################################################
-    
     # Extract data from tensor dataset and move to device
+    data_move_start_time = time.time()
     try:
-        data_move_start_time = time.time()
         pod_features = tensor_data['pod_features_with_staleness'].to(device)
         kv_hit_ratios = tensor_data['kv_hit_ratios'].to(device)
         request_features = tensor_data['request_features'].to(device)
-        data_move_overhead = time.time() - data_move_start_time
     except KeyError as e:
         logger.error(f"Missing key in tensor data: {e}")
         raise ValueError(f"Missing key in tensor data: {e}")
+    data_move_overhead = time.time() - data_move_start_time
     
     # Ensure data is in batch format (add batch dimension if needed)
     if len(pod_features.shape) == 2:
@@ -959,69 +942,118 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
     if len(request_features.shape) == 1:
         request_features = request_features.unsqueeze(0)
 
-
-     # Analyze request features
-    analyze_request_features = False
-    if analyze_request_features:
-        if request_features is not None:
-            logger.info("Analyzing request features used for inference:")
-            try:
-                # Get information about the request features from tensor_data
-                if 'feature_info' in tensor_data:
-                    feature_info = tensor_data['feature_info']
-                    if 'numeric_request_features' in feature_info:
-                        numeric_features = feature_info['numeric_request_features']
-                        logger.info(f"Numeric request features ({len(numeric_features)}):")
-                        for i, feature in enumerate(numeric_features):
-                            logger.info(f"  {i}: {feature}")
+    # # Skip request features analysis (disabled by default anyway)
+    # analyze_req_feature_start_time = time.time()
+    # analyze_request_features = False
+    # if analyze_request_features:
+    #     if request_features is not None:
+    #         logger.info("Analyzing request features used for inference:")
+    #         try:
+    #             # Get information about the request features from tensor_data
+    #             if 'feature_info' in tensor_data:
+    #                 feature_info = tensor_data['feature_info']
+    #                 if 'numeric_request_features' in feature_info:
+    #                     numeric_features = feature_info['numeric_request_features']
+    #                     logger.info(f"Numeric request features ({len(numeric_features)}):")
+    #                     for i, feature in enumerate(numeric_features):
+    #                         logger.info(f"  {i}: {feature}")
                     
-                    if 'categorical_request_features' in feature_info:
-                        categorical_features = feature_info['categorical_request_features']
-                        logger.info(f"Categorical request features ({len(categorical_features)}):")
-                        for i, feature in enumerate(categorical_features):
-                            logger.info(f"  {i}: {feature}")
+    #                 if 'categorical_request_features' in feature_info:
+    #                     categorical_features = feature_info['categorical_request_features']
+    #                     logger.info(f"Categorical request features ({len(categorical_features)}):")
+    #                     for i, feature in enumerate(categorical_features):
+    #                         logger.info(f"  {i}: {feature}")
                 
-                # Print the actual values in the tensor
-                logger.info("Request features tensor values:")
-                if request_features.shape[0] > 0:
-                    # Print the first row of features
-                    feature_values = request_features[0].cpu().numpy().flatten()
-                    logger.info(f"  Values (first row, {len(feature_values)} features): {feature_values}")
+    #             # Print the actual values in the tensor
+    #             logger.info("Request features tensor values:")
+    #             if request_features.shape[0] > 0:
+    #                 # Print the first row of features
+    #                 feature_values = request_features[0].cpu().numpy().flatten()
+    #                 logger.info(f"  Values (first row, {len(feature_values)} features): {feature_values}")
                     
-                    # Check for values that might indicate important features
-                    non_zero_indices = np.nonzero(feature_values)[0]
-                    logger.info(f"  Non-zero features (may be most important): {non_zero_indices}")
-                    for idx in non_zero_indices:
-                        logger.info(f"    Feature index {idx}: Value = {feature_values[idx]}")
+    #                 # Check for values that might indicate important features
+    #                 non_zero_indices = np.nonzero(feature_values)[0]
+    #                 logger.info(f"  Non-zero features (may be most important): {non_zero_indices}")
+    #                 for idx in non_zero_indices:
+    #                     logger.info(f"    Feature index {idx}: Value = {feature_values[idx]}")
             
-            except Exception as e:
-                logger.error(f"Error analyzing request features: {e}")
-                logger.error(traceback.format_exc())
-                logger.info("Continuing with inference despite feature analysis error")
+    #         except Exception as e:
+    #             logger.error(f"Error analyzing request features: {e}")
+    #             logger.error(traceback.format_exc())
+    #             logger.info("Continuing with inference despite feature analysis error")
+    # analyze_req_feature_overhead = time.time() - analyze_req_feature_start_time
+
+    # Cache agent instance with manual model update flag
+    get_agent_instance_start_time = time.time()
     
-    # Determine state dimensions
-    state_dim = {
+    # Determine current state dimensions
+    current_config = {
         'pod_features': pod_features.shape[2],
-        'kv_hit_ratios': kv_hit_ratios.shape[2],
+        'kv_hit_ratios': kv_hit_ratios.shape[2], 
         'request_features': request_features.shape[1],
-        'num_pods': pod_features.shape[1]
+        'num_pods': pod_features.shape[1],
+        'exploration_rate': exploration_rate,
+        'final_model_path': final_model_path
     }
     
-    # Determine action dimension (number of pods)
-    action_dim = pod_features.shape[1]
+    # Check if we can reuse cached agent
+    agent_cache_hit = False
+    cache_miss_reason = ""
+    weights_reloaded = False
     
-    # Create agent and load model
-    agent = ContextualBandit(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        exploration_rate=exploration_rate
-    )
-    agent_model_load_start_time = time.time()
-    agent.load(final_model_path)
-    logger.info(f"Loaded model from {final_model_path}")
-    agent_model_load_overhead = time.time() - agent_model_load_start_time
+    if (_cached_agent is not None and 
+        _cached_agent_config is not None and
+        _cached_agent_config == current_config):
+        
+        # Cache hit - reuse existing agent
+        agent = _cached_agent
+        agent_cache_hit = True
+        logger.debug("Agent cache hit - reusing cached agent")
+    else:
+        # Cache miss - create new agent
+        if _cached_agent is None:
+            cache_miss_reason = "no cached agent"
+        elif _cached_agent_config != current_config:
+            cache_miss_reason = "config changed"
+        
+        logger.info(f"Agent cache miss ({cache_miss_reason}) - creating new agent")
+        
+        state_dim = {
+            'pod_features': current_config['pod_features'],
+            'kv_hit_ratios': current_config['kv_hit_ratios'],
+            'request_features': current_config['request_features'],
+            'num_pods': current_config['num_pods']
+        }
+        
+        action_dim = current_config['num_pods']
+        
+        # Create new agent
+        agent = ContextualBandit(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            exploration_rate=exploration_rate
+        )
+        
+        # Cache the new agent and config
+        _cached_agent = agent
+        _cached_agent_config = current_config.copy()
+    
+    get_agent_instance_overhead = time.time() - get_agent_instance_start_time
 
-    # Set to evaluation mode
+    # Handle model weight loading/reloading
+    agent_model_load_start_time = time.time()
+    if not agent_cache_hit or model_updated:
+        # Load/reload model weights
+        agent.load(final_model_path)
+        agent.policy.eval()  # Ensure it's in eval mode
+        weights_reloaded = True
+        logger.info("Loading model weights from disk")
+    else:
+        # Cached agent with no model updates - use existing weights
+        logger.info("Use cached model weights")
+    model_load_overhead = time.time() - agent_model_load_start_time
+
+    # Set to evaluation mode and run inference
     agent_eval_start_time = time.time()
     agent.policy.eval()
     with torch.no_grad():
@@ -1041,15 +1073,25 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
             # Use pure exploitation (select best pod)
             selected_action = torch.argmax(action_probs, dim=1).item()
             confidence = action_probs[0, selected_action].item()
-    agent_eval_overhead = time.time() - agent_eval_start_time
-    agent_total_inference_overhead = time.time() - infer_from_tensor_start_time
+    eval_overhead = time.time() - agent_eval_start_time
+
+    total_inference_overhead = time.time() - infer_from_tensor_start_time
+    
+    # Timing summary
     infer_from_tensor_overhead_summary = {
-        'agent_load_feature_map_overhead': load_feature_map_overhead*1000,
-        'agent_data_move_overhead': data_move_overhead*1000,
-        'agent_model_load_overhead': agent_model_load_overhead*1000,
-        'agent_eval_overhead': agent_eval_overhead*1000,
-        'agent_total_inference_overhead': agent_total_inference_overhead*1000,
+        'infer_from_tensor.load_feature_map_overhead': load_feature_map_overhead*1000,
+        'infer_from_tensor.data_move_overhead': data_move_overhead*1000,
+        'infer_from_tensor.model_load_overhead': model_load_overhead*1000,
+        'infer_from_tensor.eval_overhead': eval_overhead*1000,
+        'infer_from_tensor.get_agent_instance_overhead': get_agent_instance_overhead*1000,
+        # 'infer_from_tensor.analyze_request_features_overhead': analyze_req_feature_overhead*1000,
+        'infer_from_tensor.total_inference_overhead': total_inference_overhead*1000,
+        'infer_from_tensor.agent_cache_hit': agent_cache_hit,
+        'infer_from_tensor.weights_reloaded': weights_reloaded,
+        'infer_from_tensor.model_updated_flag': model_updated,
+        'infer_from_tensor.cache_miss_reason': cache_miss_reason,
     }
+    
     # Return inference results
     results = {
         'selected_pod_index': selected_action,
@@ -1058,4 +1100,4 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
         'final_model_path': final_model_path,
         'exploration_enabled': exploration_enabled,
     }
-    return results, infer_from_tensor_overhead_summary,
+    return results, infer_from_tensor_overhead_summary

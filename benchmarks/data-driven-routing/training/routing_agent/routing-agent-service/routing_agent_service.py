@@ -32,6 +32,7 @@ BATCH_ID = 0
 ENCODED_DATA_DIR = "encoded_data"
 STATS_FILE = "request_feature_stats.pkl"  # Add this near the top with your other constants
 NUM_TRAINS = 0
+MODEL_UPDATED = False
 
 # read it from env variable
 # AVG_TPOT_SLO = 30
@@ -160,8 +161,8 @@ request_features_reward = ['ttft', 'avg_tpot', 'e2e_latency']
 
 @app.route("/flush", methods=["POST"])
 def handle_flush():
+    global BATCH_ID, ENCODED_DATA_DIR, NUM_TRAINS, MODEL_UPDATED
     ts_func_start = time.time()
-    global BATCH_ID, ENCODED_DATA_DIR, NUM_TRAINS
     log_data = request.json
     try:
         logger.info(f"Received log data with {len(log_data) if log_data else 0} entries")
@@ -203,6 +204,7 @@ def handle_flush():
         # ppo.train(ENCODED_DATA_DIR)
         ts_train = time.time()
         contextual_bandit.train(ENCODED_DATA_DIR)
+        MODEL_UPDATED = True
         logger.info(f"Successfully trained routing agent, took {time.time() - ts_train} seconds")
 
         NUM_TRAINS += 1
@@ -221,7 +223,7 @@ def handle_flush():
 @app.route("/infer", methods=["POST"])
 def handle_infer():
     handle_infer_start_time = time.time()
-    global NUM_TRAINS
+    global NUM_TRAINS, MODEL_UPDATED
     try:
         # Get the log message as a string from the request body
         prep_start_time = time.time()
@@ -284,7 +286,10 @@ def handle_infer():
         handle_infer_total_total_encoding_overhead = time.time() - encode_start_time
 
         infer_from_tensor_start_time = time.time()
-        result, infer_from_tensor_overhead_summary = contextual_bandit.infer_from_tensor(tensor_dataset)
+        result, infer_from_tensor_overhead_summary = contextual_bandit.infer_from_tensor(tensor_dataset, MODEL_UPDATED)
+        if MODEL_UPDATED:
+            logger.info("Model updated flag consumed, resetting to False")
+            MODEL_UPDATED = False
         handle_infer_total_total_infer_from_tensor_overhead = time.time() - infer_from_tensor_start_time
 
         logger.info(f"Inference result: {result}")
