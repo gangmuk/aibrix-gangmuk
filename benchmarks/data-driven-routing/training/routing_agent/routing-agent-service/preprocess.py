@@ -999,8 +999,6 @@ def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
     Ultra-fast preprocessing for single row (inference workload)
     Avoids most DataFrame operations by working with dictionaries
     """
-    from logger import logger
-    
     # Extract the single row as a dictionary (much faster than DataFrame operations)
     row = df.iloc[0].to_dict()
     
@@ -1065,40 +1063,40 @@ def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
     # pod_to_index = {str(pod): idx for idx, pod in enumerate(all_pods)}
     # index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
     
-    # base_features['action'] = pod_to_index[str(base_features['selected_pod'])]
-    base_features['action'] = -1
+    # # base_features['action'] = pod_to_index[str(base_features['selected_pod'])]
+    # base_features['action'] = -1
     
-    # Fast reward calculations
-    ttft_val = base_features['ttft']
-    tpot_val = base_features['avg_tpot']
+    # # Fast reward calculations
+    # ttft_val = base_features['ttft']
+    # tpot_val = base_features['avg_tpot']
     
-    base_features['avg_tpot_slo_satisfied'] = tpot_val <= avg_tpot_slo
-    base_features['avg_ttft_slo_satisfied'] = ttft_val <= ttft_slo
+    # base_features['avg_tpot_slo_satisfied'] = tpot_val <= avg_tpot_slo
+    # base_features['avg_ttft_slo_satisfied'] = ttft_val <= ttft_slo
     
-    # Direct reward calculation without numpy overhead
-    if ttft_val <= 0:
-        ttft_reward = 0.5
-    elif ttft_val <= ttft_slo:
-        ttft_reward = 0.5 - (0.4 * ttft_val / ttft_slo)
-    else:
-        excess_factor = min(1.0, (ttft_val - ttft_slo) / ttft_slo)
-        ttft_reward = -0.1 - (0.4 * excess_factor)
+    # # Direct reward calculation without numpy overhead
+    # if ttft_val <= 0:
+    #     ttft_reward = 0.5
+    # elif ttft_val <= ttft_slo:
+    #     ttft_reward = 0.5 - (0.4 * ttft_val / ttft_slo)
+    # else:
+    #     excess_factor = min(1.0, (ttft_val - ttft_slo) / ttft_slo)
+    #     ttft_reward = -0.1 - (0.4 * excess_factor)
     
-    if tpot_val <= 0:
-        tpot_reward = -0.5
-    elif tpot_val <= avg_tpot_slo:
-        tpot_reward = 0.1 + (0.4 * (1 - tpot_val / avg_tpot_slo))
-    else:
-        excess_factor = min(1.0, (tpot_val - avg_tpot_slo) / avg_tpot_slo)
-        tpot_reward = -0.1 - (0.4 * excess_factor)
+    # if tpot_val <= 0:
+    #     tpot_reward = -0.5
+    # elif tpot_val <= avg_tpot_slo:
+    #     tpot_reward = 0.1 + (0.4 * (1 - tpot_val / avg_tpot_slo))
+    # else:
+    #     excess_factor = min(1.0, (tpot_val - avg_tpot_slo) / avg_tpot_slo)
+    #     tpot_reward = -0.1 - (0.4 * excess_factor)
     
-    base_features['ttft_reward'] = ttft_reward
-    base_features['tpot_reward'] = tpot_reward
-    base_features['reward'] = ttft_reward + tpot_reward
+    # base_features['ttft_reward'] = ttft_reward
+    # base_features['tpot_reward'] = tpot_reward
+    # base_features['reward'] = ttft_reward + tpot_reward
     
-    # Normalized metrics
-    base_features['ttft_normalized'] = min(1.0, max(0.0, ttft_val / 500)) if ttft_val > 0 else 0
-    base_features['tpot_normalized'] = min(1.0, max(0.0, tpot_val / 25)) if tpot_val > 0 else 0
+    # # Normalized metrics
+    # base_features['ttft_normalized'] = min(1.0, max(0.0, ttft_val / 500)) if ttft_val > 0 else 0
+    # base_features['tpot_normalized'] = min(1.0, max(0.0, tpot_val / 25)) if tpot_val > 0 else 0
     
     # Create DataFrame only once at the end
     processed_df = pd.DataFrame([base_features])
