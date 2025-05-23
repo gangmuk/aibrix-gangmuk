@@ -69,71 +69,67 @@ def parse_log_file(file_path):
         assert False
     return df, json_columns
 
-def parse_log_message(log_message):
-    """
-    Parse log message with format: **@latency_metrics@key1@value1@key2@value2@...
-    Based on working reference implementation.
+# def parse_log_message(log_message):
+#     """
+#     Parse log message with format: **@latency_metrics@key1@value1@key2@value2@...
+#     Based on working reference implementation.
     
-    Args:
-        log_message (str): Log message to parse
+#     Args:
+#         log_message (str): Log message to parse
         
-    Returns:
-        tuple: (DataFrame with parsed data, list of JSON column names)
-    """
-    import pandas as pd
-    import json
-    import logging
+#     Returns:
+#         tuple: (DataFrame with parsed data, list of JSON column names)
+#     """
+#     # Check if this is a metrics line
+#     if "latency_metrics" not in log_message:
+#         logging.error(f"Invalid line. {log_message}")
+#         return pd.DataFrame(), []
     
-    # Check if this is a metrics line
-    if "latency_metrics" not in log_message:
-        logging.error(f"Invalid line. {log_message}")
-        return pd.DataFrame(), []
+#     # Split on the prefix to get clean key-value pairs
+#     if "**@" in log_message:
+#         line = log_message.split("**@latency_metrics@")[1]
+#     else:
+#         line = log_message
     
-    # Split on the prefix to get clean key-value pairs
-    if "**@" in log_message:
-        line = log_message.split("**@latency_metrics@")[1]
-    else:
-        line = log_message
+#     parts = line.split('@')
+#     row = {}
+#     json_columns = []
+#     column_names = []
     
-    parts = line.split('@')
-    row = {}
-    json_columns = []
-    column_names = []
-    
-    for i in range(0, len(parts), 2):
-        if i + 1 >= len(parts):
-            break
+#     for i in range(0, len(parts), 2):
+#         if i + 1 >= len(parts):
+#             break
             
-        column_name = parts[i]
-        column_names.append(column_name)
-        value = parts[i + 1]
+#         column_name = parts[i]
+#         column_names.append(column_name)
+#         value = parts[i + 1]
         
-        if value.startswith('{') and value.endswith('}'):
-            try:
-                # Fix escaped quotes issue - replace \" with " before parsing
-                fixed_value = value.replace('\\"', '"')
-                json_columns.append(column_name)
-                row[column_name] = json.loads(fixed_value)
-            except Exception as e:
-                logging.error(f"Error decoding JSON, column: {column_name}, value: {value}")
-                logging.error(f"Error: {e}")
+#         if value.startswith('{') and value.endswith('}'):
+#             try:
+#                 # Fix escaped quotes issue - replace \" with " before parsing
+#                 fixed_value = value.replace('\\"', '"')
+#                 json_columns.append(column_name)
+#                 row[column_name] = json.loads(fixed_value)
+#             except Exception as e:
+#                 logging.error(f"Error decoding JSON, column: {column_name}, value: {value}")
+#                 logging.error(f"Error: {e}")
                 
-                # Since we can't parse it, store as string to avoid losing data
-                row[column_name] = value
-        else:
-            # Try to convert to appropriate data type
-            try:
-                row[column_name] = int(value)
-            except ValueError:
-                try:
-                    row[column_name] = float(value)
-                except ValueError:
-                    row[column_name] = value
+#                 # Since we can't parse it, store as string to avoid losing data
+#                 row[column_name] = value
+#         else:
+#             # Try to convert to appropriate data type
+#             try:
+#                 row[column_name] = int(value)
+#             except ValueError:
+#                 try:
+#                     row[column_name] = float(value)
+#                 except ValueError:
+#                     row[column_name] = value
     
-    # Create DataFrame with single row
-    df = pd.DataFrame([row], columns=column_names)
+#     # Create DataFrame with single row
+#     df = pd.DataFrame([row], columns=column_names)
     
-    return df, json_columns
+#     return df, json_columns
 
 
 def normalize_time(df):
@@ -928,38 +924,111 @@ def preprocess_dataset(df, ttft_slo, avg_tpot_slo):
     ##################################################################
 
     preprocess_dataset_overhead_summary = {
-        'preprocess_dataset_json_parse_overhead': int(json_parse_overhead*1000),
-        'preprocess_dataset_column_check_overhead': int(column_check_overhead*1000),
-        'preprocess_dataset_podmetrics_parse_overhead': int(podmetrics_parse_overhead*1000),
-        'preprocess_dataset_numeric_conversion_overhead': int(numeric_conversion_overhead*1000),
-        'preprocess_dataset_get_value_overhead': int(get_value_overhead*1000),
-        'preprocess_dataset_create_df_overhead': int(create_df_overhead*1000),
-        'preprocess_dataset_pod_index_overhead': int(pod_index_overhead*1000),
-        'preprocess_dataset_reward_calc_overhead': int(reward_calc_overhead*1000),
-        'preprocess_dataset_slo_update_overhead': int(slo_update_overhead*1000),
+        'preprocess.preprocess_dataset_json_parse_overhead': json_parse_overhead*1000,
+        'preprocess.preprocess_dataset_column_check_overhead': column_check_overhead*1000,
+        'preprocess.preprocess_dataset_podmetrics_parse_overhead': podmetrics_parse_overhead*1000,
+        'preprocess.preprocess_dataset_numeric_conversion_overhead': numeric_conversion_overhead*1000,
+        'preprocess.preprocess_dataset_get_value_overhead': get_value_overhead*1000,
+        'preprocess.preprocess_dataset_create_df_overhead': create_df_overhead*1000,
+        'preprocess.preprocess_dataset_pod_index_overhead': pod_index_overhead*1000,
+        'preprocess.preprocess_dataset_reward_calc_overhead': reward_calc_overhead*1000,
+        'preprocess.preprocess_dataset_slo_update_overhead': slo_update_overhead*1000,
     }
     
     return processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary
 
+
+# Optimized version - just replace your existing parse_log_message function with this
+def parse_log_message(log_message):
+    """
+    Ultra-fast log message parser - drop-in replacement for parse_log_message.
+    Returns: (DataFrame, json_columns) for compatibility
+    """
+    # Fast check without string operations
+    if "latency_metrics" not in log_message:
+        logging.error(f"Invalid line. {log_message}")
+        return pd.DataFrame(), []
+    
+    # Find start position more efficiently
+    start_idx = log_message.find("latency_metrics@") + 16
+    if start_idx == 15:  # find returned -1
+        return pd.DataFrame(), []
+    
+    # Split only the relevant part
+    parts = log_message[start_idx:].split('@')
+    
+    row = {}
+    json_columns = []
+    
+    # Process pairs directly
+    i = 0
+    while i < len(parts) - 1:
+        key = parts[i]
+        value = parts[i + 1]
+        
+        # Fast JSON detection and parsing
+        if value and value[0] == '{' and value[-1] == '}':
+            try:
+                # Only fix quotes if needed
+                if '\\"' in value:
+                    value = value.replace('\\"', '"')
+                row[key] = json.loads(value)
+                json_columns.append(key)
+            except Exception as e:
+                logging.error(f"Error decoding JSON, column: {key}, value: {value}")
+                logging.error(f"Error: {e}")
+                row[key] = value
+        else:
+            # Fast type conversion with better float detection
+            if value.isdigit():
+                row[key] = int(value)
+            elif value.replace('.', '').replace('-', '').isdigit() and value.count('.') == 1:
+                # Only convert to float if there's exactly one decimal point
+                row[key] = float(value)
+            else:
+                row[key] = value
+        
+        i += 2
+    
+    # Create DataFrame only if we have data
+    if row:
+        df = pd.DataFrame([row])
+        return df, json_columns
+    else:
+        return pd.DataFrame(), []
+
+
 def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
     # input_file is None for inference workload, valid only for training workflow.
+    parse_log_file_start_time = time.time()
+    
     if input_file is not None:
         df, json_columns = parse_log_file(input_file)
         if len(df) == 0:
             logger.error("No data found in the log file.")
     else:
+        # Use the optimized parser (same function name)
         df, json_columns = parse_log_message(log_message)
         if len(df) == 0:
             logger.error("No data found in the log message.")
+    
     logger.info(f"df.columns: {list(df.columns)}, json_columns: {json_columns}")
-    df = parse_json_columns(df, json_columns)
+    
+    # REMOVED: No need for parse_json_columns since JSON is already parsed
+    # df = parse_json_columns(df, json_columns)
+    
     if len(df) == 0:
         logger.error("No data found after parsing JSON columns.")
         logger.info(f"Parsed {len(df)} records from {input_file}")
         assert False
+    
+    parse_log_file_overhead = time.time() - parse_log_file_start_time
+    
     preprocess_dataset_start_time = time.time()
     processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
     total_preprocess_dataset_overhead = time.time() - preprocess_dataset_start_time
+
+    mapping_info_write_start_time = time.time()
     output_file = None
     if input_file is not None:
         try:
@@ -1003,5 +1072,10 @@ def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
         except Exception as e:
             logger.error(f"Error processing dataset: {e}")
             assert False
+    mapping_info_write_overhead = time.time() - mapping_info_write_start_time
 
-    return processed_df, output_file, all_pods, total_preprocess_dataset_overhead, preprocess_dataset_overhead_summary
+    preprocess_dataset_overhead_summary["preprocess.main.total_overhead"] = total_preprocess_dataset_overhead*1000
+    preprocess_dataset_overhead_summary["preprocess.main.mapping_info_write_overhead"] = mapping_info_write_overhead*1000
+    preprocess_dataset_overhead_summary["preprocess.main.parse_log_file_overhead"] = parse_log_file_overhead*1000
+
+    return processed_df, output_file, all_pods, preprocess_dataset_overhead_summary

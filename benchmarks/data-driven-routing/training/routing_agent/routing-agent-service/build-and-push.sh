@@ -24,6 +24,8 @@ if [ "$target" == "remote" ]; then
     docker push aibrix-container-registry-cn-beijing.cr.volces.com/aibrix/gangmuk-routing-agent:latest
 elif [ "$target" == "local" ]; then
     docker tag aibrix/gangmuk-routing-agent:latest aibrix/gangmuk-routing-agent:latest
+    kubectl rollout restart deploy routing-agent-service
+    kubectl rollout restart deploy aibrix-gateway-plugins -n aibrix-system
 fi
 
 # kubectl rollout restart deploy routing-agent-service

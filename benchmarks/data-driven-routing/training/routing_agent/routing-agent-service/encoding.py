@@ -864,10 +864,10 @@ class LLMRoutingDataProcessor:
         
         # Return proper overhead summary like the original
         process_pod_features_overhead_summary = {
-            'encoding_process_pod_features_overhead_one_hot_encoder_overhead': int(one_hot_encoder_overhead * 1000),
-            'encoding_process_pod_features_overhead_vectorized_extraction_overhead': int(vectorized_extraction_overhead * 1000),
-            'encoding_process_pod_features_overhead_build_feature_overhead': int(build_feature_overhead * 1000),
-            'encoding_process_pod_features_overhead_normalization_overhead': int(normalization_overhead * 1000)
+            'prepare_for_encoding._optimized_process_pod_features.one_hot_encoder_overhead': int(one_hot_encoder_overhead * 1000),
+            'prepare_for_encoding._optimized_process_pod_features.vectorized_extraction_overhead': int(vectorized_extraction_overhead * 1000),
+            'prepare_for_encoding._optimized_process_pod_features.build_feature_overhead': int(build_feature_overhead * 1000),
+            'prepare_for_encoding._optimized_process_pod_features.normalization_overhead': int(normalization_overhead * 1000)
         }
         
         return pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary
@@ -1167,19 +1167,19 @@ class LLMRoutingDataProcessor:
         }
         
         prepare_for_encoding_overhead_summary = {
-            'prepare_for_encoding_extract_pod_columns_overhead': int(extract_pod_columns_overhead*1000),
-            'prepare_for_encoding_analyze_request_features_overhead': int(analyze_request_features_overhead*1000),
-            'prepare_for_encoding_encode_pod_ids_overhead': int(encode_pod_ids_overhead*1000),
-            'prepare_for_encoding_classify_feature_timing_overhead': int(classify_feature_timing_overhead*1000),
-            'prepare_for_encoding_request_numeric_features_overhead': int(request_numeric_features_overhead*1000),
-            'prepare_for_encoding_request_categorical_features_overhead': int(request_categorical_features_overhead*1000),
-            'prepare_for_encoding_process_pod_features_overhead': int(process_pod_features_overhead*1000),
-            'prepare_for_encoding_extract_actions_rewards_overhead': int(extract_actions_rewards_overhead*1000),
-            'prepare_for_encoding_combine_request_features_overhead': int(combine_request_features_overhead*1000),
-            'prepare_for_encoding_positional_encoding_overhead': int(positional_encoding_overhead*1000),
-            'prepare_for_encoding_add_staleness_overhead': int(add_staleness_overhead*1000),
-            'prepare_for_encoding_cross_attention_overhead': int(cross_attention_overhead*1000),
-            'prepare_for_encoding_create_request_pod_interaction_overhead': int(create_request_pod_interaction_overhead*1000)
+            'encoding.prepare_for_encoding.prepare_extract_pod_columns_overhead': extract_pod_columns_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_analyze_request_features_overhead': analyze_request_features_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_encode_pod_ids_overhead': encode_pod_ids_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_classify_feature_timing_overhead': classify_feature_timing_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_request_numeric_features_overhead': request_numeric_features_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_request_categorical_features_overhead': request_categorical_features_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_process_pod_features_overhead': process_pod_features_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_extract_actions_rewards_overhead': extract_actions_rewards_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_combine_request_features_overhead': combine_request_features_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_positional_encoding_overhead': positional_encoding_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_add_staleness_overhead': add_staleness_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_cross_attention_overhead': cross_attention_overhead*1000,
+            'encoding.prepare_for_encoding.prepare_create_request_pod_interaction_overhead': create_request_pod_interaction_overhead*1000
         }
         return processed_data, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary
 

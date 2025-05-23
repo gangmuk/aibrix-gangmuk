@@ -177,7 +177,7 @@ def handle_flush():
 
         # Preprocess raw data
         ts_preprocess = time.time()
-        df, _, all_pods, _, _ = preprocess.main(raw_data, "", TTFT_SLO, AVG_TPOT_SLO)
+        df, _, all_pods, _ = preprocess.main(raw_data, "", TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data, took {time.time() - ts_preprocess} seconds")
         
         # Update running statistics
@@ -224,6 +224,7 @@ def handle_infer():
     global NUM_TRAINS
     try:
         # Get the log message as a string from the request body
+        prep_start_time = time.time()
         log_data = request.json
         # Handle string input directly
         if isinstance(log_data, str):
@@ -245,7 +246,8 @@ def handle_infer():
             request_id_parts = parts[1].split("@")
             if request_id_parts:
                 request_id = request_id_parts[0]
-        
+        handle_infer_total_prep_overhead = time.time() - prep_start_time
+
         # # Create a temporary file with the single log message
         # if not os.path.exists("infer_request"):
         #     os.mkdir("infer_request")
@@ -256,10 +258,10 @@ def handle_infer():
 
         # Use the existing preprocessing function to parse the log
         preprocess_start_time = time.time()
-        processed_df, _, all_pods, total_preprocess_dataset_overhead, preprocess_dataset_overhead_summary = preprocess.main(None, log_message, TTFT_SLO, AVG_TPOT_SLO)
+        processed_df, _, all_pods, preprocess_dataset_overhead_summary = preprocess.main(None, log_message, TTFT_SLO, AVG_TPOT_SLO)
         logger.info(f"Successfully parsed data for request_{request_id}")
         # os.remove(raw_data)
-        total_preprocess_overhead = time.time() - preprocess_start_time
+        handle_infer_total_total_preprocess_overhead = time.time() - preprocess_start_time
 
         # # Print essential request features immediately after preprocessing
         # logger.info("Important request features after preprocessing:")
@@ -273,17 +275,17 @@ def handle_infer():
         stats = get_request_stats()
         if stats is None or stats.count == 0:
             logger.warning(f"No running statistics available, stats: {stats}, stats.count: {stats.count}, stats.mean: {stats.mean}, stats.var: {stats.var}")
-        get_stat_overhead = time.time() - get_stat_start_time
+        handle_infer_total_get_stat_overhead = time.time() - get_stat_start_time
         
         ## new approach. in memory tensor dataset
         encode_start_time = time.time()
-        tensor_dataset, encoder_other_overhead, total_prepare_for_encoding_overhead, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
+        tensor_dataset, encoding_other_overhead, total_prepare_for_encoding_overhead, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
         logger.info(f"Successfully encoded data in memory for inference")
-        total_encoding_overhead = time.time() - encode_start_time
+        handle_infer_total_total_encoding_overhead = time.time() - encode_start_time
 
         infer_from_tensor_start_time = time.time()
         result = contextual_bandit.infer_from_tensor(tensor_dataset)
-        total_infer_from_tensor_overhead = time.time() - infer_from_tensor_start_time
+        handle_infer_total_total_infer_from_tensor_overhead = time.time() - infer_from_tensor_start_time
 
         # ## debugging
         # tensor_dataset = encoding.fix_encode_for_inference_with_feature_info(all_pods, processed_df, request_features_train, request_features_reward)
@@ -292,6 +294,7 @@ def handle_infer():
 
         logger.info(f"Inference result: {result}")
         
+        handle_infer_total_wrapup_start_time = time.time()
         # Map the pod index back to the actual pod ID
         selected_pod_index = result.get('selected_pod_index', 0)
         if selected_pod_index >= len(all_pods):
@@ -301,21 +304,23 @@ def handle_infer():
         selected_pod = all_pods[selected_pod_index]
         confidence = result.get('confidence', 1.0)
         detailed_inference_overhead = result.get('detailed_inference_overhead', {})
+        handle_infer_total_wrapup_overhead = time.time() - handle_infer_total_wrapup_start_time
         handle_infer_total_overhead = time.time() - handle_infer_start_time
         # Return the result
         response = {
             "selected_pod": selected_pod,
             "confidence": confidence,
             "request_id": request_id,
-            # "raw_data_write_overhead": int(raw_data_write_overhead*1000),
-            "total_preprocess_overhead": int(total_preprocess_overhead*1000),
-            "get_stat_overhead": int(get_stat_overhead*1000),
-            "* handle_infer_total_encoding_overhead": int(total_encoding_overhead*1000),
-            "* handle_infer_total_infer_from_tensor_overhead": int(total_infer_from_tensor_overhead*1000),
-            "* handle_infer_total_overhead": int(handle_infer_total_overhead*1000),
-            "total_preprocess_dataset_overhead": int(total_preprocess_dataset_overhead*1000),
-            "encoding_other_overhead": int(encoder_other_overhead*1000),
-            "total_prepare_for_encoding_overhead": int(total_prepare_for_encoding_overhead*1000),
+            # "raw_data_write_overhead": raw_data_write_overhead*1000,
+            "* handle_infer_total_prep_overhead": handle_infer_total_prep_overhead*1000,
+            "* handle_infer_total_total_preprocess_overhead": handle_infer_total_total_preprocess_overhead*1000,
+            "* handle_infer_total_get_stat_overhead": handle_infer_total_get_stat_overhead*1000,
+            "* handle_infer_total_total_encoding_overhead": handle_infer_total_total_encoding_overhead*1000,
+            "* handle_infer_total_wrapup_overhead": handle_infer_total_wrapup_overhead*1000,
+            "* handle_infer_total_total_infer_from_tensor_overhead": handle_infer_total_total_infer_from_tensor_overhead*1000,
+            "* handle_infer_total_overhead": handle_infer_total_overhead*1000,
+            "encoding_other_overhead": encoding_other_overhead*1000,
+            "total_prepare_for_encoding_overhead": total_prepare_for_encoding_overhead*1000,
         }
         for key, value in prepare_for_encoding_overhead_summary.items():
             response[key] = value

@@ -839,6 +839,7 @@ _cached_metadata = None
 
 # Add this new function to contextual_bandit.py
 def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0.1):
+    infer_from_tensor_start_time = time.time()
     global final_model_path, _cached_metadata
     # Find the latest model if not specified
     # if model_dir is None:
@@ -1041,12 +1042,13 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
             selected_action = torch.argmax(action_probs, dim=1).item()
             confidence = action_probs[0, selected_action].item()
     agent_eval_overhead = time.time() - agent_eval_start_time
+    agent_total_inference_overhead = time.time() - infer_from_tensor_start_time
     detailed_inference_overhead = {
-        'agent_load_feature_map_overhead': int(load_feature_map_overhead*1000),
-        'agent_data_move_overhead': int(data_move_overhead*1000),
-        'agent_model_load_overhead': int(agent_model_load_overhead*1000),
-        'agent_eval_overhead': int(agent_eval_overhead*1000),
-        'agent_total_inference_overhead': int((load_feature_map_overhead + data_move_overhead + agent_model_load_overhead + agent_eval_overhead) * 1000)
+        'agent_load_feature_map_overhead': load_feature_map_overhead*1000,
+        'agent_data_move_overhead': data_move_overhead*1000,
+        'agent_model_load_overhead': agent_model_load_overhead*1000,
+        'agent_eval_overhead': agent_eval_overhead*1000,
+        'agent_total_inference_overhead': agent_total_inference_overhead*1000,
     }
     # Return inference results
     return {
