@@ -946,26 +946,21 @@ def parse_log_message(log_message):
     """
     # Fast check without string operations
     if "latency_metrics" not in log_message:
-        logging.error(f"Invalid line. {log_message}")
+        logger.error(f"Invalid line. {log_message}")
         return pd.DataFrame(), []
-    
     # Find start position more efficiently
     start_idx = log_message.find("latency_metrics@") + 16
     if start_idx == 15:  # find returned -1
         return pd.DataFrame(), []
-    
     # Split only the relevant part
     parts = log_message[start_idx:].split('@')
-    
     row = {}
     json_columns = []
-    
     # Process pairs directly
     i = 0
     while i < len(parts) - 1:
         key = parts[i]
         value = parts[i + 1]
-        
         # Fast JSON detection and parsing
         if value and value[0] == '{' and value[-1] == '}':
             try:
@@ -975,8 +970,8 @@ def parse_log_message(log_message):
                 row[key] = json.loads(value)
                 json_columns.append(key)
             except Exception as e:
-                logging.error(f"Error decoding JSON, column: {key}, value: {value}")
-                logging.error(f"Error: {e}")
+                logger.error(f"Error decoding JSON, column: {key}, value: {value}")
+                logger.error(f"Error: {e}")
                 row[key] = value
         else:
             # Fast type conversion with better float detection
@@ -987,15 +982,148 @@ def parse_log_message(log_message):
                 row[key] = float(value)
             else:
                 row[key] = value
-        
         i += 2
-    
     # Create DataFrame only if we have data
     if row:
+        pd_df_start_time = time.time()
         df = pd.DataFrame([row])
+        pd_df_overhead = time.time() - pd_df_start_time
+        logger.info(f"pd_df_overhead: {pd_df_overhead*1000}ms")
+
         return df, json_columns
     else:
         return pd.DataFrame(), []
+
+def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
+    """
+    Ultra-fast preprocessing for single row (inference workload)
+    Avoids most DataFrame operations by working with dictionaries
+    """
+    from logger import logger
+    
+    # Extract the single row as a dictionary (much faster than DataFrame operations)
+    row = df.iloc[0].to_dict()
+    
+    # Quick validation
+    if not row.get('podMetricsLastSecond'):
+        logger.error("No data found after parsing JSON columns.")
+        assert False
+    
+    # Get all pods from the row data
+    pod_metrics = row['podMetricsLastSecond']
+    all_pods = list(pod_metrics.keys())
+    
+    # Pre-allocate result dictionary with known structure
+    base_features = {
+        'request_id': row['requestID'],
+        'selected_pod': row['selectedpod'],
+        'input_tokens': row['numInputTokens'],
+        'output_tokens': row['numOutputTokens'],
+        'total_tokens': row['numTotalTokens'],
+        'ttft': row['ttft'],
+        'avg_tpot': row['avg_tpot'],
+        'e2e_latency': row['e2e'],
+    }
+    
+    # Extract metrics directly without repeated dictionary lookups
+    kv_cache = row['allPodsKvCacheHitRatios']
+    inflight = row['numInflightRequestsAllPods']
+    gpu_cache = row['vllmGPUKVCacheUsage']
+    cpu_cache = row['vllmCPUKVCacheUsage']
+    running = row['vllmNumRequestsRunning']
+    waiting = row['vllmNumRequestsWaiting']
+    prefill = row['numPrefillTokensForAllPods']
+    decode = row['numDecodeTokensForAllPods']
+    
+    # Build pod features directly
+    for pod_id in all_pods:
+        pod_prefix = f"pod_{pod_id}"
+        
+        # Direct assignment without intermediate dictionaries
+        base_features[f"{pod_prefix}-kv_hit_ratio"] = kv_cache.get(pod_id, 0)
+        base_features[f"{pod_prefix}-inflight_requests"] = inflight.get(pod_id, 0)
+        base_features[f"{pod_prefix}-gpu_kv_cache"] = gpu_cache.get(pod_id, 0)
+        base_features[f"{pod_prefix}-cpu_kv_cache"] = cpu_cache.get(pod_id, 0)
+        base_features[f"{pod_prefix}-running_requests"] = running.get(pod_id, 0)
+        base_features[f"{pod_prefix}-waiting_requests"] = waiting.get(pod_id, 0)
+        base_features[f"{pod_prefix}-prefill_tokens"] = prefill.get(pod_id, 0)
+        base_features[f"{pod_prefix}-decode_tokens"] = decode.get(pod_id, 0)
+        base_features[f"{pod_prefix}-gpu_model"] = "NVIDIA-L20"
+        
+        # Pod metrics
+        pod_metrics_for_pod = pod_metrics.get(pod_id, {})
+        base_features[f"{pod_prefix}-last_second_avg_ttft_ms"] = pod_metrics_for_pod.get('last_second_avg_ttft_ms', 0)
+        base_features[f"{pod_prefix}-last_second_avg_tpot_ms"] = pod_metrics_for_pod.get('last_second_avg_tpot_ms', 0)
+        base_features[f"{pod_prefix}-last_second_p99_ttft_ms"] = pod_metrics_for_pod.get('last_second_p99_ttft_ms', 0)
+        base_features[f"{pod_prefix}-last_second_p99_tpot_ms"] = pod_metrics_for_pod.get('last_second_p99_tpot_ms', 0)
+        base_features[f"{pod_prefix}-last_second_total_requests"] = pod_metrics_for_pod.get('last_second_total_requests', 0)
+        base_features[f"{pod_prefix}-last_second_total_tokens"] = pod_metrics_for_pod.get('last_second_total_tokens', 0)
+        base_features[f"{pod_prefix}-last_second_total_decode_tokens"] = pod_metrics_for_pod.get('last_second_total_decode_tokens', 0)
+        base_features[f"{pod_prefix}-last_second_total_prefill_tokens"] = pod_metrics_for_pod.get('last_second_total_prefill_tokens', 0)
+    
+    # Calculate derived values directly
+    pod_to_index = {str(pod): idx for idx, pod in enumerate(all_pods)}
+    index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
+    
+    base_features['action'] = pod_to_index[str(base_features['selected_pod'])]
+    
+    # Fast reward calculations
+    ttft_val = base_features['ttft']
+    tpot_val = base_features['avg_tpot']
+    
+    base_features['avg_tpot_slo_satisfied'] = tpot_val <= avg_tpot_slo
+    base_features['avg_ttft_slo_satisfied'] = ttft_val <= ttft_slo
+    
+    # Direct reward calculation without numpy overhead
+    if ttft_val <= 0:
+        ttft_reward = 0.5
+    elif ttft_val <= ttft_slo:
+        ttft_reward = 0.5 - (0.4 * ttft_val / ttft_slo)
+    else:
+        excess_factor = min(1.0, (ttft_val - ttft_slo) / ttft_slo)
+        ttft_reward = -0.1 - (0.4 * excess_factor)
+    
+    if tpot_val <= 0:
+        tpot_reward = -0.5
+    elif tpot_val <= avg_tpot_slo:
+        tpot_reward = 0.1 + (0.4 * (1 - tpot_val / avg_tpot_slo))
+    else:
+        excess_factor = min(1.0, (tpot_val - avg_tpot_slo) / avg_tpot_slo)
+        tpot_reward = -0.1 - (0.4 * excess_factor)
+    
+    base_features['ttft_reward'] = ttft_reward
+    base_features['tpot_reward'] = tpot_reward
+    base_features['reward'] = ttft_reward + tpot_reward
+    
+    # Normalized metrics
+    base_features['ttft_normalized'] = min(1.0, max(0.0, ttft_val / 500)) if ttft_val > 0 else 0
+    base_features['tpot_normalized'] = min(1.0, max(0.0, tpot_val / 25)) if tpot_val > 0 else 0
+    
+    # Create DataFrame only once at the end
+    processed_df = pd.DataFrame([base_features])
+    
+    # Mapping info
+    pod_gpu_models = {pod_id: "NVIDIA-L20" for pod_id in all_pods}
+    mapping_info = {
+        'pod_to_index': pod_to_index,
+        'index_to_pod': index_to_pod,
+        'pod_gpu_models': pod_gpu_models,
+    }
+    
+    # Minimal overhead summary for single row
+    preprocess_dataset_overhead_summary = {
+        'preprocess.preprocess_dataset_json_parse_overhead': 0,
+        'preprocess.preprocess_dataset_column_check_overhead': 0,
+        'preprocess.preprocess_dataset_podmetrics_parse_overhead': 0,
+        'preprocess.preprocess_dataset_numeric_conversion_overhead': 0,
+        'preprocess.preprocess_dataset_get_value_overhead': 0,
+        'preprocess.preprocess_dataset_create_df_overhead': 0,
+        'preprocess.preprocess_dataset_pod_index_overhead': 0,
+        'preprocess.preprocess_dataset_reward_calc_overhead': 0,
+        'preprocess.preprocess_dataset_slo_update_overhead': 0,
+    }
+    
+    return processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary
 
 
 def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
@@ -1014,9 +1142,6 @@ def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
     
     logger.info(f"df.columns: {list(df.columns)}, json_columns: {json_columns}")
     
-    # REMOVED: No need for parse_json_columns since JSON is already parsed
-    # df = parse_json_columns(df, json_columns)
-    
     if len(df) == 0:
         logger.error("No data found after parsing JSON columns.")
         logger.info(f"Parsed {len(df)} records from {input_file}")
@@ -1024,8 +1149,17 @@ def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
     
     parse_log_file_overhead = time.time() - parse_log_file_start_time
     
+    # NEW: Fast path detection
     preprocess_dataset_start_time = time.time()
-    processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
+    if len(df) == 1 and input_file is None:
+        # Ultra-fast inference path
+        processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_single_row_fast(df, TTFT_SLO, AVG_TPOT_SLO)
+    else:
+        # Existing batch processing for training
+        # REMOVED: No need for parse_json_columns since JSON is already parsed
+        # df = parse_json_columns(df, json_columns)
+        processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_dataset(df, TTFT_SLO, AVG_TPOT_SLO)
+    
     total_preprocess_dataset_overhead = time.time() - preprocess_dataset_start_time
 
     mapping_info_write_start_time = time.time()

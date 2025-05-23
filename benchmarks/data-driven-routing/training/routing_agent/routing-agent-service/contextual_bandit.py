@@ -1043,7 +1043,7 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
             confidence = action_probs[0, selected_action].item()
     agent_eval_overhead = time.time() - agent_eval_start_time
     agent_total_inference_overhead = time.time() - infer_from_tensor_start_time
-    detailed_inference_overhead = {
+    infer_from_tensor_overhead_summary = {
         'agent_load_feature_map_overhead': load_feature_map_overhead*1000,
         'agent_data_move_overhead': data_move_overhead*1000,
         'agent_model_load_overhead': agent_model_load_overhead*1000,
@@ -1051,11 +1051,11 @@ def infer_from_tensor(tensor_data, exploration_enabled=False, exploration_rate=0
         'agent_total_inference_overhead': agent_total_inference_overhead*1000,
     }
     # Return inference results
-    return {
+    results = {
         'selected_pod_index': selected_action,
         'confidence': confidence,
         'pod_probabilities': action_probs[0].cpu().numpy().tolist(),
         'final_model_path': final_model_path,
         'exploration_enabled': exploration_enabled,
-        'detailed_inference_overhead': detailed_inference_overhead,
     }
+    return results, infer_from_tensor_overhead_summary,

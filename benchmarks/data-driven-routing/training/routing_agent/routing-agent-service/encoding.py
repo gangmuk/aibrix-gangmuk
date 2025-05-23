@@ -737,7 +737,7 @@ class LLMRoutingDataProcessor:
     #         logger.error("No pod data in expected format, creating default pod features")
     #         assert False
 
-    def _optimized_process_pod_features(self, pod_data, n_samples):
+    def _optimized_process_pod_features(self, pod_data, n_samples, overhead_summary):
         """Process pod features - ZERO OVERHEAD OPTIMIZATION."""
         
         if not pod_data:
@@ -863,16 +863,20 @@ class LLMRoutingDataProcessor:
         normalization_overhead = time.time() - normalization_start_time
         
         # Return proper overhead summary like the original
-        process_pod_features_overhead_summary = {
-            'prepare_for_encoding._optimized_process_pod_features.one_hot_encoder_overhead': int(one_hot_encoder_overhead * 1000),
-            'prepare_for_encoding._optimized_process_pod_features.vectorized_extraction_overhead': int(vectorized_extraction_overhead * 1000),
-            'prepare_for_encoding._optimized_process_pod_features.build_feature_overhead': int(build_feature_overhead * 1000),
-            'prepare_for_encoding._optimized_process_pod_features.normalization_overhead': int(normalization_overhead * 1000)
-        }
+        # overhead_summary = {
+        #     'encoding.prepare_for_encoding._optimized_process_pod_features.one_hot_encoder_overhead': one_hot_encoder_overhead * 1000,
+        #     'encoding.prepare_for_encoding._optimized_process_pod_features.vectorized_extraction_overhead': vectorized_extraction_overhead * 1000,
+        #     'encoding.prepare_for_encoding._optimized_process_pod_features.build_feature_overhead': build_feature_overhead * 1000,
+        #     'encoding.prepare_for_encoding._optimized_process_pod_features.normalization_overhead': normalization_overhead * 1000,
+        # }
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding._optimized_process_pod_features.one_hot_encoder_overhead'] = one_hot_encoder_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding._optimized_process_pod_features.vectorized_extraction_overhead'] = vectorized_extraction_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding._optimized_process_pod_features.build_feature_overhead'] = build_feature_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding._optimized_process_pod_features.normalization_overhead'] = normalization_overhead * 1000
         
-        return pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary
+        return pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices
 
-    def prepare_for_encoding(self, df, all_pods, request_features_train, request_features_reward):
+    def prepare_for_encoding(self, df, all_pods, request_features_train, request_features_reward, overhead_summary):
         extract_pod_columns_start = time.time()
         # Step 1: Extract pod-related columns
         pod_data = self.extract_pod_columns(df, all_pods)
@@ -939,7 +943,7 @@ class LLMRoutingDataProcessor:
 
         ## new
         process_pod_features_start = time.time()
-        pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices, process_pod_features_overhead_summary = self._optimized_process_pod_features(pod_data, n_samples)
+        pod_features_array, pod_kv_hit_array, pod_features_norm, kv_hit_norm, per_pod_feature_indices = self._optimized_process_pod_features(pod_data, n_samples, overhead_summary)
         process_pod_features_overhead = time.time() - process_pod_features_start
 
         ## old
@@ -1166,22 +1170,21 @@ class LLMRoutingDataProcessor:
             }
         }
         
-        prepare_for_encoding_overhead_summary = {
-            'encoding.prepare_for_encoding.prepare_extract_pod_columns_overhead': extract_pod_columns_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_analyze_request_features_overhead': analyze_request_features_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_encode_pod_ids_overhead': encode_pod_ids_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_classify_feature_timing_overhead': classify_feature_timing_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_request_numeric_features_overhead': request_numeric_features_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_request_categorical_features_overhead': request_categorical_features_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_process_pod_features_overhead': process_pod_features_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_extract_actions_rewards_overhead': extract_actions_rewards_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_combine_request_features_overhead': combine_request_features_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_positional_encoding_overhead': positional_encoding_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_add_staleness_overhead': add_staleness_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_cross_attention_overhead': cross_attention_overhead*1000,
-            'encoding.prepare_for_encoding.prepare_create_request_pod_interaction_overhead': create_request_pod_interaction_overhead*1000
-        }
-        return processed_data, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.extract_pod_columns_overhead'] = extract_pod_columns_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.analyze_request_features_overhead'] = analyze_request_features_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.encode_pod_ids_overhead'] = encode_pod_ids_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.classify_feature_timing_overhead'] = classify_feature_timing_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.request_numeric_features_overhead'] = request_numeric_features_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.request_categorical_features_overhead'] = request_categorical_features_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.process_pod_features_overhead'] = process_pod_features_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.extract_actions_rewards_overhead'] = extract_actions_rewards_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.combine_request_features_overhead'] = combine_request_features_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.positional_encoding_overhead'] = positional_encoding_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.add_staleness_overhead'] = add_staleness_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.cross_attention_overhead'] = cross_attention_overhead * 1000
+        overhead_summary['encoding.encode_for_inference.prepare_for_encoding.create_request_pod_interaction_overhead'] = create_request_pod_interaction_overhead * 1000
+
+        return processed_data
 
     def save_processed_data(self, processed_data):
         """Save the processed data to disk.
@@ -1535,7 +1538,8 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
     
     # Process training data
     logger.info("Processing training data...")
-    train_processed, _, _ = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward)
+    overhead_summary = {}
+    train_processed = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward, overhead_summary)
     train_path = processor.save_processed_data(train_processed)
     
     # # Process test data
@@ -1664,8 +1668,7 @@ def encode_for_train(all_pods, df, output_dir, request_stats, request_features_t
 
 def encode_for_inference(all_pods, df, request_stats, request_features_train, request_features_reward):
     """OPTIMIZED inference encoding function."""
-    encode_for_inference_start_time = time.time()
-    
+    mask_start_time = time.time()
     if request_stats is not None and request_stats.count > 0:
         logger.info(f"Using running statistics for normalization during inference (n={request_stats.count})")
         
@@ -1704,12 +1707,15 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
     else:
         logger.error(f"No running statistics provided. request_stats: {request_stats}, request_stats.count: {request_stats.count}")
         assert False
+    mask_overhead = time.time() - mask_start_time
     
-    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
     prepare_for_encoding_start = time.time()
-    processed_data, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward)
-    total_prepare_for_encoding_overhead = time.time() - prepare_for_encoding_start
+    processor = LLMRoutingDataProcessor(output_dir="temp_inference")
+    overhead_summary = {}
+    processed_data = processor.prepare_for_encoding(df, all_pods, request_features_train, request_features_reward, overhead_summary)
+    prepare_for_encoding_overhead = time.time() - prepare_for_encoding_start
 
+    post_process_start_time = time.time()
     if 'request_features' in processed_data:
         request_feat = processed_data['request_features']
         logger.info(f"Processed request features shape: {request_feat.shape}")
@@ -1732,13 +1738,15 @@ def encode_for_inference(all_pods, df, request_stats, request_features_train, re
     # OPTIMIZATION: Conditional tensor creation
     if processed_data['interaction_features'] is not None:
         tensor_data['interaction_features'] = torch.FloatTensor(processed_data['interaction_features'])
-        
     if 'ttft_rewards' in processed_data and processed_data['ttft_rewards'] is not None:
         tensor_data['ttft_rewards'] = torch.FloatTensor(processed_data['ttft_rewards'])
     if 'tpot_rewards' in processed_data and processed_data['tpot_rewards'] is not None:
         tensor_data['tpot_rewards'] = torch.FloatTensor(processed_data['tpot_rewards'])
+    post_process_overhead = time.time() - post_process_start_time
         
-    total_overhead = time.time() - encode_for_inference_start_time
-    encoder_other_overhead = total_overhead - total_prepare_for_encoding_overhead
-    return tensor_data, encoder_other_overhead, total_prepare_for_encoding_overhead, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary
+    overhead_summary['encoding.encode_for_inference.mask_overhead'] = mask_overhead * 1000
+    overhead_summary['encoding.encode_for_inference.prepare_for_encoding_overhead'] = prepare_for_encoding_overhead * 1000
+    overhead_summary['encoding.encode_for_inference.post_process_overhead'] = post_process_overhead * 1000
+
+    return tensor_data, overhead_summary
 

@@ -279,18 +279,13 @@ def handle_infer():
         
         ## new approach. in memory tensor dataset
         encode_start_time = time.time()
-        tensor_dataset, encoding_other_overhead, total_prepare_for_encoding_overhead, prepare_for_encoding_overhead_summary, process_pod_features_overhead_summary = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
+        tensor_dataset, encode_for_inference_overhead_summary = encoding.encode_for_inference(all_pods, processed_df, stats, request_features_train, request_features_reward)
         logger.info(f"Successfully encoded data in memory for inference")
         handle_infer_total_total_encoding_overhead = time.time() - encode_start_time
 
         infer_from_tensor_start_time = time.time()
-        result = contextual_bandit.infer_from_tensor(tensor_dataset)
+        result, infer_from_tensor_overhead_summary = contextual_bandit.infer_from_tensor(tensor_dataset)
         handle_infer_total_total_infer_from_tensor_overhead = time.time() - infer_from_tensor_start_time
-
-        # ## debugging
-        # tensor_dataset = encoding.fix_encode_for_inference_with_feature_info(all_pods, processed_df, request_features_train, request_features_reward)
-        # logger.info(f"Successfully encoded data in memory for inference with feature information")
-        # encoding.debug_request_feature_encoding(processed_df, tensor_dataset)
 
         logger.info(f"Inference result: {result}")
         
@@ -303,7 +298,6 @@ def handle_infer():
             
         selected_pod = all_pods[selected_pod_index]
         confidence = result.get('confidence', 1.0)
-        detailed_inference_overhead = result.get('detailed_inference_overhead', {})
         handle_infer_total_wrapup_overhead = time.time() - handle_infer_total_wrapup_start_time
         handle_infer_total_overhead = time.time() - handle_infer_start_time
         # Return the result
@@ -319,16 +313,13 @@ def handle_infer():
             "* handle_infer_total_wrapup_overhead": handle_infer_total_wrapup_overhead*1000,
             "* handle_infer_total_total_infer_from_tensor_overhead": handle_infer_total_total_infer_from_tensor_overhead*1000,
             "* handle_infer_total_overhead": handle_infer_total_overhead*1000,
-            "encoding_other_overhead": encoding_other_overhead*1000,
-            "total_prepare_for_encoding_overhead": total_prepare_for_encoding_overhead*1000,
         }
-        for key, value in prepare_for_encoding_overhead_summary.items():
-            response[key] = value
-        for key, value in process_pod_features_overhead_summary.items():
+
+        for key, value in encode_for_inference_overhead_summary.items():
             response[key] = value
         for key, value in preprocess_dataset_overhead_summary.items():
             response[key] = value
-        for key, value in detailed_inference_overhead.items():
+        for key, value in infer_from_tensor_overhead_summary.items():
             response[key] = value
         
         logger.info(f"Selected pod {selected_pod} with confidence {confidence}")
