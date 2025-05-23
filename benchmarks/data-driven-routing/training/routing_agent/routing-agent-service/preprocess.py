@@ -1061,11 +1061,12 @@ def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
         base_features[f"{pod_prefix}-last_second_total_decode_tokens"] = pod_metrics_for_pod.get('last_second_total_decode_tokens', 0)
         base_features[f"{pod_prefix}-last_second_total_prefill_tokens"] = pod_metrics_for_pod.get('last_second_total_prefill_tokens', 0)
     
-    # Calculate derived values directly
-    pod_to_index = {str(pod): idx for idx, pod in enumerate(all_pods)}
-    index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
+    # # Calculate derived values directly
+    # pod_to_index = {str(pod): idx for idx, pod in enumerate(all_pods)}
+    # index_to_pod = {int(idx): str(pod) for pod, idx in pod_to_index.items()}
     
-    base_features['action'] = pod_to_index[str(base_features['selected_pod'])]
+    # base_features['action'] = pod_to_index[str(base_features['selected_pod'])]
+    base_features['action'] = -1
     
     # Fast reward calculations
     ttft_val = base_features['ttft']
@@ -1102,13 +1103,14 @@ def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
     # Create DataFrame only once at the end
     processed_df = pd.DataFrame([base_features])
     
-    # Mapping info
-    pod_gpu_models = {pod_id: "NVIDIA-L20" for pod_id in all_pods}
-    mapping_info = {
-        'pod_to_index': pod_to_index,
-        'index_to_pod': index_to_pod,
-        'pod_gpu_models': pod_gpu_models,
-    }
+    # # Mapping info
+    # pod_gpu_models = {pod_id: "NVIDIA-L20" for pod_id in all_pods}
+
+    # mapping_info = {
+    #     'pod_to_index': pod_to_index,
+    #     'index_to_pod': index_to_pod,
+    #     'pod_gpu_models': pod_gpu_models,
+    # }
     
     # Minimal overhead summary for single row
     preprocess_dataset_overhead_summary = {
@@ -1123,7 +1125,8 @@ def preprocess_single_row_fast(df, ttft_slo, avg_tpot_slo):
         'preprocess.preprocess_dataset_slo_update_overhead': 0,
     }
     
-    return processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary
+    # return processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary
+    return processed_df, all_pods, preprocess_dataset_overhead_summary
 
 
 def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
@@ -1153,7 +1156,8 @@ def main(input_file, log_message, TTFT_SLO, AVG_TPOT_SLO):
     preprocess_dataset_start_time = time.time()
     if len(df) == 1 and input_file is None:
         # Ultra-fast inference path
-        processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_single_row_fast(df, TTFT_SLO, AVG_TPOT_SLO)
+        # processed_df, mapping_info, all_pods, preprocess_dataset_overhead_summary = preprocess_single_row_fast(df, TTFT_SLO, AVG_TPOT_SLO)
+        processed_df, all_pods, preprocess_dataset_overhead_summary = preprocess_single_row_fast(df, TTFT_SLO, AVG_TPOT_SLO)
     else:
         # Existing batch processing for training
         # REMOVED: No need for parse_json_columns since JSON is already parsed
