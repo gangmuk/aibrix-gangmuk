@@ -70,6 +70,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, requestID string, req *e
 		subAlgorithm = ""
 		klog.V(4).InfoS("subAlgorithm not present in request. set it empty string", "requestID", requestID)
 	}
+	klog.InfoS("subAlgorithm", "requestID", requestID, "subAlgorithm", subAlgorithm)
 
 	// early reject the request if model doesn't exist.
 	if !s.cache.HasModel(model) {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vllm-project/aibrix/pkg/cache"
 	"github.com/vllm-project/aibrix/pkg/types"
 	"github.com/vllm-project/aibrix/pkg/utils"
 	"github.com/vllm-project/aibrix/pkg/utils/prefixcacheindexer"
@@ -56,6 +57,7 @@ var (
 type rlOnlineRouter struct {
 	prefixCacheIndexer *prefixcacheindexer.PrefixHashTable
 	tokenizer          tokenizer.Tokenizer
+	cache              cache.Cache
 }
 
 func NewRLOnlineRouter() (types.Router, error) {
@@ -63,7 +65,14 @@ func NewRLOnlineRouter() (types.Router, error) {
 	// tokenizerObj = tokenizer.NewTiktokenTokenizer()
 	tokenizerObj = tokenizer.NewCharacterTokenizer()
 
+	c, err := cache.Get()
+	if err != nil {
+		klog.Error("fail to get cache store in prefix cache router")
+		return nil, err
+	}
+
 	router := &rlOnlineRouter{
+		cache:              c,
 		tokenizer:          tokenizerObj,
 		prefixCacheIndexer: prefixcacheindexer.NewPrefixHashTable(),
 	}
@@ -316,7 +325,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 				matchedPods[pod.Status.PodIP] = 0
 			}
 		}
-		klog.Infof("matchedPods: %v", matchedPods)
+		klog.Infof("StoreKVCacheHitRatio, matchedPods: %v", matchedPods)
 		utils.StoreKVCacheHitRatio(ctx.RequestID, matchedPods)
 
 		// Prepare for JSON strings to use in logging
@@ -449,8 +458,35 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	}
 	resp.Body.Close()
 
+	klog.Infof("anyway RL inference http success, requestID: %s", ctx.RequestID)
 	/////////////////////////////////////////////////////////////
 
+	if ctx.SubAlgorithm == "random" {
+		klog.Infof("random rouiting, request_id: %s", ctx.RequestID)
+		targetPod, _ = selectRandomPod(readyPods, rand.Intn)
+	} else if ctx.SubAlgorithm == "prefix-cache" {
+		var isLoadImbalanced bool
+		targetPod, isLoadImbalanced = getTargetPodOnLoadImbalance(r.cache, readyPods)
+		if !isLoadImbalanced {
+			if len(matchedPods) > 0 {
+				klog.Infof("prefix routing - prefix routing, request_id: %s", ctx.RequestID)
+				targetPod = getTargetPodFromMatchedPods(r.cache, readyPods, matchedPods)
+				if targetPod == nil {
+					klog.Errorf("No suitable pod found for prefix routing, requestID: %s", ctx.RequestID)
+				}
+			}
+		}
+		if len(matchedPods) == 0 || targetPod == nil {
+			klog.Infof("prefix routing - least request count routing, request_id: %s", ctx.RequestID)
+			targetPod = selectTargetPodWithLeastRequestCount(r.cache, readyPods)
+			if targetPod == nil {
+				klog.Errorf("No suitable pod found for least request count routing, requestID: %s", ctx.RequestID)
+			}
+		}
+	} else {
+		klog.Errorf("Unknown sub-algorithm: %s, requestID: %s", ctx.SubAlgorithm, ctx.RequestID)
+		targetPod, _ = r.fallbackRouting(ctx, readyPods)
+	}
 	ctx.SetTargetPod(targetPod)
 
 	if len(prefixHashes) > 0 {
