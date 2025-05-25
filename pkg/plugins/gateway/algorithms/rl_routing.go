@@ -469,19 +469,20 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 		targetPod, isLoadImbalanced = getTargetPodOnLoadImbalance(r.cache, readyPods)
 		if !isLoadImbalanced {
 			if len(matchedPods) > 0 {
-				klog.Infof("prefix routing - prefix routing, request_id: %s", ctx.RequestID)
+				klog.Infof("still matchedPods: %v, request_id: %s", matchedPods, ctx.RequestID)
 				targetPod = getTargetPodFromMatchedPods(r.cache, readyPods, matchedPods)
 				if targetPod == nil {
 					klog.Errorf("No suitable pod found for prefix routing, requestID: %s", ctx.RequestID)
 				}
+				klog.Infof("prefix routing - prefix routing, request_id: %s", ctx.RequestID)
 			}
 		}
 		if len(matchedPods) == 0 || targetPod == nil {
-			klog.Infof("prefix routing - least request count routing, request_id: %s", ctx.RequestID)
 			targetPod = selectTargetPodWithLeastRequestCount(r.cache, readyPods)
 			if targetPod == nil {
 				klog.Errorf("No suitable pod found for least request count routing, requestID: %s", ctx.RequestID)
 			}
+			klog.Infof("prefix routing - least request count routing, request_id: %s", ctx.RequestID)
 		}
 	} else {
 		klog.Errorf("Unknown sub-algorithm: %s, requestID: %s", ctx.SubAlgorithm, ctx.RequestID)
@@ -498,7 +499,7 @@ func (r *rlOnlineRouter) Route(ctx *types.RoutingContext, pods types.PodList) (s
 	end_to_end_overhead := time.Since(route_start_time).Milliseconds()
 	formattedResponseBody := formatJSONResponse(ctx.RequestID, body)
 	klog.Infof("RL router, selected podIP: %s, \n"+
-		"requestID: %s, Route end_to_end_overhead %dms, \n"+
+		"requestID: %s, Route endtoend_overhead %dms, \n"+
 		// "requestID: %s, infer_http_request took %dms, \n"+
 		// "requestID: %s, tokenizer_overhead: %dms, \n"+
 		"requestID: %s, log_construction_overhead: %dms, \n"+

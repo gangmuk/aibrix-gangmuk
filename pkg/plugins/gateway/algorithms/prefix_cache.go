@@ -182,6 +182,8 @@ func getTargetPodFromMatchedPods(cache cache.Cache, readyPods []*v1.Pod, matched
 			break
 		}
 	}
+	klog.Infof("getTargetPodFromMatchedPods, matched_pods: %v, mean: %f, stddev: %f, target_pod: %s, targetPodName: %s, readyPods: %v",
+		matchedPods, meanRequestCount, stdDevRequestCount, targetPodName, podnames, readyPods)
 	targetPod, _ := utils.FilterPodByName(targetPodName, readyPods)
 	return targetPod
 }
@@ -204,6 +206,7 @@ func getTargetPodOnLoadImbalance(cache cache.Cache, readyPods []*v1.Pod) (*v1.Po
 			maxValue = value
 		}
 	}
+	klog.Infof("pod_request_count: %v, min: %d, max: %d", podRequestCount, minValue, maxValue)
 	for podname, value := range podRequestCount {
 		if minValue == value {
 			targetPods = append(targetPods, podname)
