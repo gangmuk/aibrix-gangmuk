@@ -88,6 +88,11 @@ MODEL_REGISTRY = {}
 MODEL_REGISTRY_LOCK = RWLock()
 WORKLOAD = 'A' # default workload
 
+# Predictor instance cache for per-workload, per-GPU latency predictors
+# Key: (workload, gpu_type) tuple, Value: LatencyPredictor instance
+PREDICTOR_REGISTRY = {}
+PREDICTOR_REGISTRY_LOCK = RWLock()
+
 # Scalable RL agent training thread
 SCALABLE_RL_TRAINING_THREAD = None
 SCALABLE_RL_TRAINING_SHUTDOWN = threading.Event()
@@ -270,6 +275,9 @@ def infer_for_gpu_batch(workload, gpu_type, pod_indices, tensor_data, sorted_all
     """
     Run inference for a batch of pods with the same GPU type using workload-specific model.
     
+    This function is designed for PARALLEL execution across multiple GPU types.
+    Each GPU batch uses its own cached predictor instance to avoid lock contention.
+    
     Args:
         workload: Workload identifier
         gpu_type: GPU model type
@@ -289,7 +297,7 @@ def infer_for_gpu_batch(workload, gpu_type, pod_indices, tensor_data, sorted_all
     
     try:
         # Get model for this (workload, gpu_type)
-        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK
+        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK, PREDICTOR_REGISTRY, PREDICTOR_REGISTRY_LOCK
         
         model_info = None
         with MODEL_REGISTRY_LOCK.read():
@@ -322,40 +330,53 @@ def infer_for_gpu_batch(workload, gpu_type, pod_indices, tensor_data, sorted_all
         infer_start = time.time()
         
         if model_type == 'latency_predictor':
-            # Use latency predictor
+            # Use latency predictor with cached instance per (workload, gpu_type)
             import latency_predictor
             
-            # Get or create predictor for this (workload, gpu_type)
+            predictor_key = (workload, gpu_type)
             predictor = None
-            with LATENCY_PREDICTOR_LOCK.write():
-                global LATENCY_PREDICTOR
-                if LATENCY_PREDICTOR is None or not hasattr(LATENCY_PREDICTOR, '_workload_gpu_key') or \
-                   LATENCY_PREDICTOR._workload_gpu_key != (workload, gpu_type):
-                    # Initialize predictor for this specific (workload, gpu_type)
-                    state_dims = {
-                        'pod_features': sliced_tensor_data['pod_features_with_staleness'].shape[2],
-                        'kv_hit_ratios': sliced_tensor_data['kv_hit_ratios'].shape[2],
-                        'request_features': sliced_tensor_data['request_features'].shape[1],
-                        'num_pods': len(pod_indices)
-                    }
-                    LATENCY_PREDICTOR = latency_predictor.LatencyPredictor(state_dims, hyperparameters, model_info['model_dir'])
-                    LATENCY_PREDICTOR._workload_gpu_key = (workload, gpu_type)
-                    
-                    # Load model
-                    try:
-                        LATENCY_PREDICTOR.load(model_info['model_dir'])
-                        logger.info(f"Loaded latency predictor for (workload={workload}, gpu={gpu_type})")
-                    except Exception as e:
-                        logger.error(f"Failed to load latency predictor: {e}")
-                
-                predictor = LATENCY_PREDICTOR
             
-            # Run inference
-            with LATENCY_PREDICTOR_LOCK.read():
-                gpu_batch_pod_ids = [sorted_all_pod_ids[idx] for idx in pod_indices]
-                result, _ = latency_predictor.infer_latency_predictor_with_model(
-                    predictor, sliced_tensor_data, request_id, gpu_batch_pod_ids
-                )
+            # Try to get existing predictor (read lock for common case)
+            with PREDICTOR_REGISTRY_LOCK.read():
+                predictor = PREDICTOR_REGISTRY.get(predictor_key)
+            
+            # Create predictor if needed (upgrade to write lock)
+            if predictor is None:
+                with PREDICTOR_REGISTRY_LOCK.write():
+                    # Double-check after acquiring write lock (another thread might have created it)
+                    if predictor_key not in PREDICTOR_REGISTRY:
+                        state_dims = {
+                            'pod_features': sliced_tensor_data['pod_features_with_staleness'].shape[2],
+                            'kv_hit_ratios': sliced_tensor_data['kv_hit_ratios'].shape[2],
+                            'request_features': sliced_tensor_data['request_features'].shape[1],
+                            'num_pods': len(pod_indices)
+                        }
+                        
+                        new_predictor = latency_predictor.LatencyPredictor(
+                            state_dims, hyperparameters, model_info['model_dir']
+                        )
+                        
+                        # Load model
+                        try:
+                            new_predictor.load(model_info['model_dir'])
+                            logger.info(f"Loaded latency predictor for (workload={workload}, gpu={gpu_type})")
+                            # Cache the predictor only if load succeeds
+                            PREDICTOR_REGISTRY[predictor_key] = new_predictor
+                        except Exception as e:
+                            logger.error(f"Failed to load latency predictor: {e}")
+                            # Return uniform fallback (don't cache failed predictor)
+                            return {idx: {'score': 1.0/len(pod_indices), 'probability': 1.0/len(pod_indices), 'latency': -1} 
+                                    for idx in pod_indices}
+                    
+                    # Get predictor reference while still holding write lock (now guaranteed to exist)
+                    predictor = PREDICTOR_REGISTRY[predictor_key]
+            
+            # Run inference (NO LOCK needed - predictor.predict() is thread-safe for read-only operations)
+            # This allows true parallel inference across different GPU batches
+            gpu_batch_pod_ids = [sorted_all_pod_ids[idx] for idx in pod_indices]
+            result, _ = latency_predictor.infer_latency_predictor_with_model(
+                predictor, sliced_tensor_data, request_id, gpu_batch_pod_ids
+            )
             
             # Map results back to original indices
             results = {}
@@ -718,125 +739,125 @@ def handle_infer():
                 result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
                 result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
                 result['chosen_pod_predicted_latency'] = -1
-        elif subAlgorithm == 'rl_agent':
-            # === OLD RL AGENT (entire cluster as input state) ===
-            logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using OLD RL agent (entire cluster) for inference")
-            
-            global RL_AGENT
-            
-            with RL_AGENT_LOCK.write():
-                # Check if initialization needed
-                pod_features_t = tensor_data['pod_features']
-                n_pods = int(pod_features_t.shape[1])
-                per_pod_dim = int(pod_features_t.shape[2])
+            elif subAlgorithm == 'rl_agent':
+                # === OLD RL AGENT (entire cluster as input state) ===
+                logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using OLD RL agent (entire cluster) for inference")
                 
-                if (RL_AGENT is None or 
-                    RL_AGENT.action_dim != n_pods or
-                    RL_AGENT.state_dim.get('pod_features') != per_pod_dim):
-                    # Initialize new agent
-                    kv_hit_t = tensor_data['kv_hit_ratios']
-                    req_features_t = tensor_data['request_features']
-                    state_dim = {
-                        'pod_features': per_pod_dim,
-                        'kv_hit_ratios': int(kv_hit_t.shape[2]),
-                        'request_features': int(req_features_t.shape[1]),
-                    }
-                    RL_AGENT = create_rl_routing_agent_sb3(
-                        state_dim=state_dim,
-                        action_dim=n_pods,
-                        **RL_MODEL_HYPERPARAMETERS
-                    )
-                    ckpt_path = RL_MODEL_HYPERPARAMETERS.get('RL_CHECKPOINT_PATH')
-                    if ckpt_path and os.path.exists(ckpt_path):
-                        try:
-                            RL_AGENT.load(ckpt_path)
-                            logger.info(f"Loaded RL checkpoint from {ckpt_path}")
-                        except Exception as e:
-                            logger.error(f"Failed to load RL checkpoint {ckpt_path}: {e}")
-                    logger.info(f"Initialized OLD RL agent with state_dim={state_dim}, action_dim={n_pods}")
+                global RL_AGENT
                 
-                # Get agent reference under write lock
-                current_agent = RL_AGENT
-            
-            # Inference uses read lock for predictions (allows concurrency)
-            current_agent, result, infer_from_tensor_overhead_summary = infer_rl_agent(
-                tensor_data=tensor_data,
-                request_id=request_id,
-                sorted_all_pod_ids=sorted_all_pod_ids,
-                processed_df=processed_df,
-                rl_agent=current_agent,
-                hyperparameters=RL_MODEL_HYPERPARAMETERS,
-                agent_lock=RL_AGENT_LOCK  # RWLock for read (predict) and write (buffer)
-            )
-            
-            # Queue async update if online learning enabled
-            update_overhead = 0.0
-            if ENABLE_ONLINE_LEARNING:
-                update_start = time.time()
-                with RL_AGENT_LOCK.read():
-                    if RL_AGENT is not None:
-                        buffer_size = len(RL_AGENT.experience_buffer)
-                        batch_size = RL_AGENT.hyperparameters.get('batch_size', 64)
-                        
-                        if buffer_size >= batch_size:
-                            queue_rl_update(n_steps=batch_size)
-                            logger.debug(f"Queued RL update: buffer_size={buffer_size}, batch_size={batch_size}")
-                update_overhead = time.time() - update_start
-            
-            infer_from_tensor_overhead_summary['online_update'] = update_overhead
-        ####################################################################################
-        ####################################################################################
-        elif subAlgorithm == 'scalable_rl_agent':
-            from scalable_rl_routing_agent import BROKER, infer
-            
-            # === NEW SCALABLE RL AGENT (pod-count independent) ===
-            logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
-            
-            # Extract features from tensor_data
-            pod_features = tensor_data['pod_features'].cpu().numpy()[0]  # [num_pods, 10]
-            kv_hit_ratios = tensor_data['kv_hit_ratios'].cpu().numpy()[0]  # [num_pods, 1]
-            request_features = tensor_data['request_features'].cpu().numpy()[0]  # [3]
-            temporal_features = np.array([1], dtype=np.float32)  # Empty for now
-            
-            # Get previous reward from processed_df (gateway provides this)
-            if 'prev_reward' in processed_df.columns:
-                prev_reward = float(processed_df['prev_reward'].iloc[0])
-            else:
-                logger.error(f"scalable_rl_routing_agent, prev_reward not found in processed_df for requestID: {request_id}")
-                assert False
-            
-            # Call infer function from scalable_rl_routing_agent
-            infer_start = time.time()
-            timeout_in_seconds = 5.0  # 5 second timeout for inference
-            pod_idx, infer_from_tensor_overhead_summary = infer(request_id, prev_reward, pod_features, kv_hit_ratios, request_features, temporal_features, BROKER, timeout_in_seconds)
-            infer_from_tensor_overhead_summary['scalable_rl_infer'] = time.time() - infer_start
-            
-            # Build result with actual probabilities
-            num_pods = len(sorted_all_pod_ids)
-            
-            ## TODO: we need action probabilities for debugging
-            # if action_probs is not None:
-            #     # Use actual probabilities from policy
-            #     pod_probabilities = {sorted_all_pod_ids[i]: float(action_probs[i]) for i in range(min(num_pods, len(action_probs)))}
-            #     confidence = float(action_probs[pod_idx])
-            # else:
-            #     # Fallback to uniform
-            #     pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
-            #     confidence = 1.0/num_pods
-            
-            # TODO: these are placeholder. we need actual probabilities from the model.
-            pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
-            confidence = 1.0/num_pods
-            result = {
-                'selected_pod_index': int(pod_idx),
-                'pod_probabilities': pod_probabilities,
-                'confidence': confidence,
-                'explore_mask': 1,  # RL always explores
-                'predicted_latencies': {pod_id: -1 for pod_id in sorted_all_pod_ids},
-                'chosen_pod_predicted_latency': -1,
-            }
-            
-            logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, action={pod_idx}, prev_reward={prev_reward:.2f}, confidence={confidence:.3f}, num_pods={num_pods}")
+                with RL_AGENT_LOCK.write():
+                    # Check if initialization needed
+                    pod_features_t = tensor_data['pod_features']
+                    n_pods = int(pod_features_t.shape[1])
+                    per_pod_dim = int(pod_features_t.shape[2])
+                    
+                    if (RL_AGENT is None or 
+                        RL_AGENT.action_dim != n_pods or
+                        RL_AGENT.state_dim.get('pod_features') != per_pod_dim):
+                        # Initialize new agent
+                        kv_hit_t = tensor_data['kv_hit_ratios']
+                        req_features_t = tensor_data['request_features']
+                        state_dim = {
+                            'pod_features': per_pod_dim,
+                            'kv_hit_ratios': int(kv_hit_t.shape[2]),
+                            'request_features': int(req_features_t.shape[1]),
+                        }
+                        RL_AGENT = create_rl_routing_agent_sb3(
+                            state_dim=state_dim,
+                            action_dim=n_pods,
+                            **RL_MODEL_HYPERPARAMETERS
+                        )
+                        ckpt_path = RL_MODEL_HYPERPARAMETERS.get('RL_CHECKPOINT_PATH')
+                        if ckpt_path and os.path.exists(ckpt_path):
+                            try:
+                                RL_AGENT.load(ckpt_path)
+                                logger.info(f"Loaded RL checkpoint from {ckpt_path}")
+                            except Exception as e:
+                                logger.error(f"Failed to load RL checkpoint {ckpt_path}: {e}")
+                        logger.info(f"Initialized OLD RL agent with state_dim={state_dim}, action_dim={n_pods}")
+                    
+                    # Get agent reference under write lock
+                    current_agent = RL_AGENT
+                
+                # Inference uses read lock for predictions (allows concurrency)
+                current_agent, result, infer_from_tensor_overhead_summary = infer_rl_agent(
+                    tensor_data=tensor_data,
+                    request_id=request_id,
+                    sorted_all_pod_ids=sorted_all_pod_ids,
+                    processed_df=processed_df,
+                    rl_agent=current_agent,
+                    hyperparameters=RL_MODEL_HYPERPARAMETERS,
+                    agent_lock=RL_AGENT_LOCK  # RWLock for read (predict) and write (buffer)
+                )
+                
+                # Queue async update if online learning enabled
+                update_overhead = 0.0
+                if ENABLE_ONLINE_LEARNING:
+                    update_start = time.time()
+                    with RL_AGENT_LOCK.read():
+                        if RL_AGENT is not None:
+                            buffer_size = len(RL_AGENT.experience_buffer)
+                            batch_size = RL_AGENT.hyperparameters.get('batch_size', 64)
+                            
+                            if buffer_size >= batch_size:
+                                queue_rl_update(n_steps=batch_size)
+                                logger.debug(f"Queued RL update: buffer_size={buffer_size}, batch_size={batch_size}")
+                    update_overhead = time.time() - update_start
+                
+                infer_from_tensor_overhead_summary['online_update'] = update_overhead
+            ####################################################################################
+            ####################################################################################
+            elif subAlgorithm == 'scalable_rl_agent':
+                from scalable_rl_routing_agent import BROKER, infer
+                
+                # === NEW SCALABLE RL AGENT (pod-count independent) ===
+                logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
+                
+                # Extract features from tensor_data
+                pod_features = tensor_data['pod_features'].cpu().numpy()[0]  # [num_pods, 10]
+                kv_hit_ratios = tensor_data['kv_hit_ratios'].cpu().numpy()[0]  # [num_pods, 1]
+                request_features = tensor_data['request_features'].cpu().numpy()[0]  # [3]
+                temporal_features = np.array([1], dtype=np.float32)  # Empty for now
+                
+                # Get previous reward from processed_df (gateway provides this)
+                if 'prev_reward' in processed_df.columns:
+                    prev_reward = float(processed_df['prev_reward'].iloc[0])
+                else:
+                    logger.error(f"scalable_rl_routing_agent, prev_reward not found in processed_df for requestID: {request_id}")
+                    assert False
+                
+                # Call infer function from scalable_rl_routing_agent
+                infer_start = time.time()
+                timeout_in_seconds = 5.0  # 5 second timeout for inference
+                pod_idx, infer_from_tensor_overhead_summary = infer(request_id, prev_reward, pod_features, kv_hit_ratios, request_features, temporal_features, BROKER, timeout_in_seconds)
+                infer_from_tensor_overhead_summary['scalable_rl_infer'] = time.time() - infer_start
+                
+                # Build result with actual probabilities
+                num_pods = len(sorted_all_pod_ids)
+                
+                ## TODO: we need action probabilities for debugging
+                # if action_probs is not None:
+                #     # Use actual probabilities from policy
+                #     pod_probabilities = {sorted_all_pod_ids[i]: float(action_probs[i]) for i in range(min(num_pods, len(action_probs)))}
+                #     confidence = float(action_probs[pod_idx])
+                # else:
+                #     # Fallback to uniform
+                #     pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
+                #     confidence = 1.0/num_pods
+                
+                # TODO: these are placeholder. we need actual probabilities from the model.
+                pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
+                confidence = 1.0/num_pods
+                result = {
+                    'selected_pod_index': int(pod_idx),
+                    'pod_probabilities': pod_probabilities,
+                    'confidence': confidence,
+                    'explore_mask': 1,  # RL always explores
+                    'predicted_latencies': {pod_id: -1 for pod_id in sorted_all_pod_ids},
+                    'chosen_pod_predicted_latency': -1,
+                }
+                
+                logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, action={pod_idx}, prev_reward={prev_reward:.2f}, confidence={confidence:.3f}, num_pods={num_pods}")
             
         ####################################################################################
         ####################################################################################
@@ -891,11 +912,11 @@ def handle_infer():
         #         agent_lock=None  # New agent doesn't need lock for prediction
         #     )
         ####################################################################################
-        else:
-            logger.info(f"requestID: {request_id}, contextual bandit model for inference")
-            result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
-            result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
-            result['chosen_pod_predicted_latency'] = -1
+            else:
+                logger.info(f"requestID: {request_id}, contextual bandit model for inference")
+                result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
+                result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
+                result['chosen_pod_predicted_latency'] = -1
         handle_infer_overhead_summary["calling_infer_from_tensor"] = time.time() - infer_from_tensor_start_time
         
         
