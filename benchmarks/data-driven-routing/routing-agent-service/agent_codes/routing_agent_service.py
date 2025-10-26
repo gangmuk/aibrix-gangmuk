@@ -82,6 +82,12 @@ RL_AGENT_LOCK = RWLock()
 SCALABLE_RL_AGENT_LOCK = RWLock()
 LATENCY_PREDICTOR_LOCK = RWLock()
 
+# Multi-model registry for per-workload, per-GPU routing models
+# Key: (workload, gpu_type) tuple, Value: model instance
+MODEL_REGISTRY = {}
+MODEL_REGISTRY_LOCK = RWLock()
+WORKLOAD = 'A' # default workload
+
 # Scalable RL agent training thread
 SCALABLE_RL_TRAINING_THREAD = None
 SCALABLE_RL_TRAINING_SHUTDOWN = threading.Event()
@@ -106,6 +112,10 @@ ENABLE_ONLINE_LEARNING = int(os.getenv("ENABLE_ONLINE_LEARNING", 0))
 EXPLORATION_ENABLED = int(os.getenv("EXPLORATION_ENABLED", 0))
 TTFT_REWARD_WEIGHT = float(os.getenv("TTFT_REWARD_WEIGHT", 0.5))
 RL_MODEL_HYPERPARAMETERS = None
+
+# Multi-model configuration: workload types for per-workload-per-GPU models
+WORKLOAD_TYPES = os.getenv("WORKLOAD_TYPES", "A").split(",")
+logger.info(f"WORKLOAD_TYPES: {WORKLOAD_TYPES}")
 
 BROKER_LOCK = RWLock()
 
@@ -169,6 +179,238 @@ request_features_train = ['input_tokens', 'output_tokens', 'total_tokens']
 #         import traceback
 #         logger.error(traceback.format_exc())
 #         return jsonify({"error": str(e)}), 500
+
+
+def slice_tensor_data_for_pods(tensor_data, pod_indices, sorted_all_pod_ids):
+    """
+    Slice tensor_data to include only specific pods by their indices.
+    
+    Args:
+        tensor_data: Dict containing tensors with pod dimension
+        pod_indices: List of pod indices to keep
+        sorted_all_pod_ids: List of all pod IDs (for reference)
+        
+    Returns:
+        New tensor_data dict with sliced tensors
+    """
+    import torch
+    
+    sliced_data = {}
+    
+    # Slice pod_features (shape: [batch, num_pods, features])
+    if 'pod_features' in tensor_data:
+        sliced_data['pod_features'] = tensor_data['pod_features'][:, pod_indices, :]
+    
+    if 'pod_features_with_staleness' in tensor_data:
+        sliced_data['pod_features_with_staleness'] = tensor_data['pod_features_with_staleness'][:, pod_indices, :]
+    
+    # Slice kv_hit_ratios (shape: [batch, num_pods, kv_dim])
+    if 'kv_hit_ratios' in tensor_data:
+        sliced_data['kv_hit_ratios'] = tensor_data['kv_hit_ratios'][:, pod_indices, :]
+    
+    # Request features don't need slicing (same for all pods)
+    if 'request_features' in tensor_data:
+        sliced_data['request_features'] = tensor_data['request_features']
+    
+    return sliced_data
+
+
+def extract_workload_from_log(log_message, default_workload='A'):
+    """
+    Extract workload identifier from log message.
+    
+    Expected format: ...workload@<workload_id>@...
+    
+    Args:
+        log_message: Raw log message string
+        default_workload: Default workload if not found in message
+        
+    Returns:
+        Workload identifier string
+    """
+    try:
+        parts = log_message.split("workload@")
+        if len(parts) > 1:
+            workload_parts = parts[1].split("@")
+            if workload_parts:
+                return workload_parts[0].strip()
+    except Exception as e:
+        logger.debug(f"Error extracting workload: {e}")
+    
+    return default_workload
+
+
+def group_pods_by_gpu(sorted_all_pod_ids, generalpodid_to_gpu_model):
+    """
+    Group pod indices by their GPU type.
+    
+    Args:
+        sorted_all_pod_ids: List of pod IDs in sorted order
+        generalpodid_to_gpu_model: Mapping from pod ID to GPU model
+        
+    Returns:
+        Dict {gpu_type: [pod_indices]}
+    """
+    pods_by_gpu = {}
+    
+    for idx, pod_id in enumerate(sorted_all_pod_ids):
+        if pod_id in generalpodid_to_gpu_model:
+            gpu_type = generalpodid_to_gpu_model[pod_id]
+            if gpu_type not in pods_by_gpu:
+                pods_by_gpu[gpu_type] = []
+            pods_by_gpu[gpu_type].append(idx)
+        else:
+            logger.warning(f"Pod {pod_id} not found in GPU mapping, skipping")
+    
+    return pods_by_gpu
+
+
+def infer_for_gpu_batch(workload, gpu_type, pod_indices, tensor_data, sorted_all_pod_ids, 
+                        request_id, model_type, hyperparameters):
+    """
+    Run inference for a batch of pods with the same GPU type using workload-specific model.
+    
+    Args:
+        workload: Workload identifier
+        gpu_type: GPU model type
+        pod_indices: List of pod indices to infer for
+        tensor_data: Full tensor data (will be sliced)
+        sorted_all_pod_ids: All pod IDs in order
+        request_id: Request identifier
+        model_type: Model type ('contextual_bandit', 'latency_predictor', etc.)
+        hyperparameters: Model hyperparameters
+        
+    Returns:
+        Dict {pod_idx: {score, probability, latency}} for pods in this GPU batch
+    """
+    
+    overhead_summary = {}
+    start_time = time.time()
+    
+    try:
+        # Get model for this (workload, gpu_type)
+        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK
+        
+        model_info = None
+        with MODEL_REGISTRY_LOCK.read():
+            model_key = (workload, gpu_type)
+            if model_key in MODEL_REGISTRY:
+                model_info = MODEL_REGISTRY[model_key]
+            else:
+                logger.warning(f"No model found for (workload={workload}, gpu={gpu_type}), falling back to default")
+                # Try to find any model for this workload
+                for key in MODEL_REGISTRY.keys():
+                    if key[0] == workload:
+                        model_info = MODEL_REGISTRY[key]
+                        logger.info(f"Using fallback model from {key}")
+                        break
+        
+        if model_info is None:
+            logger.error(f"No model available for workload={workload}, gpu={gpu_type}")
+            # Return uniform scores
+            return {idx: {'score': 1.0/len(pod_indices), 'probability': 1.0/len(pod_indices), 'latency': -1} 
+                    for idx in pod_indices}
+        
+        overhead_summary['get_model'] = time.time() - start_time
+        
+        # Slice tensor data for this GPU's pods
+        slice_start = time.time()
+        sliced_tensor_data = slice_tensor_data_for_pods(tensor_data, pod_indices, sorted_all_pod_ids)
+        overhead_summary['slice_tensors'] = time.time() - slice_start
+        
+        # Run inference with the appropriate model
+        infer_start = time.time()
+        
+        if model_type == 'latency_predictor':
+            # Use latency predictor
+            import latency_predictor
+            
+            # Get or create predictor for this (workload, gpu_type)
+            predictor = None
+            with LATENCY_PREDICTOR_LOCK.write():
+                global LATENCY_PREDICTOR
+                if LATENCY_PREDICTOR is None or not hasattr(LATENCY_PREDICTOR, '_workload_gpu_key') or \
+                   LATENCY_PREDICTOR._workload_gpu_key != (workload, gpu_type):
+                    # Initialize predictor for this specific (workload, gpu_type)
+                    state_dims = {
+                        'pod_features': sliced_tensor_data['pod_features_with_staleness'].shape[2],
+                        'kv_hit_ratios': sliced_tensor_data['kv_hit_ratios'].shape[2],
+                        'request_features': sliced_tensor_data['request_features'].shape[1],
+                        'num_pods': len(pod_indices)
+                    }
+                    LATENCY_PREDICTOR = latency_predictor.LatencyPredictor(state_dims, hyperparameters, model_info['model_dir'])
+                    LATENCY_PREDICTOR._workload_gpu_key = (workload, gpu_type)
+                    
+                    # Load model
+                    try:
+                        LATENCY_PREDICTOR.load(model_info['model_dir'])
+                        logger.info(f"Loaded latency predictor for (workload={workload}, gpu={gpu_type})")
+                    except Exception as e:
+                        logger.error(f"Failed to load latency predictor: {e}")
+                
+                predictor = LATENCY_PREDICTOR
+            
+            # Run inference
+            with LATENCY_PREDICTOR_LOCK.read():
+                gpu_batch_pod_ids = [sorted_all_pod_ids[idx] for idx in pod_indices]
+                result, _ = latency_predictor.infer_latency_predictor_with_model(
+                    predictor, sliced_tensor_data, request_id, gpu_batch_pod_ids
+                )
+            
+            # Map results back to original indices
+            results = {}
+            predicted_latencies = result.get('predicted_latencies', {})
+            for local_idx, global_idx in enumerate(pod_indices):
+                pod_id = sorted_all_pod_ids[global_idx]
+                latency = predicted_latencies.get(pod_id, -1)
+                # Lower latency = higher score
+                score = 1.0 / (latency + 1e-6) if latency > 0 else 1.0
+                results[global_idx] = {
+                    'score': score,
+                    'probability': score,  # Will be normalized later
+                    'latency': latency
+                }
+        
+        elif model_type == 'contextual_bandit':
+            # Use contextual bandit
+            import simpler_contextual_bandit
+            
+            result, _ = simpler_contextual_bandit.infer_from_tensor(
+                sliced_tensor_data, request_id, True, hyperparameters, model_info['model_dir']
+            )
+            
+            # Map results back to original indices
+            selected_local_idx = result['selected_pod_index']
+            probabilities = result.get('pod_probabilities', [])
+            
+            results = {}
+            for local_idx, global_idx in enumerate(pod_indices):
+                prob = probabilities[local_idx] if isinstance(probabilities, list) and local_idx < len(probabilities) else 1.0/len(pod_indices)
+                results[global_idx] = {
+                    'score': prob,
+                    'probability': prob,
+                    'latency': -1
+                }
+        
+        else:
+            logger.warning(f"Unknown model type: {model_type}")
+            results = {idx: {'score': 1.0/len(pod_indices), 'probability': 1.0/len(pod_indices), 'latency': -1} 
+                      for idx in pod_indices}
+        
+        overhead_summary['model_inference'] = time.time() - infer_start
+        overhead_summary['total'] = time.time() - start_time
+        
+        logger.debug(f"GPU batch inference for {gpu_type}: {len(pod_indices)} pods, {overhead_summary['total']*1000:.1f}ms")
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in GPU batch inference for {gpu_type}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # Return uniform fallback
+        return {idx: {'score': 1.0/len(pod_indices), 'probability': 1.0/len(pod_indices), 'latency': -1} 
+                for idx in pod_indices}
 
 
 # Fixed handle_flush function
@@ -319,53 +561,163 @@ def handle_infer():
 
         infer_from_tensor_start_time = time.time()
         
-        # Route to appropriate model based on model type
-        # model_type = RL_MODEL_HYPERPARAMETERS.get('MODEL_TYPE', 'contextual_bandit')
-        subAlgorithm = processed_df['subAlgorithm'].iloc[0]
-        if subAlgorithm == 'latency_predictor':
-            logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}")
+        # ========================================
+        # Multi-Model GPU-Specific Inference
+        # ========================================
+        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK
+        
+        # Extract workload identifier from request
+        workload = extract_workload_from_log(log_message, default_workload=WORKLOAD)
+        logger.debug(f"Request {request_id}: workload={workload}")
+        
+        # Check if we should use multi-model GPU-specific inference
+        use_multi_model = False
+        with MODEL_REGISTRY_LOCK.read():
+            use_multi_model = len(MODEL_REGISTRY) > 0
+        
+        if use_multi_model:
+            logger.info(f"{CYAN_COLOR}Using multi-model GPU-specific inference for workload={workload}{RESET_COLOR}")
+            
+            # Group pods by GPU type
+            group_start = time.time()
+            generalpodid_to_gpu_model = RL_MODEL_HYPERPARAMETERS.get('generalpodid_to_gpu_model', {})
+            pods_by_gpu = group_pods_by_gpu(sorted_all_pod_ids, generalpodid_to_gpu_model)
+            handle_infer_overhead_summary["group_pods_by_gpu"] = time.time() - group_start
+            
+            logger.debug(f"Pods grouped by GPU: {[(gpu, len(indices)) for gpu, indices in pods_by_gpu.items()]}")
+            
+            # Parallel inference for each GPU type
+            parallel_infer_start = time.time()
+            model_type = RL_MODEL_HYPERPARAMETERS.get('MODEL_TYPE', 'latency_predictor')
+            
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            all_results = {}  # {pod_idx: {score, probability, latency}}
+            
+            with ThreadPoolExecutor(max_workers=len(pods_by_gpu)) as executor:
+                # Submit inference tasks for each GPU batch
+                future_to_gpu = {}
+                for gpu_type, pod_indices in pods_by_gpu.items():
+                    future = executor.submit(
+                        infer_for_gpu_batch,
+                        workload,
+                        gpu_type,
+                        pod_indices,
+                        tensor_data,
+                        sorted_all_pod_ids,
+                        request_id,
+                        model_type,
+                        RL_MODEL_HYPERPARAMETERS
+                    )
+                    future_to_gpu[future] = gpu_type
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_gpu):
+                    gpu_type = future_to_gpu[future]
+                    try:
+                        gpu_results = future.result()
+                        all_results.update(gpu_results)
+                        logger.debug(f"GPU {gpu_type}: got {len(gpu_results)} pod results")
+                    except Exception as e:
+                        logger.error(f"Error in GPU batch for {gpu_type}: {e}")
+            
+            handle_infer_overhead_summary["parallel_gpu_inference"] = time.time() - parallel_infer_start
+            
+            # Combine results and select best pod
+            combine_start = time.time()
+            
+            if len(all_results) == 0:
+                logger.error("No results from any GPU batch, falling back to single-model")
+                use_multi_model = False
+            else:
+                # Normalize scores across all pods
+                all_scores = [res['score'] for res in all_results.values()]
+                total_score = sum(all_scores) + 1e-9
+                
+                # Select pod with highest score
+                best_pod_idx = max(all_results.keys(), key=lambda idx: all_results[idx]['score'])
+                best_result = all_results[best_pod_idx]
+                
+                # Build result dict
+                pod_probabilities = {}
+                predicted_latencies = {}
+                for idx in range(len(sorted_all_pod_ids)):
+                    pod_id = sorted_all_pod_ids[idx]
+                    if idx in all_results:
+                        pod_probabilities[pod_id] = all_results[idx]['score'] / total_score
+                        predicted_latencies[pod_id] = all_results[idx]['latency']
+                    else:
+                        pod_probabilities[pod_id] = 0.0
+                        predicted_latencies[pod_id] = -1
+                
+                result = {
+                    'selected_pod_index': best_pod_idx,
+                    'confidence': best_result['score'] / total_score,
+                    'pod_probabilities': pod_probabilities,
+                    'explore_mask': 0,  # No exploration in multi-model mode
+                    'predicted_latencies': predicted_latencies,
+                    'chosen_pod_predicted_latency': best_result['latency']
+                }
+                
+                infer_from_tensor_overhead_summary = {
+                    'multi_model_combine': time.time() - combine_start,
+                    'multi_model_total': time.time() - infer_from_tensor_start_time
+                }
+                
+                logger.info(f"{GREEN_COLOR}Multi-model inference selected pod {best_pod_idx} ({sorted_all_pod_ids[best_pod_idx]}) "
+                           f"with confidence {result['confidence']:.3f}{RESET_COLOR}")
+        
+        # Fallback to single-model inference if multi-model not available or failed
+        if not use_multi_model:
+            logger.debug("Using single-model inference (fallback)")
+            
+            # Route to appropriate model based on model type
+            # model_type = RL_MODEL_HYPERPARAMETERS.get('MODEL_TYPE', 'contextual_bandit')
+            subAlgorithm = processed_df['subAlgorithm'].iloc[0]
+            if subAlgorithm == 'latency_predictor':
+                logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}")
 
-            global LATENCY_PREDICTOR
+                global LATENCY_PREDICTOR
 
-            # Check if initialization needed without blocking
-            if LATENCY_PREDICTOR is None:
-                with LATENCY_PREDICTOR_LOCK.write():
-                    # Double-check after acquiring lock
-                    if LATENCY_PREDICTOR is None:
-                        state_dims = {
-                            'pod_features': tensor_data['pod_features_with_staleness'].shape[2],
-                            'kv_hit_ratios': tensor_data['kv_hit_ratios'].shape[2],
-                            'request_features': tensor_data['request_features'].shape[1],
-                            'num_pods': tensor_data['pod_features_with_staleness'].shape[1]
-                        }
-                        
-                        logger.info(f"Initializing latency predictor with state_dims={state_dims}")
-                        LATENCY_PREDICTOR = latency_predictor.LatencyPredictor(state_dims, RL_MODEL_HYPERPARAMETERS, final_model_dir)
+                # Check if initialization needed without blocking
+                if LATENCY_PREDICTOR is None:
+                    with LATENCY_PREDICTOR_LOCK.write():
+                        # Double-check after acquiring lock
+                        if LATENCY_PREDICTOR is None:
+                            state_dims = {
+                                'pod_features': tensor_data['pod_features_with_staleness'].shape[2],
+                                'kv_hit_ratios': tensor_data['kv_hit_ratios'].shape[2],
+                                'request_features': tensor_data['request_features'].shape[1],
+                                'num_pods': tensor_data['pod_features_with_staleness'].shape[1]
+                            }
+                            
+                            logger.info(f"Initializing latency predictor with state_dims={state_dims}")
+                            LATENCY_PREDICTOR = latency_predictor.LatencyPredictor(state_dims, RL_MODEL_HYPERPARAMETERS, final_model_dir)
 
-                        # Load pretrained model
-                        model_path = os.path.join(final_model_dir, 'latency_predictor.pth')
-                        if os.path.exists(model_path):
-                            try:
-                                LATENCY_PREDICTOR.load(final_model_dir)
-                                logger.info(f"Loaded latency predictor from {final_model_dir}")
-                            except Exception as e:
-                                logger.error(f"Failed to load latency predictor: {e}")
-                        else:
-                            logger.warning(f"No pretrained latency predictor found at {model_path}, using untrained model")
+                            # Load pretrained model
+                            model_path = os.path.join(final_model_dir, 'latency_predictor.pth')
+                            if os.path.exists(model_path):
+                                try:
+                                    LATENCY_PREDICTOR.load(final_model_dir)
+                                    logger.info(f"Loaded latency predictor from {final_model_dir}")
+                                except Exception as e:
+                                    logger.error(f"Failed to load latency predictor: {e}")
+                            else:
+                                logger.warning(f"No pretrained latency predictor found at {model_path}, using untrained model")
 
-            # Inference with read lock (allows concurrent requests)
-            with LATENCY_PREDICTOR_LOCK.read():
-                result, infer_from_tensor_overhead_summary = latency_predictor.infer_latency_predictor_with_model(
-                    predictor=LATENCY_PREDICTOR,
-                    tensor_data=tensor_data,
-                    request_id=request_id,
-                    sorted_all_pod_ids=sorted_all_pod_ids
-                )
-        elif subAlgorithm == 'contextual_bandit' or subAlgorithm == 'rl_naive':
-            logger.info(f"subAlgorithm: {subAlgorithm}, Using contextual bandit model for inference (request_id: {request_id})")
-            result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
-            result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
-            result['chosen_pod_predicted_latency'] = -1
+                # Inference with read lock (allows concurrent requests)
+                with LATENCY_PREDICTOR_LOCK.read():
+                    result, infer_from_tensor_overhead_summary = latency_predictor.infer_latency_predictor_with_model(
+                        predictor=LATENCY_PREDICTOR,
+                        tensor_data=tensor_data,
+                        request_id=request_id,
+                        sorted_all_pod_ids=sorted_all_pod_ids
+                    )
+            elif subAlgorithm == 'contextual_bandit' or subAlgorithm == 'rl_naive':
+                logger.info(f"subAlgorithm: {subAlgorithm}, Using contextual bandit model for inference (request_id: {request_id})")
+                result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
+                result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
+                result['chosen_pod_predicted_latency'] = -1
         elif subAlgorithm == 'rl_agent':
             # === OLD RL AGENT (entire cluster as input state) ===
             logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using OLD RL agent (entire cluster) for inference")
@@ -1001,6 +1353,62 @@ def get_current_cluster_features():
         )
 
 
+def load_model_for_workload_gpu(workload, gpu_type, model_type, model_base_dir, hyperparameters):
+    """
+    Load a routing model for a specific (workload, GPU_type) combination.
+    
+    Args:
+        workload: Workload identifier (e.g., 'A', 'B', 'C')
+        gpu_type: GPU model type (e.g., 'NVIDIA-L20', 'NVIDIA-A10')
+        model_type: Type of model ('contextual_bandit', 'latency_predictor', etc.)
+        model_base_dir: Base directory containing model subdirectories
+        hyperparameters: Model hyperparameters dict
+        
+    Returns:
+        Loaded model instance or None if loading fails
+    """
+    try:
+        # Construct model directory path
+        model_dir = os.path.join(model_base_dir, f"{workload}_{gpu_type}")
+        
+        if not os.path.exists(model_dir):
+            logger.warning(f"Model directory not found: {model_dir}, skipping")
+            return None
+            
+        logger.info(f"Loading model for workload={workload}, gpu_type={gpu_type} from {model_dir}")
+        
+        if model_type == 'latency_predictor':
+            # Load latency predictor model
+            model_path = os.path.join(model_dir, 'latency_predictor.pth')
+            if not os.path.exists(model_path):
+                logger.warning(f"Latency predictor not found at {model_path}")
+                return None
+                
+            # We'll initialize with dummy dims - will be properly initialized on first inference
+            # Store just the model path for now, actual initialization happens in handle_infer
+            return {'type': 'latency_predictor', 'model_dir': model_dir, 'model_path': model_path}
+            
+        elif model_type == 'contextual_bandit':
+            # Load contextual bandit model
+            model_path = os.path.join(model_dir, 'policy_network.pth')
+            if not os.path.exists(model_path):
+                logger.warning(f"Contextual bandit model not found at {model_path}")
+                return None
+                
+            # Store model directory for lazy loading during inference
+            return {'type': 'contextual_bandit', 'model_dir': model_dir, 'model_path': model_path}
+            
+        else:
+            logger.warning(f"Unknown model type: {model_type}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Failed to load model for workload={workload}, gpu_type={gpu_type}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
+
+
 def graceful_shutdown(sig=None, frame=None):
     """Handle graceful shutdown when receiving SIGTERM or SIGINT"""
     logger.info(f"Received signal {sig if sig else 'shutdown'}, shutting down gracefully...")
@@ -1088,6 +1496,57 @@ def init():
                 logger.error(f"Unknown GPU model for {generalpodid}: {gpu_model}")
                 assert False
         RL_MODEL_HYPERPARAMETERS['pod_gpu_id_mapping'] = pod_gpu_id_mapping
+        
+        # ========================================
+        # Parallel model loading for multi-workload, multi-GPU support
+        # ========================================
+        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK, WORKLOAD_TYPES
+        
+        # Get unique GPU types from running pods
+        unique_gpu_types = list(set(generalpodid_to_gpu_model.values()))
+        logger.info(f"{GREEN_COLOR}Starting parallel model loading for workloads={WORKLOAD_TYPES}, gpu_types={unique_gpu_types}{RESET_COLOR}")
+        
+        # Import ThreadPoolExecutor for parallel loading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        # Parallel model loading
+        model_loading_start = time.time()
+        with MODEL_REGISTRY_LOCK.write():
+            with ThreadPoolExecutor(max_workers=len(WORKLOAD_TYPES) * len(unique_gpu_types)) as executor:
+                # Submit loading tasks for all (workload, gpu_type) combinations
+                future_to_key = {}
+                for workload in WORKLOAD_TYPES:
+                    for gpu_type in unique_gpu_types:
+                        future = executor.submit(
+                            load_model_for_workload_gpu,
+                            workload,
+                            gpu_type,
+                            model_type,
+                            final_model_dir,
+                            RL_MODEL_HYPERPARAMETERS
+                        )
+                        future_to_key[future] = (workload, gpu_type)
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_key):
+                    workload, gpu_type = future_to_key[future]
+                    try:
+                        model_info = future.result()
+                        if model_info is not None:
+                            MODEL_REGISTRY[(workload, gpu_type)] = model_info
+                            logger.info(f"{GREEN_COLOR}✓ Loaded model for (workload={workload}, gpu={gpu_type}){RESET_COLOR}")
+                        else:
+                            logger.warning(f"{RED_COLOR}✗ Failed to load model for (workload={workload}, gpu={gpu_type}){RESET_COLOR}")
+                    except Exception as e:
+                        logger.error(f"Error loading model for (workload={workload}, gpu={gpu_type}): {e}")
+        
+        model_loading_time = time.time() - model_loading_start
+        logger.info(f"{GREEN_COLOR}Parallel model loading completed in {model_loading_time:.2f}s, loaded {len(MODEL_REGISTRY)} models{RESET_COLOR}")
+        
+        if len(MODEL_REGISTRY) == 0:
+            logger.warning(f"{RED_COLOR}No models loaded! Falling back to single-model mode{RESET_COLOR}")
+        else:
+            logger.info(f"Model registry keys: {list(MODEL_REGISTRY.keys())}")
         
         # Load normalization statistics from CSV file
         if os.path.exists(feature_normalization_stats_file):
