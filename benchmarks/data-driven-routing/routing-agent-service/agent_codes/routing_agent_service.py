@@ -86,7 +86,8 @@ LATENCY_PREDICTOR_LOCK = RWLock()
 # Key: (workload, gpu_type) tuple, Value: model instance
 MODEL_REGISTRY = {}
 MODEL_REGISTRY_LOCK = RWLock()
-WORKLOAD = 'A' # default workload
+WORKLOAD = os.getenv("WORKLOAD", "A") # default workload
+logger.info(f"WORKLOAD: {WORKLOAD}")
 
 # Predictor instance cache for per-workload, per-GPU latency predictors
 # Key: (workload, gpu_type) tuple, Value: LatencyPredictor instance
@@ -119,7 +120,7 @@ TTFT_REWARD_WEIGHT = float(os.getenv("TTFT_REWARD_WEIGHT", 0.5))
 RL_MODEL_HYPERPARAMETERS = None
 
 # Multi-model configuration: workload types for per-workload-per-GPU models
-WORKLOAD_TYPES = os.getenv("WORKLOAD_TYPES", "A").split(",")
+WORKLOAD_TYPES = [w.strip() for w in os.getenv("WORKLOAD_TYPES", "A").split(",")]
 logger.info(f"WORKLOAD_TYPES: {WORKLOAD_TYPES}")
 
 BROKER_LOCK = RWLock()
@@ -979,6 +980,8 @@ def handle_infer():
 
 def online_train_routine():
     global NUM_TRAINS, MODEL_UPDATED, TOTAL_NUM_DATA, final_model_dir, NUM_NEW_DATA, RL_MODEL_HYPERPARAMETERS, TRAINING_RIGHT_NOW, LATENCY_PREDICTOR, TRAINING_DF, stats_instance
+    global MODEL_REGISTRY, MODEL_REGISTRY_LOCK, PREDICTOR_REGISTRY, PREDICTOR_REGISTRY_LOCK, WORKLOAD_TYPES, WORKLOAD
+    
     if TRAINING_RIGHT_NOW:
         logger.info(f"Previous training still in progress, skipping training")
         return
@@ -1003,7 +1006,6 @@ def online_train_routine():
                 training_df_copy = TRAINING_DF.copy()
                 total_samples = len(training_df_copy)
 
-            # logger.info(f"Training on (offline data: {ENCODED_DATA_DIR}, online data: {ENCODED_DATA_DIR}, total data: {total_samples}")
             logger.info(f"Training on total data: {total_samples}")
 
             # Drop non-numeric metadata columns from offline CSV that are absent online
@@ -1039,28 +1041,95 @@ def online_train_routine():
             for feature in normalizable_features:
                 data_normalizer._normalize_single_feature(training_df_copy, feature, stats_instance, is_training=False)
 
-            # Get sorted pod IDs from the training data (preprocessed CSV format)
+            # Get sorted pod IDs and GPU mapping
             sorted_all_pod_ids = utils.get_sorted_all_pod_ids('processed_csv_columns', training_df_copy.columns.tolist())
+            generalpodid_to_gpu_model = RL_MODEL_HYPERPARAMETERS.get('generalpodid_to_gpu_model', {})
             logger.info(f"Training with pods: {sorted_all_pod_ids}")
 
-            # Encode the entire dataset
-            encode_start_time = time.time()
-            os.makedirs(ENCODED_DATA_DIR, exist_ok=True)
-            encoded_training_dir = os.path.join(ENCODED_DATA_DIR, "full_training_data")
-            encoding.encode_for_train(sorted_all_pod_ids, training_df_copy, encoded_training_dir, request_features_train, RL_MODEL_HYPERPARAMETERS)
-            logger.info(f"Encoded {total_samples} samples to {encoded_training_dir}, encode time: {time.time() - encode_start_time} seconds")
+            # ========================================
+            # Multi-Model Training: Train per (workload, GPU) combination
+            # ========================================
+            
+            # Check if multi-model training is enabled
+            use_multi_model_training = False
+            with MODEL_REGISTRY_LOCK.read():
+                use_multi_model_training = len(MODEL_REGISTRY) > 0
+            
+            if use_multi_model_training:
+                logger.info(f"{GREEN_COLOR}Multi-model training enabled: training models per GPU type for workload={WORKLOAD}{RESET_COLOR}")
+                
+                # NOTE: Currently trains models only for the configured WORKLOAD (from env var)
+                # TODO: Future enhancement - extract workload from training data and split by it
+                # This would enable training models for multiple workloads simultaneously
+                if len(WORKLOAD_TYPES) > 1:
+                    logger.warning(f"Multiple workload types configured ({WORKLOAD_TYPES}), but training only for WORKLOAD={WORKLOAD}. "
+                                 f"Multi-workload training not yet implemented.")
+                
+                # Get unique GPU types from pods
+                unique_gpu_types = set()
+                for pod_id in sorted_all_pod_ids:
+                    if pod_id in generalpodid_to_gpu_model:
+                        unique_gpu_types.add(generalpodid_to_gpu_model[pod_id])
+                
+                logger.info(f"Training models for GPU types: {unique_gpu_types}")
+                
+                # For each GPU type, filter data and train model
+                for gpu_type in unique_gpu_types:
+                    # Get pods with this GPU type
+                    gpu_pod_ids = [pid for pid in sorted_all_pod_ids 
+                                   if pid in generalpodid_to_gpu_model and 
+                                   generalpodid_to_gpu_model[pid] == gpu_type]
+                    
+                    if len(gpu_pod_ids) == 0:
+                        logger.warning(f"No pods found for GPU type {gpu_type}, skipping")
+                        continue
+                    
+                    logger.info(f"Training model for (workload={WORKLOAD}, gpu={gpu_type}) with {len(gpu_pod_ids)} pods")
+                    
+                    # Create output directory for this (workload, GPU) combination
+                    model_output_dir = os.path.join(final_model_dir, f"{WORKLOAD}_{gpu_type}")
+                    os.makedirs(model_output_dir, exist_ok=True)
+                    
+                    # Encode data for this GPU type
+                    encode_start_time = time.time()
+                    encoded_training_dir = os.path.join(ENCODED_DATA_DIR, f"{WORKLOAD}_{gpu_type}")
+                    encoding.encode_for_train(gpu_pod_ids, training_df_copy, encoded_training_dir, request_features_train, RL_MODEL_HYPERPARAMETERS)
+                    logger.info(f"Encoded {total_samples} samples for {gpu_type} to {encoded_training_dir}, took {time.time() - encode_start_time:.2f}s")
+                    
+                    # Train model for this GPU type
+                    train_start_time = time.time()
+                    latency_predictor.train_latency_predictor(encoded_training_dir, model_output_dir, RL_MODEL_HYPERPARAMETERS)
+                    logger.info(f"Trained model for (workload={WORKLOAD}, gpu={gpu_type}), took {time.time() - train_start_time:.2f}s")
+                
+                # Clear predictor registry to force reload on next inference
+                logger.info(f"{GREEN_COLOR}Clearing predictor registry to reload updated models{RESET_COLOR}")
+                with PREDICTOR_REGISTRY_LOCK.write():
+                    PREDICTOR_REGISTRY.clear()
+                
+            else:
+                # ========================================
+                # Single-Model Training (original behavior)
+                # ========================================
+                logger.info("Single-model training (multi-model disabled or single workload)")
+                
+                # Encode the entire dataset
+                encode_start_time = time.time()
+                os.makedirs(ENCODED_DATA_DIR, exist_ok=True)
+                encoded_training_dir = os.path.join(ENCODED_DATA_DIR, "full_training_data")
+                encoding.encode_for_train(sorted_all_pod_ids, training_df_copy, encoded_training_dir, request_features_train, RL_MODEL_HYPERPARAMETERS)
+                logger.info(f"Encoded {total_samples} samples to {encoded_training_dir}, encode time: {time.time() - encode_start_time} seconds")
 
-            # Train on the encoded dataset
-            train_start_time = time.time()
-            latency_predictor.train_latency_predictor(encoded_training_dir, final_model_dir, RL_MODEL_HYPERPARAMETERS)
-            logger.info(f"train_latency_predictor done, train time: {time.time() - train_start_time} seconds")
+                # Train on the encoded dataset
+                train_start_time = time.time()
+                latency_predictor.train_latency_predictor(encoded_training_dir, final_model_dir, RL_MODEL_HYPERPARAMETERS)
+                logger.info(f"train_latency_predictor done, train time: {time.time() - train_start_time} seconds")
 
-            # Reload model in training thread (non-blocking for inference)
-            with LATENCY_PREDICTOR_LOCK.write():
-                if LATENCY_PREDICTOR is not None:
-                    load_start_time = time.time()
-                    LATENCY_PREDICTOR.load(final_model_dir)
-                    logger.info(f"Reloaded latency predictor after training, load time: {time.time() - load_start_time} seconds")
+                # Reload global LATENCY_PREDICTOR (for single-model fallback path)
+                with LATENCY_PREDICTOR_LOCK.write():
+                    if LATENCY_PREDICTOR is not None:
+                        load_start_time = time.time()
+                        LATENCY_PREDICTOR.load(final_model_dir)
+                        logger.info(f"Reloaded latency predictor after training, load time: {time.time() - load_start_time} seconds")
         else:
             logger.info(f"Training with contextual bandit model")
             simpler_contextual_bandit.train(ENCODED_DATA_DIR, final_model_dir, RL_MODEL_HYPERPARAMETERS, ENABLE_ONLINE_LEARNING)
@@ -1454,10 +1523,17 @@ def graceful_shutdown(sig=None, frame=None):
 
 
 def init():
-    global RL_MODEL_HYPERPARAMETERS, stats_instance
+    global RL_MODEL_HYPERPARAMETERS, stats_instance, WORKLOAD, WORKLOAD_TYPES
     if RL_MODEL_HYPERPARAMETERS is None:
 
         logger.info(f"{GREEN_COLOR}RL_MODEL_HYPERPARAMETERS is None{RESET_COLOR}")
+        
+        # Validate workload configuration
+        if WORKLOAD not in WORKLOAD_TYPES:
+            logger.error(f"Configuration error: WORKLOAD='{WORKLOAD}' is not in WORKLOAD_TYPES={WORKLOAD_TYPES}")
+            logger.error(f"Training will create models for '{WORKLOAD}', but inference will try to load models for {WORKLOAD_TYPES}")
+            logger.error(f"Please ensure WORKLOAD is included in WORKLOAD_TYPES")
+            assert False, f"WORKLOAD '{WORKLOAD}' must be in WORKLOAD_TYPES {WORKLOAD_TYPES}"
 
         RL_MODEL_HYPERPARAMETERS = {}
         RL_MODEL_HYPERPARAMETERS['TTFT_REWARD_WEIGHT'] = TTFT_REWARD_WEIGHT
@@ -1521,7 +1597,6 @@ def init():
         # ========================================
         # Parallel model loading for multi-workload, multi-GPU support
         # ========================================
-        global MODEL_REGISTRY, MODEL_REGISTRY_LOCK, WORKLOAD_TYPES
         
         # Get unique GPU types from running pods
         unique_gpu_types = list(set(generalpodid_to_gpu_model.values()))
