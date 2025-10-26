@@ -33,8 +33,14 @@ COPY start.sh .
 # COPY training_data/SharingRatio9%/all/final_model-data-processed final_model
 # COPY training_data/SharingRatio71%/all/final_model-data-processed-linear_simple-lr_0.001-ttft_weight_2.0-ttftslo_1000-avgtpotslo_50 final_model
 
+## latency predictor model dir
 COPY training_data/L20-7/merged-data/all-with-mixed/final_model-latency_predictor_ttft final_model
+# COPY training_data/L20-7/merged-data/all-with-mixed/final_model-latency_predictor_ttft final_model/A_GPU-L3c
+# COPY training_data/L20-7/merged-data/all-with-mixed/final_model-latency_predictor_ttft final_model/A_NVIDIA-A30
+RUN cp -r final_model/A_GPU-L3c final_model/A_GPU-L3c
+RUN cp -r final_model/A_GPU-L3c final_model/A_NVIDIA-A30
 
+## offline training data
 COPY training_data/L20-7/merged-data/all-with-mixed/data_replaced-processed.csv offline_training_data.csv
 
 

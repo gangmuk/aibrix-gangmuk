@@ -196,14 +196,36 @@ class FeatureStats:
             df = pd.read_csv(filename)
             stats_instance = cls()
             
-            # Group by feature_name and extract stats
+            # Separate pod features from non-pod features
+            non_pod_features = []
+            pod_features = {}  # feature_type -> list of (pod_id, stats_dict)
+            
             for feature_name in df['feature_name'].unique():
+                if feature_name.startswith('pod_') and '-' in feature_name:
+                    # Extract pod_id and feature type
+                    parts = feature_name.split('-', 1)
+                    pod_id = parts[0]  # e.g., 'pod_0000'
+                    feature_type = parts[1]  # e.g., 'kv_hit_ratio'
+                    
+                    if feature_type not in pod_features:
+                        pod_features[feature_type] = []
+                    
+                    # Extract stats for this pod feature
+                    feature_df = df[df['feature_name'] == feature_name]
+                    stats_dict = {}
+                    for _, row in feature_df.iterrows():
+                        stats_dict[row['stats_type']] = row['value']
+                    
+                    pod_features[feature_type].append((pod_id, stats_dict))
+                else:
+                    # Non-pod feature (input_tokens, output_tokens, total_tokens)
+                    non_pod_features.append(feature_name)
+            
+            # Load non-pod features as-is
+            for feature_name in non_pod_features:
                 feature_df = df[df['feature_name'] == feature_name]
-                
-                # Create RunningStats stats_instance for this feature
                 stats = RunningStats(feature_names=feature_name)
                 
-                # Extract values for each stat type
                 for _, row in feature_df.iterrows():
                     stat_type = row['stats_type']
                     value = row['value']
@@ -223,17 +245,93 @@ class FeatureStats:
                 
                 stats_instance.feature_stats[feature_name] = stats
             
+            # Create unified statistics for each pod feature type
+            logger.info(f"Creating unified pod statistics for {len(pod_features)} feature types")
+            unified_pod_stats = {}
+            
+            for feature_type, pod_stats_list in pod_features.items():
+                # Aggregate statistics across all pods for this feature type
+                counts = []
+                means = []
+                stds = []
+                mins = []
+                maxs = []
+                sum_sq_diffs = []
+                
+                for pod_id, stats_dict in pod_stats_list:
+                    # Handle NaN/empty values (e.g., cpu_kv_cache min/max)
+                    try:
+                        counts.append(float(stats_dict['count']))
+                        means.append(float(stats_dict['mean']))
+                        stds.append(float(stats_dict['std']))
+                        
+                        # Handle empty/NaN min/max
+                        min_val = stats_dict.get('min', 0.0)
+                        max_val = stats_dict.get('max', 0.0)
+                        if pd.isna(min_val) or min_val == '':
+                            min_val = 0.0
+                        if pd.isna(max_val) or max_val == '':
+                            max_val = 0.0
+                        mins.append(float(min_val))
+                        maxs.append(float(max_val))
+                        
+                        sum_sq_diffs.append(float(stats_dict['sum_sq_diff']))
+                    except (ValueError, KeyError) as e:
+                        logger.warning(f"Skipping invalid stats for {pod_id}-{feature_type}: {e}")
+                        continue
+                
+                if not counts:
+                    logger.warning(f"No valid stats found for feature type: {feature_type}")
+                    continue
+                
+                # Compute unified statistics using averaging
+                unified_pod_stats[feature_type] = {
+                    'count': int(np.mean(counts)),
+                    'mean': np.mean(means),
+                    'std': np.mean(stds),
+                    'min': np.min(mins),  # min of mins
+                    'max': np.max(maxs),  # max of maxs
+                    'sum_sq_diff': np.mean(sum_sq_diffs)
+                }
+                
+                logger.info(f"Unified stats for {feature_type}: count={unified_pod_stats[feature_type]['count']}, "
+                          f"mean={unified_pod_stats[feature_type]['mean']:.3f}, "
+                          f"std={unified_pod_stats[feature_type]['std']:.3f}")
+            
+            # Generate stats for pod_0000 through pod_0050 using unified statistics
+            MAX_PODS = 50
+            for pod_idx in range(MAX_PODS + 1):
+                pod_id = f"pod_{pod_idx:04d}"
+                
+                for feature_type, unified_stats in unified_pod_stats.items():
+                    feature_name = f"{pod_id}-{feature_type}"
+                    
+                    # Create RunningStats instance with unified values
+                    stats = RunningStats(feature_names=feature_name)
+                    stats.count = unified_stats['count']
+                    stats.mean = np.array([unified_stats['mean']])
+                    stats.std = np.array([unified_stats['std']])
+                    stats.min = np.array([unified_stats['min']])
+                    stats.max = np.array([unified_stats['max']])
+                    stats.sum_sq_diff = unified_stats['sum_sq_diff']
+                    
+                    stats_instance.feature_stats[feature_name] = stats
+            
             stats_instance.CONFIG["TOTAL_FEATURES"] = len(stats_instance.feature_stats)
             stats_instance.CONFIG["NUM_FEATURES_NORMALIZED"] = len(stats_instance.feature_stats)
             stats_instance.CONFIG["FEATURES_NORMALIZED"] = set(stats_instance.feature_stats.keys())
             
-            logger.info(f"Loaded feature statistics from {filename} for {len(stats_instance.feature_stats)} features")
+            logger.info(f"✅ Loaded feature statistics from {filename}")
+            logger.info(f"   - Non-pod features: {len(non_pod_features)}")
+            logger.info(f"   - Pod feature types: {len(pod_features)}")
+            logger.info(f"   - Total features (with pod_0000-pod_0050): {len(stats_instance.feature_stats)}")
+            
             return stats_instance
             
         except Exception as e:
             logger.error(f"Failed to load statistics from {filename}: {e}")
-            logger.error(f"stats_instance.feature_stats: {stats_instance.feature_stats}")
-            logger.error(f"feature_statistics: {df.to_csv()}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
 
@@ -246,7 +344,7 @@ def _get_normalizable_features(processed_df, no_normalize_features: list[str]):
     """
     normalizable_features = ['input_tokens', 'output_tokens', 'total_tokens']
     for col in processed_df.columns:
-        if col.startswith('pod_') and 'gpu_model' not in col:
+        if col.startswith('pod_') and 'gpu_model' not in col and 'GPU' not in col:
             temp = col.split('pod_')[1][5:]
             if temp not in no_normalize_features:
                 normalizable_features.append(col)
