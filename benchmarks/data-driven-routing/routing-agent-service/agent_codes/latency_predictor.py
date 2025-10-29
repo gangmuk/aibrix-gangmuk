@@ -30,6 +30,8 @@ import pickle
 from logger import logger
 import utils
 import json
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend - must be before importing pyplot
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -708,6 +710,7 @@ def train_latency_predictor(encoded_data_dir, final_model_dir, HYPERPARAMETERS, 
     logger.info("Training completed!")
     
     # Generate comprehensive training plots
+    plot_path = None
     try:
         plot_path = plot_latency_predictor_metrics(predictor, train_dataset, val_dataset, final_model_dir, num_train)
         logger.info(f"Generated training plots: {plot_path}")
@@ -715,6 +718,7 @@ def train_latency_predictor(encoded_data_dir, final_model_dir, HYPERPARAMETERS, 
         logger.error(f"Error generating plots: {e}")
         import traceback
         traceback.print_exc()
+        logger.warning("Continuing without plots...")
     
     return plot_path
 
@@ -885,12 +889,24 @@ def plot_latency_predictor_metrics(predictor, train_data, val_data, final_model_
     Returns:
         Path to saved plot file
     """
+    # Validate predictor has metrics to plot
+    if not predictor.training_losses or len(predictor.training_losses) == 0:
+        logger.warning("No training metrics available for plotting")
+        return None
+    
     # Set matplotlib style
-    plt.style.use('default')
-    sns.set_palette("husl")
+    try:
+        plt.style.use('default')
+        sns.set_palette("husl")
+    except Exception as e:
+        logger.warning(f"Could not set plot style: {e}, using defaults")
     
     # Determine number of pods
-    num_pods = predictor.state_dims['num_pods']
+    num_pods = predictor.state_dims.get('num_pods', 0)
+    if num_pods == 0:
+        logger.warning("Number of pods is 0, cannot generate plots")
+        return None
+    
     latency_metric = predictor.latency_metric.upper()
     
     # ============================================================
@@ -939,22 +955,25 @@ def plot_latency_predictor_metrics(predictor, train_data, val_data, final_model_
     # INDIVIDUAL PLOT 1: Prediction Accuracy Scatter
     if predictor.latest_predictions is not None and predictor.latest_targets is not None:
         fig_scatter = plt.figure(figsize=(10, 8))
+        ax = fig_scatter.add_subplot(111)  # Create explicit axes for this thread
         predictions = predictor.latest_predictions
         targets = predictor.latest_targets
+
         
-        plt.scatter(targets, predictions, alpha=0.5, s=30, color='steelblue', edgecolors='black', linewidth=0.5)
+        # Use ax methods instead of plt (avoids global state)
+        ax.scatter(targets, predictions, alpha=0.5, s=30, color='steelblue', edgecolors='black', linewidth=0.5)
         
         # Perfect prediction line
         min_val = min(min(targets), min(predictions))
         max_val = max(max(targets), max(predictions))
-        plt.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, linewidth=2,
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, linewidth=2,
                 label='Perfect Prediction')
         
-        plt.xlabel(f'Actual {latency_metric} (ms)', fontsize=12)
-        plt.ylabel(f'Predicted {latency_metric} (ms)', fontsize=12)
-        plt.title(f'{latency_metric} Prediction Accuracy', fontsize=14, fontweight='bold')
-        plt.legend(fontsize=10)
-        plt.grid(True, alpha=0.3)
+        ax.set_xlabel(f'Actual {latency_metric} (ms)', fontsize=12)
+        ax.set_ylabel(f'Predicted {latency_metric} (ms)', fontsize=12)
+        ax.set_title(f'{latency_metric} Prediction Accuracy', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
         
         # Add correlation and metrics
         corr = np.corrcoef(targets, predictions)[0, 1]
@@ -968,32 +987,33 @@ def plot_latency_predictor_metrics(predictor, train_data, val_data, final_model_
         stats_text += f'MAE: {mae:.3f}\n'
         stats_text += f'RMSE: {rmse:.3f}'
         
-        plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, 
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
                 verticalalignment='top', fontsize=11,
                 bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
         
-        plt.tight_layout()
+        fig_scatter.tight_layout()
         scatter_pdf_path = os.path.join(final_model_dir, f'prediction_accuracy_scatter-{num_train}.pdf')
-        plt.savefig(scatter_pdf_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        fig_scatter.savefig(scatter_pdf_path, dpi=150, bbox_inches='tight')
+        plt.close(fig_scatter)
         logger.info(f"Saved individual prediction accuracy scatter plot: {scatter_pdf_path}")
     
     # INDIVIDUAL PLOT 2: Prediction Loss
     if predictor.training_losses:
         fig_loss = plt.figure(figsize=(10, 6))
+        ax = fig_loss.add_subplot(111)  # Create explicit axes for this thread
         epochs = list(range(len(predictor.training_losses)))
         
-        plt.plot(epochs, predictor.training_losses, 'b-', linewidth=2, marker='o', 
+        ax.plot(epochs, predictor.training_losses, 'b-', linewidth=2, marker='o', 
                 markersize=4, label='Training Loss')
         if predictor.validation_losses:
-            plt.plot(epochs, predictor.validation_losses, 'r-', linewidth=2, marker='s',
+            ax.plot(epochs, predictor.validation_losses, 'r-', linewidth=2, marker='s',
                     markersize=4, label='Validation Loss')
         
-        plt.title(f'{latency_metric} Prediction Loss (MSE)', fontsize=14, fontweight='bold')
-        plt.xlabel('Epoch', fontsize=12)
-        plt.ylabel('MSE Loss', fontsize=12)
-        plt.legend(fontsize=11)
-        plt.grid(True, alpha=0.3)
+        ax.set_title(f'{latency_metric} Prediction Loss (MSE)', fontsize=14, fontweight='bold')
+        ax.set_xlabel('Epoch', fontsize=12)
+        ax.set_ylabel('MSE Loss', fontsize=12)
+        ax.legend(fontsize=11)
+        ax.grid(True, alpha=0.3)
         
         # Add final loss values
         final_train_loss = predictor.training_losses[-1]
@@ -1008,14 +1028,14 @@ def plot_latency_predictor_metrics(predictor, train_data, val_data, final_model_
             if gap_pct > 20:
                 loss_text += f'\n⚠️ Gap: {gap_pct:.1f}%'
         
-        plt.text(0.98, 0.98, loss_text, transform=plt.gca().transAxes, 
+        ax.text(0.98, 0.98, loss_text, transform=ax.transAxes, 
                 verticalalignment='top', horizontalalignment='right', fontsize=10,
                 bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8))
         
-        plt.tight_layout()
+        fig_loss.tight_layout()
         loss_pdf_path = os.path.join(final_model_dir, f'prediction_loss-{num_train}.pdf')
-        plt.savefig(loss_pdf_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        fig_loss.savefig(loss_pdf_path, dpi=150, bbox_inches='tight')
+        plt.close(fig_loss)
         logger.info(f"Saved individual prediction loss plot: {loss_pdf_path}")
     
     # ============================================================
@@ -1355,9 +1375,20 @@ def plot_latency_predictor_metrics(predictor, train_data, val_data, final_model_
     
     # Save the plot
     pdf_fn = f"{final_model_dir}/comprehensive_latency_predictor_metrics-{num_train}.pdf"
-    plt.savefig(pdf_fn, dpi=150, bbox_inches='tight')
-    plt.close()
-    logger.info(f"* Saved latency predictor training plots: {pdf_fn}")
+    try:
+        plt.savefig(pdf_fn, dpi=150, bbox_inches='tight')
+        plt.close()
+        logger.info(f"* Saved latency predictor training plots: {pdf_fn}")
+    except Exception as e:
+        logger.error(f"Error saving comprehensive plot: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        plt.close()  # Make sure to close the figure even if save fails
+        # Return path to individual plots instead
+        pdf_fn = os.path.join(final_model_dir, f'prediction_accuracy_scatter-{num_train}.pdf')
+        if not os.path.exists(pdf_fn):
+            pdf_fn = None
+        logger.warning(f"Comprehensive plot save failed, using individual plot: {pdf_fn}")
     
     # Print summary to console
     logger.info("\n" + "="*60)

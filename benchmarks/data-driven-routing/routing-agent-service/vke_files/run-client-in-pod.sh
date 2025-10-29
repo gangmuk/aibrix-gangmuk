@@ -12,11 +12,11 @@ k8s_cluster="vke"
 
 routing_policy_list=(
     # "prefix_cache_1"
-    # "latency_predictor"
+    "latency_predictor"
     # "random"
-    "least-latency"
-    "least-request"
-    "least-kv-cache"
+    # "least-latency"
+    # "least-request"
+    # "least-kv-cache"
     # "preble"
     # # "prefix_cache_2"
     # "scalable_rl_agent"
@@ -25,8 +25,8 @@ routing_policy_list=(
 # workload_name="ten_request"
 workload_name_list=(
     # "ten_request" # 20
-    # "hundred_request" # 99
-    "SharingRatio9%" # 2053, 265875 (5min)
+    "hundred_request" # 99
+    # "SharingRatio9%" # 2053, 265875 (5min)
     # "SharingRatio28%" # 1999, 259697 (5min)
     # "SharingRatio47%" # 2313, 299803
     # "SharingRatio71%" # 1500, 346602
@@ -63,8 +63,8 @@ target_gpu="L20" # "A30"
 EXPLORATION_RATE="0.1"
 
 ENABLE_ONLINE_LEARNING="1"
-MIN_NUM_TRAINING_DATA="4000"
-MIN_NUM_UPDATE_DATA="2000"
+MIN_NUM_TRAINING_DATA="50"
+MIN_NUM_UPDATE_DATA="10"
 ENABLE_FLUSH="1"
 FLUSH_PERIOD="10"
 MIN_NUM_LOG_MESSAGES_TO_FLUSH="100"
@@ -144,6 +144,11 @@ for rps in "${rps_list[@]}"; do
             max_tokens=50
             max_tokens_std=5
             total_num_episodes=4
+        elif [ "${workload_name}" == "hundred_request" ]; then
+            rps=10
+            max_tokens=50
+            max_tokens_std=10
+            total_num_episodes=50
         else
             # rps=8
             max_tokens=50
@@ -168,13 +173,14 @@ for rps in "${rps_list[@]}"; do
                 echo "subAlgorithm: ${subAlgorithm}, no need to cut total_num_episodes: ${total_num_episodes}"
             fi
 
-            ship_model=1
+            ship_model=0
             ship_code=1
             if [ "${subAlgorithm}" == "latency_predictor" ]; then
                 ship_offline_training_data=1
             else
                 ship_offline_training_data=0
             fi
+            ship_offline_training_data=0
 
             if [ "${routing_policy}" == "scalable_rl_agent" ]; then
                 final_model_dir="../training_data/scalable_rl_agent/final_model"
@@ -269,8 +275,8 @@ for rps in "${rps_list[@]}"; do
                 # --env LATENCY_METRICS_LOG_PATH=/path/to/your/metrics.log
 
             ship_start_time=$(date +%s)
-            # echo "Starting to ship all files to pods"
-            # python ship_all.py --ship_code ${ship_code} --ship_model ${ship_model} --final_model_dir ${final_model_dir} --k8s_cluster ${k8s_cluster} --ship_offline_training_data ${ship_offline_training_data}
+            echo "Starting to ship all files to pods"
+            python ship_all.py --ship_code ${ship_code} --ship_model ${ship_model} --final_model_dir ${final_model_dir} --k8s_cluster ${k8s_cluster} --ship_offline_training_data ${ship_offline_training_data}
             
             if [ "${routing_policy}" == "scalable_rl_agent" ]; then
                 scalable_rl_agent_init_model_dir="../training_data/scalable_rl_agent/init_model"

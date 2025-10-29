@@ -12,7 +12,7 @@ import time
 # import asyncio
 # from concurrent.futures import ThreadPoolExecutor
 import sys
-# import concurrent.futures
+import concurrent.futures
 import encoding
 # import sac
 # import ppo
@@ -40,6 +40,7 @@ import queue
 from collections import deque
 from rwlock import RWLock
 
+BROKER_LOCK = RWLock()
 
 ## colors for logging
 BLUE_COLOR = "\033[94m"
@@ -52,38 +53,89 @@ RESET_COLOR = "\033[0m"
 
 # INCLUDE_GPU_IN_FEATURE = True
 
+unique_gpu_types = ['GPU-L3c', 'NVIDIA-A30']
+use_multi_model = True
+MAX_TOTAL_DATA = int(os.getenv("MAX_TOTAL_DATA", 20000))
+
+
 app = Flask(__name__)
 hyperparameter_file_path = '/app/final_model/model_config.json'
 NUM_FLUSH = 0
+
+
 ENCODED_DATA_DIR = "encoded_data"
-final_model_dir = "/app/final_model"
-feature_normalization_stats_file = f"{final_model_dir}/feature_normalization_statistics.csv"  # Add this near the top with your other constants;
+ENCODED_DATA_DIR_GPU_L3c = "encoded_data_gpu_l3c"
+ENCODED_DATA_DIR_NVIDIA_A30 = "encoded_data_nvidia_a30"
+
+
+FINAL_MODEL_DIR = "/app/final_model"
+FINAL_MODEL_DIR_GPU_L3c = "/app/final_model/A_GPU-L3c"
+FINAL_MODEL_DIR_NVIDIA_A30 = "/app/final_model/A_NVIDIA-A30"
+feature_normalization_stats_file = f"{FINAL_MODEL_DIR}/feature_normalization_statistics.csv"  # Add this near the top with your other constants;
+feature_normalization_stats_file_gpu_l3c = f"{FINAL_MODEL_DIR_GPU_L3c}/feature_normalization_statistics.csv"
+feature_normalization_stats_file_nvidia_a30 = f"{FINAL_MODEL_DIR_NVIDIA_A30}/feature_normalization_statistics.csv"
+
+
 NUM_TRAINS = 0
+NUM_TRAINS_GPU_L3c = 0
+NUM_TRAINS_NVIDIA_A30 = 0
+
 MODEL_UPDATED = True
-LOCK_TRAINING_DATA = threading.Lock()
+MODEL_UPDATED_GPU_L3c = True
+MODEL_UPDATED_NVIDIA_A30 = True
 first_request_starting_time = None
-stats_instance = None
+STATS_INSTANCE = None
+STATS_INSTANCE_GPU_L3c = None
+STATS_INSTANCE_NVIDIA_A30 = None
+
 TOTAL_NUM_DATA = 0
+TOTAL_NUM_DATA_GPU_L3c = 0
+TOTAL_NUM_DATA_NVIDIA_A30 = 0
+
 NUM_NEW_DATA = 0
+NUM_NEW_DATA_GPU_L3c = 0
+NUM_NEW_DATA_NVIDIA_A30 = 0
+
 TOTAL_NUM_NEW_DATA = 0
+TOTAL_NUM_NEW_DATA_GPU_L3c = 0
+TOTAL_NUM_NEW_DATA_NVIDIA_A30 = 0
+
 TRAINING_RIGHT_NOW = False
+TRAINING_RIGHT_NOW_GPU_L3c = False
+TRAINING_RIGHT_NOW_NVIDIA_A30 = False
 
 # Training data accumulation (offline + online)
 TRAINING_DF = None  # Holds all training data (offline CSV + online appended data)
+TRAINING_DF_NVIDIA_A30 = None
+TRAINING_DF_GPU_L3c = None
+
 TRAINING_DF_LOCK = threading.Lock()  # Thread safety for concurrent flush/train
+TRAINING_DF_NVIDIA_A30_LOCK = threading.Lock()
+TRAINING_DF_GPU_L3c_LOCK = threading.Lock()
+
 OFFLINE_DATA_SIZE = 0  # Tracks the size of offline data portion in TRAINING_DF (shrinks as we remove overflow)
+OFFLINE_DATA_SIZE_GPU_L3c = 0
+OFFLINE_DATA_SIZE_NVIDIA_A30 = 0
+
 PRINT_ONCE_AT_THE_FIRST_REQUEST = True
 # RL agent globals
 RL_AGENT = None  # Old RL agent (entire cluster as input) - for 'rl_agent' subAlgorithm
 SCALABLE_RL_AGENT = None  # New scalable RL agent (pod-independent) - for 'scalable_rl_agent' subAlgorithm
 LATENCY_PREDICTOR = None  # Latency predictor model - for 'latency_predictor' subAlgorithm
+LATENCY_PREDICTOR_LOCK = RWLock()
+
+LATENCY_PREDICTOR_GPU_L3c = None
+LATENCY_PREDICTOR_GPU_L3c_LOCK = RWLock()
+LATENCY_PREDICTOR_NVIDIA_A30 = None
+LATENCY_PREDICTOR_NVIDIA_A30_LOCK = RWLock()
+
+
 # RWLock enables concurrent predictions (readers) with exclusive updates (writer)
 # - Predictions: use rwlock.read() for high concurrency
 # - Updates: use rwlock.write() for exclusive access
 # - Initialization: use rwlock.write() for exclusive access
 RL_AGENT_LOCK = RWLock()
 SCALABLE_RL_AGENT_LOCK = RWLock()
-LATENCY_PREDICTOR_LOCK = RWLock()
 
 # Scalable RL agent training thread
 SCALABLE_RL_TRAINING_THREAD = None
@@ -115,75 +167,21 @@ SMOOTHING_THRESHOLD = float(os.getenv("SMOOTHING_THRESHOLD", 0.1))  # 10% thresh
 logger.info(f"Routing configuration: EXPLORATION_ENABLED={EXPLORATION_ENABLED}, EXPLORATION_RATE={EXPLORATION_RATE}, "
            f"SMOOTHING_ENABLED={SMOOTHING_ENABLED}, SMOOTHING_THRESHOLD={SMOOTHING_THRESHOLD}")
 RL_MODEL_HYPERPARAMETERS = None
+INIT_DONE = False
 
-BROKER_LOCK = RWLock()
+
+
 
 request_features_train = ['input_tokens', 'output_tokens', 'total_tokens']
-# request_features_reward = ['ttft', 'avg_tpot', 'e2e_latency']
-
-# @app.route("/request_complete", methods=["POST"])
-# def handle_request_complete():
-#     """
-#     Endpoint for async request completion notifications (for scalable_rl_agent).
-    
-#     Expected payload:
-#     {
-#         "request_id": "req_12345",
-#         "ttft": 45.6,           # milliseconds
-#         "tpot": 12.3,           # milliseconds  
-#         "selected_pod": "10.0.1.30"
-#     }
-#     """
-#     global SCALABLE_RL_AGENT, RL_MODEL_HYPERPARAMETERS
-    
-#     try:
-#         data = request.json
-#         request_id = data.get('request_id')
-#         ttft = data.get('ttft')
-#         tpot = data.get('tpot')
-#         selected_pod = data.get('selected_pod')
-        
-#         if not request_id or ttft is None or tpot is None:
-#             logger.error(f"Missing required fields in request completion: {data}")
-#             return jsonify({"error": "Missing required fields"}), 400
-        
-#         if SCALABLE_RL_AGENT is None:
-#             logger.debug(f"Scalable RL agent not initialized, ignoring completion for {request_id}")
-#             return jsonify({"status": "ok", "message": "agent not initialized"}), 200
-        
-#         # Get current cluster state (after completion)
-#         try:
-#             pod_features, kv_hit_ratios, request_features = get_current_cluster_features()
-#             current_state = (pod_features, kv_hit_ratios, request_features)
-            
-#             # Complete the experience
-#             on_request_complete_callback(
-#                 rl_agent=SCALABLE_RL_AGENT,
-#                 request_id=request_id,
-#                 current_cluster_state=current_state,
-#                 ttft=ttft,
-#                 tpot=tpot,
-#                 hyperparameters=RL_MODEL_HYPERPARAMETERS
-#             )
-            
-#             logger.debug(f"✅ Completed experience for request {request_id} (ttft={ttft}ms, tpot={tpot}ms)")
-#             return jsonify({"status": "ok"}), 200
-            
-#         except NotImplementedError:
-#             logger.debug(f"⚠️  get_current_cluster_features() not implemented, skipping completion for {request_id}")
-#             return jsonify({"status": "ok", "message": "cluster state fetch not implemented"}), 200
-            
-#     except Exception as e:
-#         logger.error(f"Error in request completion handler: {e}")
-#         import traceback
-#         logger.error(traceback.format_exc())
-#         return jsonify({"error": str(e)}), 500
-
 
 # Fixed handle_flush function
 @app.route("/flush", methods=["POST"])
 def handle_flush():
-    global NUM_FLUSH, ENCODED_DATA_DIR, TOTAL_NUM_DATA, NUM_NEW_DATA, TOTAL_NUM_NEW_DATA, feature_normalization_stats_file, stats_instance, TRAINING_DF
+    global NUM_FLUSH, ENCODED_DATA_DIR, ENCODED_DATA_DIR_GPU_L3c, ENCODED_DATA_DIR_NVIDIA_A30, TOTAL_NUM_DATA, NUM_NEW_DATA, TOTAL_NUM_NEW_DATA, NUM_NEW_DATA_GPU_L3c, NUM_NEW_DATA_NVIDIA_A30, TOTAL_NUM_NEW_DATA_GPU_L3c, TOTAL_NUM_NEW_DATA_NVIDIA_A30, feature_normalization_stats_file, TRAINING_DF, OFFLINE_DATA_SIZE, OFFLINE_DATA_SIZE_GPU_L3c, OFFLINE_DATA_SIZE_NVIDIA_A30, TRAINING_DF_GPU_L3c_LOCK, TRAINING_DF_NVIDIA_A30_LOCK, TRAINING_DF_GPU_L3c, TRAINING_DF_NVIDIA_A30, INIT_DONE
+
+    if not INIT_DONE:
+        return jsonify({"status": "error", "message": "Not initialized"}), 500
+
     NUM_FLUSH += 1
     flush_start_time = time.time()
     log_data = request.json
@@ -206,24 +204,55 @@ def handle_flush():
         ##################################################
         ## Preprocess
         processed_df, sorted_all_pod_ids, _ = preprocess.main(podip_replaced_data_path, "", RL_MODEL_HYPERPARAMETERS)
+        ## seperate processed_df by GPU type
+        processed_df_gpu_l3c = processed_df[processed_df["selectedPodGPU"] == 'GPU-L3c']
+        processed_df_nvidia_a30 = processed_df[processed_df["selectedPodGPU"] == 'NVIDIA-A30']
         ##################################################
         logger.info(f"Successfully parsed data, took {time.time() - ts_preprocess} seconds")
 
         # Append preprocessed data to TRAINING_DF for online learning
         if ENABLE_ONLINE_LEARNING:
-            with TRAINING_DF_LOCK:
-                if TRAINING_DF is None:
-                    TRAINING_DF = processed_df.copy()
-                    logger.info(f"Initialized TRAINING_DF with {len(processed_df)} samples")
-                else:
-                    old_size = len(TRAINING_DF)
-                    TRAINING_DF = pd.concat([TRAINING_DF, processed_df], ignore_index=True)
-                    logger.info(f"Appended {len(processed_df)} samples to TRAINING_DF (total: {old_size} → {len(TRAINING_DF)})")
+            if use_multi_model:
+                with TRAINING_DF_GPU_L3c_LOCK:
+                    if TRAINING_DF_GPU_L3c is None:
+                        TRAINING_DF_GPU_L3c = processed_df_gpu_l3c.copy()
+                        logger.info(f"Initialized TRAINING_DF_GPU_L3c with {len(processed_df_gpu_l3c)} samples")
+                    else:
+                        old_size = len(TRAINING_DF_GPU_L3c)
+                        TRAINING_DF_GPU_L3c = pd.concat([TRAINING_DF_GPU_L3c, processed_df_gpu_l3c], ignore_index=True)
+                        logger.info(f"Appended {len(processed_df_gpu_l3c)} samples to TRAINING_DF_GPU_L3c (total: {old_size} → {len(TRAINING_DF_GPU_L3c)})")
+                with TRAINING_DF_NVIDIA_A30_LOCK:
+                    if TRAINING_DF_NVIDIA_A30 is None:
+                        TRAINING_DF_NVIDIA_A30 = processed_df_nvidia_a30.copy()
+                        logger.info(f"Initialized TRAINING_DF_NVIDIA_A30 with {len(processed_df_nvidia_a30)} samples")
+                    else:
+                        old_size = len(TRAINING_DF_NVIDIA_A30)
+                        TRAINING_DF_NVIDIA_A30 = pd.concat([TRAINING_DF_NVIDIA_A30, processed_df_nvidia_a30], ignore_index=True)
+                        logger.info(f"Appended {len(processed_df_nvidia_a30)} samples to TRAINING_DF_NVIDIA_A30 (total: {old_size} → {len(TRAINING_DF_NVIDIA_A30)})")
+            else:
+                with TRAINING_DF_LOCK:
+                    if TRAINING_DF is None:
+                        TRAINING_DF = processed_df.copy()
+                        logger.info(f"Initialized TRAINING_DF with {len(processed_df)} samples")
+                    else:
+                        old_size = len(TRAINING_DF)
+                        TRAINING_DF = pd.concat([TRAINING_DF, processed_df], ignore_index=True)
+                        logger.info(f"Appended {len(processed_df)} samples to TRAINING_DF (total: {old_size} → {len(TRAINING_DF)})")
 
         logger.info(f"Successfully flushed {len(log_data)} log messages, took {time.time() - flush_start_time} seconds")
-        TOTAL_NUM_DATA += len(log_data)
-        NUM_NEW_DATA += len(log_data)
-        TOTAL_NUM_NEW_DATA += len(log_data)
+
+        TOTAL_NUM_DATA += len(processed_df)
+        NUM_NEW_DATA += len(processed_df)
+        TOTAL_NUM_NEW_DATA += len(processed_df)
+
+        TOTAL_NUM_DATA_GPU_L3c += len(processed_df_gpu_l3c)
+        NUM_NEW_DATA_GPU_L3c += len(processed_df_gpu_l3c)
+        TOTAL_NUM_NEW_DATA_GPU_L3c += len(processed_df_gpu_l3c)
+        
+        TOTAL_NUM_DATA_NVIDIA_A30 += len(processed_df_nvidia_a30)
+        NUM_NEW_DATA_NVIDIA_A30 += len(processed_df_nvidia_a30)
+        TOTAL_NUM_NEW_DATA_NVIDIA_A30 += len(processed_df_nvidia_a30)
+
         return jsonify({"status": "success", "message": f"Successfully processed {len(log_data)} log messages"}), 200
 
     except Exception as e:
@@ -233,10 +262,74 @@ def handle_flush():
         logger.error(f"Traceback: {error_traceback}")
         return jsonify({"status": "error", "message": str(e), "traceback": error_traceback}), 500
 
+def infer_wrapper(tensor_data, predictor_instance, latency_predictor_lock, final_model_dir, request_id, sorted_all_pod_ids):
+    global EXPLORATION_RATE, SMOOTHING_ENABLED, SMOOTHING_THRESHOLD, RL_MODEL_HYPERPARAMETERS
+    #  TODO: if predictor_instance is None, should return it for global reuse
+    if predictor_instance is None:
+        with latency_predictor_lock.write():
+            if predictor_instance is None:
+                state_dims = {
+                    'pod_features': tensor_data['pod_features_with_staleness'].shape[2],
+                    'kv_hit_ratios': tensor_data['kv_hit_ratios'].shape[2],
+                    'request_features': tensor_data['request_features'].shape[1],
+                    'num_pods': tensor_data['pod_features_with_staleness'].shape[1]
+                }
+                
+                logger.info(f"Initializing latency predictor with state_dims={state_dims}")
+                predictor_instance = latency_predictor.LatencyPredictor(state_dims, RL_MODEL_HYPERPARAMETERS, final_model_dir)
+
+                # Load pretrained model
+                model_path = os.path.join(final_model_dir, 'latency_predictor.pth')
+                if os.path.exists(model_path):
+                    try:
+                        predictor_instance.load(final_model_dir)
+                        logger.info(f"Loaded latency predictor from {final_model_dir}")
+                    except Exception as e:
+                        logger.error(f"Failed to load latency predictor: {e}")
+                else:
+                    logger.warning(f"No pretrained latency predictor found at {model_path}, using untrained model")
+
+    # Inference with read lock (allows concurrent requests)
+    with latency_predictor_lock.read():
+        # Get exploration and smoothing parameters
+        result, infer_from_tensor_overhead_summary = latency_predictor.infer_latency_predictor_with_model(
+            predictor=predictor_instance,
+            tensor_data=tensor_data,
+            request_id=request_id,
+            sorted_all_pod_ids=sorted_all_pod_ids,
+            exploration_rate=EXPLORATION_RATE,
+            smoothing=bool(SMOOTHING_ENABLED),
+            smoothing_threshold=SMOOTHING_THRESHOLD
+        )
+    return result, infer_from_tensor_overhead_summary
+
+
+def slice_tensor_data_for_pods(tensor_data, pod_indices):
+    sliced_data = {}
+    
+    # Slice pod_features (shape: [batch, num_pods, features])
+    if 'pod_features' in tensor_data:
+        sliced_data['pod_features'] = tensor_data['pod_features'][:, pod_indices, :]
+    
+    if 'pod_features_with_staleness' in tensor_data:
+        sliced_data['pod_features_with_staleness'] = tensor_data['pod_features_with_staleness'][:, pod_indices, :]
+    
+    # Slice kv_hit_ratios (shape: [batch, num_pods, kv_dim])
+    if 'kv_hit_ratios' in tensor_data:
+        sliced_data['kv_hit_ratios'] = tensor_data['kv_hit_ratios'][:, pod_indices, :]
+    
+    # Request features don't need slicing (same for all pods)
+    if 'request_features' in tensor_data:
+        sliced_data['request_features'] = tensor_data['request_features']
+    
+    return sliced_data
+
 
 @app.route("/infer", methods=["POST"])
 def handle_infer():
-    global NUM_TRAINS, MODEL_UPDATED, first_request_starting_time, stats_instance, RL_MODEL_HYPERPARAMETERS, PRINT_ONCE_AT_THE_FIRST_REQUEST
+    global NUM_TRAINS, MODEL_UPDATED, first_request_starting_time, STATS_INSTANCE, STATS_INSTANCE_GPU_L3c, STATS_INSTANCE_NVIDIA_A30, RL_MODEL_HYPERPARAMETERS, PRINT_ONCE_AT_THE_FIRST_REQUEST, LATENCY_PREDICTOR_LOCK, LATENCY_PREDICTOR_GPU_L3c_LOCK, LATENCY_PREDICTOR_NVIDIA_A30_LOCK, LATENCY_PREDICTOR, LATENCY_PREDICTOR_GPU_L3c, LATENCY_PREDICTOR_NVIDIA_A30, FINAL_MODEL_DIR_GPU_L3c, FINAL_MODEL_DIR_NVIDIA_A30
+    global use_multi_model
+
     handle_infer_overhead_summary = {}
     if first_request_starting_time == None:
         first_request_starting_time = time.time()
@@ -287,20 +380,40 @@ def handle_infer():
         handle_infer_overhead_summary["preprocess_overhead"] = time.time() - preprocess_start_time
 
         normalize_start = time.time()
-        if stats_instance is None:
-            logger.error(f"No running statistics available, stats_instance: {stats_instance}")
-            logger.error("Cannot perform inference without normalization statistics")
-            return jsonify({"error": "No normalization statistics available"}), 500
-            assert False
-        if stats_instance.get_max_count() == 0:
-            logger.error(f"Stats instance count is 0, no data available for normalization")
-            assert False
+        if use_multi_model:
+            if STATS_INSTANCE_GPU_L3c is None:
+                logger.error(f"No running statistics available, STATS_INSTANCE_GPU_L3c: {STATS_INSTANCE_GPU_L3c}")
+                logger.error("Cannot perform inference without normalization statistics")
+                return jsonify({"error": "No normalization statistics available"}), 500
+                assert False
+            if STATS_INSTANCE_GPU_L3c.get_max_count() == 0:
+                logger.error(f"Stats instance count is 0, no data available for normalization")
+                logger.error(f"request_id,{request_id},No normalization statistics available for inference")
+                assert False
+            
+            if STATS_INSTANCE_NVIDIA_A30 is None:
+                logger.error(f"No running statistics available, STATS_INSTANCE_NVIDIA_A30: {STATS_INSTANCE_NVIDIA_A30}")
+                logger.error("Cannot perform inference without normalization statistics")
+                return jsonify({"error": "No normalization statistics available"}), 500
+                assert False
+            if STATS_INSTANCE_NVIDIA_A30.get_max_count() == 0:
+                logger.error(f"Stats instance count is 0, no data available for normalization")
+                logger.error(f"request_id,{request_id},No normalization statistics available for inference")
+                assert False
+                
+        else:
+            if STATS_INSTANCE is None:
+                logger.error(f"No running statistics available, STATS_INSTANCE: {STATS_INSTANCE}")
+                logger.error("Cannot perform inference without normalization statistics")
+                return jsonify({"error": "No normalization statistics available"}), 500
+                assert False
+            if STATS_INSTANCE.get_max_count() == 0:
+                logger.error(f"Stats instance count is 0, no data available for normalization")
+                logger.error(f"request_id,{request_id},No normalization statistics available for inference")
+                assert False
 
         normalizable_features, non_normalizable_features = data_normalizer._get_normalizable_features(processed_df, RL_MODEL_HYPERPARAMETERS.get('NO_NORMALIZE_FEATURES', []))
-        if stats_instance.get_max_count() == 0:
-            logger.error(f"request_id,{request_id},No normalization statistics available for inference")
-            assert False
-            
+
         non_interest = ['request_id', 'requestID', 'ttft', 'avg_tpot', 'e2e_latency', 'selected_pod', 'request_start_time', 'request_end_time']
         features_must_exist_in_stats_instance = []
         for feature in processed_df.columns:
@@ -308,17 +421,24 @@ def handle_infer():
             if "last_second_" not in feature and feature not in non_interest and feature in normalizable_features:
                 features_must_exist_in_stats_instance.append(feature)
         for feature in features_must_exist_in_stats_instance:
-            if feature not in stats_instance.feature_stats:
-                logger.error(f"Feature {feature} not found in stats_instance")
-                # logger.error(f"processed_df.columns: {list(processed_df.columns)}")
-                # logger.error(f"features_must_exist_in_stats_instance: {features_must_exist_in_stats_instance}")
-                # logger.error(f"Available stats features: {list(stats_instance.feature_stats.keys())}")
-                assert False
+            if use_multi_model:
+                if feature not in STATS_INSTANCE_GPU_L3c.feature_stats:
+                    logger.error(f"Feature {feature} not found in STATS_INSTANCE_GPU_L3c")
+                    assert False
+                if feature not in STATS_INSTANCE_NVIDIA_A30.feature_stats:
+                    logger.error(f"Feature {feature} not found in STATS_INSTANCE_NVIDIA_A30")
+                    assert False
+            else:
+                if feature not in STATS_INSTANCE.feature_stats:
+                    logger.error(f"Feature {feature} not found in STATS_INSTANCE")
+                    assert False
                 
         for feature in normalizable_features:
-            ##################################################
-            data_normalizer._normalize_single_feature(processed_df, feature, stats_instance, is_training=False, request_id=request_id)
-            ##################################################
+            if use_multi_model:
+                data_normalizer._normalize_single_feature(processed_df, feature, STATS_INSTANCE_GPU_L3c, is_training=False, request_id=request_id)
+                data_normalizer._normalize_single_feature(processed_df, feature, STATS_INSTANCE_NVIDIA_A30, is_training=False, request_id=request_id)
+            else:
+                data_normalizer._normalize_single_feature(processed_df, feature, STATS_INSTANCE, is_training=False, request_id=request_id)
         handle_infer_overhead_summary["normalize"] = time.time() - normalize_start
 
         ## Encode data (normalization already done)
@@ -328,232 +448,219 @@ def handle_infer():
 
         infer_from_tensor_start_time = time.time()
         
-        # Route to appropriate model based on model type
-        # model_type = RL_MODEL_HYPERPARAMETERS.get('MODEL_TYPE', 'contextual_bandit')
         subAlgorithm = processed_df['subAlgorithm'].iloc[0]
         logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}")
-        
-        # "random"
-        # "least-latency"
-        # "least-request"
-        # "least-kv-cache"
-        if subAlgorithm == 'latency_predictor' or subAlgorithm == 'random' or subAlgorithm == 'least-latency' or subAlgorithm == 'least-request' or subAlgorithm == 'least-kv-cache':
-            global LATENCY_PREDICTOR
-            # Check if initialization needed without blocking
-            if LATENCY_PREDICTOR is None:
-                with LATENCY_PREDICTOR_LOCK.write():
-                    # Double-check after acquiring lock
-                    if LATENCY_PREDICTOR is None:
-                        state_dims = {
-                            'pod_features': tensor_data['pod_features_with_staleness'].shape[2],
-                            'kv_hit_ratios': tensor_data['kv_hit_ratios'].shape[2],
-                            'request_features': tensor_data['request_features'].shape[1],
-                            'num_pods': tensor_data['pod_features_with_staleness'].shape[1]
-                        }
-                        
-                        logger.info(f"Initializing latency predictor with state_dims={state_dims}")
-                        LATENCY_PREDICTOR = latency_predictor.LatencyPredictor(state_dims, RL_MODEL_HYPERPARAMETERS, final_model_dir)
 
-                        # Load pretrained model
-                        model_path = os.path.join(final_model_dir, 'latency_predictor.pth')
-                        if os.path.exists(model_path):
-                            try:
-                                LATENCY_PREDICTOR.load(final_model_dir)
-                                logger.info(f"Loaded latency predictor from {final_model_dir}")
-                            except Exception as e:
-                                logger.error(f"Failed to load latency predictor: {e}")
-                        else:
-                            logger.warning(f"No pretrained latency predictor found at {model_path}, using untrained model")
+        selected_pod_generalpodid = None
+    
+        if use_multi_model:
+            parallel_infer_start = time.time()
+            # Slide tensor_data by gpu type
+            podid_to_gpu_type = {pod_id: processed_df[f"{pod_id}-GPU"].iloc[0] for pod_id in sorted_all_pod_ids}
+            gpu_type_to_pod_ids = {gpu_type: [pod_id for pod_id in sorted_all_pod_ids if podid_to_gpu_type[pod_id] == gpu_type] for gpu_type in set(podid_to_gpu_type.values())}
 
-            # Inference with read lock (allows concurrent requests)
-            with LATENCY_PREDICTOR_LOCK.read():
-                global EXPLORATION_RATE, SMOOTHING_ENABLED, SMOOTHING_THRESHOLD
-                # Get exploration and smoothing parameters
-                result, infer_from_tensor_overhead_summary = latency_predictor.infer_latency_predictor_with_model(
-                    predictor=LATENCY_PREDICTOR,
+            logger.error(f"gpu_type_to_pod_ids: {gpu_type_to_pod_ids}")
+
+            l3c_pods = gpu_type_to_pod_ids['GPU-L3c']
+            nvidia_a30_pods = gpu_type_to_pod_ids['NVIDIA-A30']
+
+            logger.info(f"l3c_pods: {l3c_pods}")
+            logger.info(f"nvidia_a30_pods: {nvidia_a30_pods}")
+
+            # TODO: should call parallely
+            tensor_data_gpu_l3c = slice_tensor_data_for_pods(tensor_data, l3c_pods)
+            tensor_data_nvidia_a30 = slice_tensor_data_for_pods(tensor_data, nvidia_a30_pods)
+            sorted_all_pod_ids_gpu_l3c = [sorted_all_pod_ids[i] for i in l3c_pods]
+            sorted_all_pod_ids_nvidia_a30 = [sorted_all_pod_ids[i] for i in nvidia_a30_pods]
+
+            result_gpu_l3c, infer_from_tensor_overhead_summary_gpu_l3c = infer_wrapper(tensor_data_gpu_l3c, LATENCY_PREDICTOR_GPU_L3c, LATENCY_PREDICTOR_GPU_L3c_LOCK, FINAL_MODEL_DIR_GPU_L3c, request_id, sorted_all_pod_ids_gpu_l3c)
+            result_nvidia_a30, infer_from_tensor_overhead_summary_nvidia_a30 = infer_wrapper(tensor_data_nvidia_a30, LATENCY_PREDICTOR_NVIDIA_A30, LATENCY_PREDICTOR_NVIDIA_A30_LOCK, FINAL_MODEL_DIR_NVIDIA_A30, request_id, sorted_all_pod_ids_nvidia_a30)
+
+            handle_infer_overhead_summary["parallel_infer"] = time.time() - parallel_infer_start
+
+            # Combine results from both GPUs (l3c and nvidia_a30)
+            combine_start = time.time()
+            predicted_latencies_gpu_l3c = {sorted_all_pod_ids_gpu_l3c[i]: result_gpu_l3c['predicted_latencies'][i] for i in range(len(sorted_all_pod_ids_gpu_l3c))}
+            predicted_latencies_nvidia_a30 = {sorted_all_pod_ids_nvidia_a30[i]: result_nvidia_a30['predicted_latencies'][i] for i in range(len(sorted_all_pod_ids_nvidia_a30))}
+            predicted_latencies = {**predicted_latencies_gpu_l3c, **predicted_latencies_nvidia_a30}
+            if result_gpu_l3c['chosen_pod_predicted_latency'] < result_nvidia_a30['chosen_pod_predicted_latency']:
+                chosen_pod_predicted_latency = result_gpu_l3c['chosen_pod_predicted_latency']
+                selected_pod_generalpodid = sorted_all_pod_ids_gpu_l3c[result_gpu_l3c['selected_pod_index']]
+            else:
+                chosen_pod_predicted_latency = result_nvidia_a30['chosen_pod_predicted_latency']
+                selected_pod_generalpodid = sorted_all_pod_ids_nvidia_a30[result_nvidia_a30['selected_pod_index']]
+
+            result = {
+                'selected_pod_index': None,
+                'predicted_latencies': predicted_latencies,
+                'chosen_pod_predicted_latency': chosen_pod_predicted_latency,
+                'confidence': None,
+                'pod_probabilities': None,
+                'explore_mask': None,
+                'smoothing_mask': None,
+            }
+            infer_from_tensor_overhead_summary = {f"{key}_gpu_l3c": value for key, value in infer_from_tensor_overhead_summary_gpu_l3c.items()}
+            infer_from_tensor_overhead_summary.update({f"{key}_nvidia_a30": value for key, value in infer_from_tensor_overhead_summary_nvidia_a30.items()})
+
+            handle_infer_overhead_summary["combine_parallel_results"] = time.time() - combine_start
+
+        else:
+            if subAlgorithm == 'latency_predictor':
+                result, infer_from_tensor_overhead_summary = infer_wrapper(tensor_data, LATENCY_PREDICTOR, LATENCY_PREDICTOR_LOCK, FINAL_MODEL_DIR, request_id, sorted_all_pod_ids)
+            elif subAlgorithm == 'contextual_bandit' or subAlgorithm == 'rl_naive':
+                logger.info(f"subAlgorithm: {subAlgorithm}, Using contextual bandit model for inference (request_id: {request_id})")
+                result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, FINAL_MODEL_DIR)
+                result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
+                result['chosen_pod_predicted_latency'] = -1
+            elif subAlgorithm == 'rl_agent':
+                # === OLD RL AGENT (entire cluster as input state) ===
+                logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using OLD RL agent (entire cluster) for inference")
+                
+                global RL_AGENT
+            
+                with RL_AGENT_LOCK.write():
+                    # Check if initialization needed
+                    pod_features_t = tensor_data['pod_features']
+                    n_pods = int(pod_features_t.shape[1])
+                    per_pod_dim = int(pod_features_t.shape[2])
+                
+                # global RL_AGENT
+                
+                    # Get agent reference under write lock
+                    current_agent = RL_AGENT
+                
+                # Inference uses read lock for predictions (allows concurrency)
+                current_agent, result, infer_from_tensor_overhead_summary = infer_rl_agent(
                     tensor_data=tensor_data,
                     request_id=request_id,
                     sorted_all_pod_ids=sorted_all_pod_ids,
-                    exploration_rate=EXPLORATION_RATE,
-                    smoothing=bool(SMOOTHING_ENABLED),
-                    smoothing_threshold=SMOOTHING_THRESHOLD
+                    processed_df=processed_df,
+                    rl_agent=current_agent,
+                    hyperparameters=RL_MODEL_HYPERPARAMETERS,
+                    agent_lock=RL_AGENT_LOCK  # RWLock for read (predict) and write (buffer)
                 )
                 
-        elif subAlgorithm == 'contextual_bandit' or subAlgorithm == 'rl_naive':
-            logger.info(f"subAlgorithm: {subAlgorithm}, Using contextual bandit model for inference (request_id: {request_id})")
-            result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, final_model_dir)
-            result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
-            result['chosen_pod_predicted_latency'] = -1
-        elif subAlgorithm == 'rl_agent':
-            # === OLD RL AGENT (entire cluster as input state) ===
-            logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using OLD RL agent (entire cluster) for inference")
-            
-            global RL_AGENT
-            
-            with RL_AGENT_LOCK.write():
-                # Check if initialization needed
-                pod_features_t = tensor_data['pod_features']
-                n_pods = int(pod_features_t.shape[1])
-                per_pod_dim = int(pod_features_t.shape[2])
+                # Queue async update if online learning enabled
+                update_overhead = 0.0
+                if ENABLE_ONLINE_LEARNING:
+                    update_start = time.time()
+                    with RL_AGENT_LOCK.read():
+                        if RL_AGENT is not None:
+                            buffer_size = len(RL_AGENT.experience_buffer)
+                            batch_size = RL_AGENT.hyperparameters.get('batch_size', 64)
+                            
+                            if buffer_size >= batch_size:
+                                queue_rl_update(n_steps=batch_size)
+                                logger.debug(f"Queued RL update: buffer_size={buffer_size}, batch_size={batch_size}")
+                    update_overhead = time.time() - update_start
                 
-                if (RL_AGENT is None or 
-                    RL_AGENT.action_dim != n_pods or
-                    RL_AGENT.state_dim.get('pod_features') != per_pod_dim):
-                    # Initialize new agent
-                    kv_hit_t = tensor_data['kv_hit_ratios']
-                    req_features_t = tensor_data['request_features']
-                    state_dim = {
-                        'pod_features': per_pod_dim,
-                        'kv_hit_ratios': int(kv_hit_t.shape[2]),
-                        'request_features': int(req_features_t.shape[1]),
-                    }
-                    RL_AGENT = create_rl_routing_agent_sb3(
-                        state_dim=state_dim,
-                        action_dim=n_pods,
-                        **RL_MODEL_HYPERPARAMETERS
-                    )
-                    ckpt_path = RL_MODEL_HYPERPARAMETERS.get('RL_CHECKPOINT_PATH')
-                    if ckpt_path and os.path.exists(ckpt_path):
-                        try:
-                            RL_AGENT.load(ckpt_path)
-                            logger.info(f"Loaded RL checkpoint from {ckpt_path}")
-                        except Exception as e:
-                            logger.error(f"Failed to load RL checkpoint {ckpt_path}: {e}")
-                    logger.info(f"Initialized OLD RL agent with state_dim={state_dim}, action_dim={n_pods}")
+                infer_from_tensor_overhead_summary['online_update'] = update_overhead
+            elif subAlgorithm == 'scalable_rl_agent':
+                from scalable_rl_routing_agent import BROKER, infer
                 
-                # Get agent reference under write lock
-                current_agent = RL_AGENT
+                # === NEW SCALABLE RL AGENT (pod-count independent) ===
+                logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
+                
+                # Extract features from tensor_data
+                pod_features = tensor_data['pod_features'].cpu().numpy()[0]  # [num_pods, 10]
+                kv_hit_ratios = tensor_data['kv_hit_ratios'].cpu().numpy()[0]  # [num_pods, 1]
+                request_features = tensor_data['request_features'].cpu().numpy()[0]  # [3]
+                temporal_features = np.array([1], dtype=np.float32)  # Empty for now
+                
+                # Get previous reward from processed_df (gateway provides this)
+                if 'prev_reward' in processed_df.columns:
+                    prev_reward = float(processed_df['prev_reward'].iloc[0])
+                else:
+                    logger.error(f"scalable_rl_routing_agent, prev_reward not found in processed_df for requestID: {request_id}")
+                    assert False
+                
+                # Call infer function from scalable_rl_routing_agent
+                infer_start = time.time()
+                timeout_in_seconds = 5.0  # 5 second timeout for inference
+                pod_idx, infer_from_tensor_overhead_summary = infer(request_id, prev_reward, pod_features, kv_hit_ratios, request_features, temporal_features, BROKER, timeout_in_seconds)
+                infer_from_tensor_overhead_summary['scalable_rl_infer'] = time.time() - infer_start
+                
+                # Build result with actual probabilities
+                num_pods = len(sorted_all_pod_ids)
+                
+                ## TODO: we need action probabilities for debugging
+                # if action_probs is not None:
+                #     # Use actual probabilities from policy
+                #     pod_probabilities = {sorted_all_pod_ids[i]: float(action_probs[i]) for i in range(min(num_pods, len(action_probs)))}
+                #     confidence = float(action_probs[pod_idx])
+                # else:
+                #     # Fallback to uniform
+                #     pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
+                #     confidence = 1.0/num_pods
+                
+                # TODO: these are placeholder. we need actual probabilities from the model.
+                pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
+                confidence = 1.0/num_pods
+                result = {
+                    'selected_pod_index': int(pod_idx),
+                    'pod_probabilities': pod_probabilities,
+                    'confidence': confidence,
+                    'explore_mask': 1,  # RL always explores
+                    'predicted_latencies': {pod_id: -1 for pod_id in sorted_all_pod_ids},
+                    'chosen_pod_predicted_latency': -1,
+                }
+                
+                logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, action={pod_idx}, prev_reward={prev_reward:.2f}, confidence={confidence:.3f}, num_pods={num_pods}")
+            elif subAlgorithm == 'scalable_rl_agent_old':
+                # === NEW SCALABLE RL AGENT (pod-count independent) ===
+                logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
             
-            # Inference uses read lock for predictions (allows concurrency)
-            current_agent, result, infer_from_tensor_overhead_summary = infer_rl_agent(
-                tensor_data=tensor_data,
-                request_id=request_id,
-                sorted_all_pod_ids=sorted_all_pod_ids,
-                processed_df=processed_df,
-                rl_agent=current_agent,
-                hyperparameters=RL_MODEL_HYPERPARAMETERS,
-                agent_lock=RL_AGENT_LOCK  # RWLock for read (predict) and write (buffer)
-            )
-            
-            # Queue async update if online learning enabled
-            update_overhead = 0.0
-            if ENABLE_ONLINE_LEARNING:
-                update_start = time.time()
-                with RL_AGENT_LOCK.read():
-                    if RL_AGENT is not None:
-                        buffer_size = len(RL_AGENT.experience_buffer)
-                        batch_size = RL_AGENT.hyperparameters.get('batch_size', 64)
+                global SCALABLE_RL_AGENT
+                
+                with SCALABLE_RL_AGENT_LOCK.write():
+                    if SCALABLE_RL_AGENT is None:
+                        # Initialize ONCE - works for any number of pods!
+                        pod_features_t = tensor_data['pod_features']
+                        per_pod_dim = int(pod_features_t.shape[2])  # e.g., 10
+                        kv_hit_t = tensor_data['kv_hit_ratios']
+                        kv_dim = int(kv_hit_t.shape[2])  # e.g., 1
+                        req_features_t = tensor_data['request_features']
+                        req_dim = int(req_features_t.shape[1])  # e.g., 3
                         
-                        if buffer_size >= batch_size:
-                            queue_rl_update(n_steps=batch_size)
-                            logger.debug(f"Queued RL update: buffer_size={buffer_size}, batch_size={batch_size}")
-                update_overhead = time.time() - update_start
-            
-            infer_from_tensor_overhead_summary['online_update'] = update_overhead
-        elif subAlgorithm == 'scalable_rl_agent':
-            from scalable_rl_routing_agent import BROKER, infer
-            
-            # === NEW SCALABLE RL AGENT (pod-count independent) ===
-            logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
-            
-            # Extract features from tensor_data
-            pod_features = tensor_data['pod_features'].cpu().numpy()[0]  # [num_pods, 10]
-            kv_hit_ratios = tensor_data['kv_hit_ratios'].cpu().numpy()[0]  # [num_pods, 1]
-            request_features = tensor_data['request_features'].cpu().numpy()[0]  # [3]
-            temporal_features = np.array([1], dtype=np.float32)  # Empty for now
-            
-            # Get previous reward from processed_df (gateway provides this)
-            if 'prev_reward' in processed_df.columns:
-                prev_reward = float(processed_df['prev_reward'].iloc[0])
-            else:
-                logger.error(f"scalable_rl_routing_agent, prev_reward not found in processed_df for requestID: {request_id}")
-                assert False
-            
-            # Call infer function from scalable_rl_routing_agent
-            infer_start = time.time()
-            timeout_in_seconds = 5.0  # 5 second timeout for inference
-            pod_idx, infer_from_tensor_overhead_summary = infer(request_id, prev_reward, pod_features, kv_hit_ratios, request_features, temporal_features, BROKER, timeout_in_seconds)
-            infer_from_tensor_overhead_summary['scalable_rl_infer'] = time.time() - infer_start
-            
-            # Build result with actual probabilities
-            num_pods = len(sorted_all_pod_ids)
-            
-            ## TODO: we need action probabilities for debugging
-            # if action_probs is not None:
-            #     # Use actual probabilities from policy
-            #     pod_probabilities = {sorted_all_pod_ids[i]: float(action_probs[i]) for i in range(min(num_pods, len(action_probs)))}
-            #     confidence = float(action_probs[pod_idx])
-            # else:
-            #     # Fallback to uniform
-            #     pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
-            #     confidence = 1.0/num_pods
-            
-            # TODO: these are placeholder. we need actual probabilities from the model.
-            pod_probabilities = {sorted_all_pod_ids[i]: 1.0/num_pods for i in range(num_pods)}
-            confidence = 1.0/num_pods
-            result = {
-                'selected_pod_index': int(pod_idx),
-                'pod_probabilities': pod_probabilities,
-                'confidence': confidence,
-                'explore_mask': 1,  # RL always explores
-                'predicted_latencies': {pod_id: -1 for pod_id in sorted_all_pod_ids},
-                'chosen_pod_predicted_latency': -1,
-            }
-            
-            logger.info(f"scalable_rl_routing_agent, requestID: {request_id}, action={pod_idx}, prev_reward={prev_reward:.2f}, confidence={confidence:.3f}, num_pods={num_pods}")
-        elif subAlgorithm == 'scalable_rl_agent_old':
-            # === NEW SCALABLE RL AGENT (pod-count independent) ===
-            logger.info(f"requestID: {request_id}, subAlgorithm: {subAlgorithm}, Using SCALABLE RL agent (pod-independent) for inference")
-            
-            global SCALABLE_RL_AGENT
-            
-            with SCALABLE_RL_AGENT_LOCK.write():
-                if SCALABLE_RL_AGENT is None:
-                    # Initialize ONCE - works for any number of pods!
-                    pod_features_t = tensor_data['pod_features']
-                    per_pod_dim = int(pod_features_t.shape[2])  # e.g., 10
-                    kv_hit_t = tensor_data['kv_hit_ratios']
-                    kv_dim = int(kv_hit_t.shape[2])  # e.g., 1
-                    req_features_t = tensor_data['request_features']
-                    req_dim = int(req_features_t.shape[1])  # e.g., 3
+                        # Per-pod dimension = pod_features + kv_hit_ratios
+                        total_per_pod_dim = per_pod_dim + kv_dim
+                        
+                        SCALABLE_RL_AGENT = create_scalable_rl_agent(
+                            per_pod_dim=total_per_pod_dim,  # 11 (10 pod + 1 kv)
+                            request_dim=req_dim,             # 3
+                            max_pods=100,                    # Max expected pods
+                            **RL_MODEL_HYPERPARAMETERS
+                        )
+                        
+                        # Load checkpoint if available
+                        ckpt_path = RL_MODEL_HYPERPARAMETERS.get('RL_CHECKPOINT_PATH')
+                        if ckpt_path and os.path.exists(ckpt_path):
+                            try:
+                                SCALABLE_RL_AGENT.load(ckpt_path)
+                                logger.info(f"✅ Loaded scalable RL checkpoint from {ckpt_path}")
+                            except Exception as e:
+                                logger.warning(f"⚠️  Failed to load RL checkpoint {ckpt_path}: {e}")
+                        
+                        logger.info(f"🚀 Initialized SCALABLE RL agent: per_pod_dim={total_per_pod_dim}, "
+                                f"request_dim={req_dim}, max_pods=100 (works with ANY #pods!)")
                     
-                    # Per-pod dimension = pod_features + kv_hit_ratios
-                    total_per_pod_dim = per_pod_dim + kv_dim
-                    
-                    SCALABLE_RL_AGENT = create_scalable_rl_agent(
-                        per_pod_dim=total_per_pod_dim,  # 11 (10 pod + 1 kv)
-                        request_dim=req_dim,             # 3
-                        max_pods=100,                    # Max expected pods
-                        **RL_MODEL_HYPERPARAMETERS
-                    )
-                    
-                    # Load checkpoint if available
-                    ckpt_path = RL_MODEL_HYPERPARAMETERS.get('RL_CHECKPOINT_PATH')
-                    if ckpt_path and os.path.exists(ckpt_path):
-                        try:
-                            SCALABLE_RL_AGENT.load(ckpt_path)
-                            logger.info(f"✅ Loaded scalable RL checkpoint from {ckpt_path}")
-                        except Exception as e:
-                            logger.warning(f"⚠️  Failed to load RL checkpoint {ckpt_path}: {e}")
-                    
-                    logger.info(f"🚀 Initialized SCALABLE RL agent: per_pod_dim={total_per_pod_dim}, "
-                              f"request_dim={req_dim}, max_pods=100 (works with ANY #pods!)")
+                    current_agent = SCALABLE_RL_AGENT
                 
-                current_agent = SCALABLE_RL_AGENT
-            
-            # Inference (no lock needed - thread-safe in new design)
-            current_agent, result, infer_from_tensor_overhead_summary = infer_scalable_rl_agent(
-                tensor_data=tensor_data,
-                request_id=request_id,
-                sorted_all_pod_ids=sorted_all_pod_ids,
-                processed_df=processed_df,
-                rl_agent=current_agent,
-                hyperparameters=RL_MODEL_HYPERPARAMETERS,
-                agent_lock=None  # New agent doesn't need lock for prediction
-            )
-        else:
-            logger.error(f"Unknown subAlgorithm: {subAlgorithm}")
-            assert False
+                # Inference (no lock needed - thread-safe in new design)
+                current_agent, result, infer_from_tensor_overhead_summary = infer_scalable_rl_agent(
+                    tensor_data=tensor_data,
+                    request_id=request_id,
+                    sorted_all_pod_ids=sorted_all_pod_ids,
+                    processed_df=processed_df,
+                    rl_agent=current_agent,
+                    hyperparameters=RL_MODEL_HYPERPARAMETERS,
+                    agent_lock=None  # New agent doesn't need lock for prediction
+                )
+            else:
+                logger.info(f"requestID: {request_id}, contextual bandit model for inference")
+                result, infer_from_tensor_overhead_summary = simpler_contextual_bandit.infer_from_tensor(tensor_data, request_id, MODEL_UPDATED, RL_MODEL_HYPERPARAMETERS, FINAL_MODEL_DIR)
+                result['predicted_latencies'] = {pod_id: -1 for pod_id in sorted_all_pod_ids}
+                result['chosen_pod_predicted_latency'] = -1
         handle_infer_overhead_summary["calling_infer_from_tensor"] = time.time() - infer_from_tensor_start_time
         
         remaining_work_start = time.time()
@@ -562,12 +669,13 @@ def handle_infer():
         result["request_timestamp"] = time.time() - first_request_starting_time
         logger.info(f"requestID: {request_id}, inference result: {result}")
         
-        # Map the pod index back to the actual pod ID
-        selected_pod_index = result['selected_pod_index']
-        if selected_pod_index >= len(sorted_all_pod_ids):
-            logger.error(f"Selected pod index {selected_pod_index} out of range, defaulting to first pod")
-            assert False
-        selected_pod_generalpodid = sorted_all_pod_ids[selected_pod_index]
+        if selected_pod_generalpodid is None:
+            # Map the pod index back to the actual pod ID
+            selected_pod_index = result['selected_pod_index']
+            if selected_pod_index >= len(sorted_all_pod_ids):
+                logger.error(f"Selected pod index {selected_pod_index} out of range, defaulting to first pod")
+                assert False
+            selected_pod_generalpodid = sorted_all_pod_ids[selected_pod_index]
         if selected_pod_generalpodid not in RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']:
             logger.error(f"selected_pod_generalpodid: {selected_pod_generalpodid} not found in RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']")
             logger.error(f"RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']: {RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']}")
@@ -623,62 +731,48 @@ def handle_infer():
         return jsonify({"error": str(e), "traceback": error_traceback}), 500
 
 
-def online_train_routine():
-    global NUM_TRAINS, MODEL_UPDATED, TOTAL_NUM_DATA, final_model_dir, NUM_NEW_DATA, TOTAL_NUM_NEW_DATA, RL_MODEL_HYPERPARAMETERS, TRAINING_RIGHT_NOW, LATENCY_PREDICTOR, TRAINING_DF, stats_instance, OFFLINE_DATA_SIZE
-    if TRAINING_RIGHT_NOW:
+def online_train_helper(training_df, training_df_lock, training_right_now, total_num_new_data, num_new_data, min_num_training_data, min_num_update_data, offline_data_size, num_trains, encoded_data_dir, final_model_dir, latency_predictor, latency_predictor_lock, stats_instance):
+    global RL_MODEL_HYPERPARAMETERS, MAX_TOTAL_DATA
+    if training_right_now:
         logger.info(f"Previous training still in progress, skipping training")
-        return
-    if TOTAL_NUM_NEW_DATA < MIN_NUM_TRAINING_DATA:
-        logger.info(f"Not enough total training data available, NUM_NEW_DATA: {TOTAL_NUM_NEW_DATA} < {MIN_NUM_TRAINING_DATA}, wait until enough data are added. NUM_TRAINS: {NUM_TRAINS}, TOTAL_NUM_DATA: {TOTAL_NUM_DATA}")
-        return
-    if NUM_NEW_DATA < MIN_NUM_UPDATE_DATA:
-        logger.info(f"Not enough new training data available, NUM_NEW_DATA: {NUM_NEW_DATA} < {MIN_NUM_UPDATE_DATA}, wait until enough data are added. NUM_TRAINS: {NUM_TRAINS}, TOTAL_NUM_DATA: {TOTAL_NUM_DATA}")
-        return
-    TRAINING_RIGHT_NOW = True
+        return training_right_now, None, num_new_data, num_trains
+    if total_num_new_data < min_num_training_data:
+        logger.info(f"Not enough total training data available, num_new_data: {total_num_new_data} < {min_num_training_data}, wait until enough data are added. num_trains: {num_trains}, TOTAL_NUM_DATA: {TOTAL_NUM_DATA}")
+        return training_right_now, None, num_new_data, num_trains
+    if num_new_data < min_num_update_data:
+        logger.info(f"Not enough new training data available, num_new_data: {num_new_data} < {min_num_update_data}, wait until enough data are added. num_trains: {num_trains}, TOTAL_NUM_DATA: {TOTAL_NUM_DATA}")
+        return training_right_now, None, num_new_data, num_trains
+    training_right_now = True
     training_start_time = time.time()
-    logger.info(f"online_train_routine start, {NUM_TRAINS}th online training with {NUM_NEW_DATA} new training data")
+    logger.info(f"online_train_routine start, {num_trains}th online training with {num_new_data} new training data")
     try:
         # Route to appropriate training function based on model type
         model_type = RL_MODEL_HYPERPARAMETERS['MODEL_TYPE']
         if model_type == 'latency_predictor':
-            logger.info(f"Training with latency predictor model on entire dataset (offline({len(TRAINING_DF)}) + online({NUM_NEW_DATA}))")
+            logger.info(f"Training with latency predictor model on entire dataset (offline({len(training_df)}) + online({num_new_data}))")
 
-            # Get a copy of TRAINING_DF for training (thread-safe)
-            with TRAINING_DF_LOCK:
-                if TRAINING_DF is None or len(TRAINING_DF) == 0:
-                    logger.error("TRAINING_DF is empty, cannot train")
-                    TRAINING_RIGHT_NOW = False
-                    return
-                training_df_copy = TRAINING_DF.copy()
+            # Get a copy of training_df for training (thread-safe)
+            with training_df_lock:
+                if training_df is None or len(training_df) == 0:
+                    logger.error("training_df is empty, cannot train")
+                    training_right_now = False
+                    return training_right_now, None, num_new_data, num_trains
+                training_df_copy = training_df.copy()
                 total_samples = len(training_df_copy)
-                current_offline_size = OFFLINE_DATA_SIZE
+                current_offline_size = offline_data_size
 
-            # logger.info(f"Training on (offline data: {ENCODED_DATA_DIR}, online data: {ENCODED_DATA_DIR}, total data: {total_samples}")
             logger.info(f"Training on total data: {total_samples} (offline: {current_offline_size}, online: {total_samples - current_offline_size})")
 
-            # Remove overflow from offline data if total exceeds 20,000
-            MAX_TOTAL_DATA = 20000
             if total_samples > MAX_TOTAL_DATA and current_offline_size > 0:
                 overflow = total_samples - MAX_TOTAL_DATA
-                
-                # Calculate how much to remove from offline portion
                 to_remove = min(overflow, current_offline_size)
-                
-                # Remove from the beginning of dataframe (where offline data resides)
                 training_df_copy = training_df_copy.iloc[to_remove:].reset_index(drop=True)
-                logger.info(f"⚠️  Total data ({total_samples}) exceeds limit ({MAX_TOTAL_DATA}). "
-                           f"Removed {to_remove} oldest offline samples (overflow={overflow}, offline_size={current_offline_size})")
-                
-                # Update the global TRAINING_DF and OFFLINE_DATA_SIZE
-                with TRAINING_DF_LOCK:
-                    TRAINING_DF = training_df_copy.copy()
-                    OFFLINE_DATA_SIZE = max(0, current_offline_size - to_remove)
-                    logger.info(f"✅ Updated TRAINING_DF: new size={len(TRAINING_DF)} (offline: {OFFLINE_DATA_SIZE}, online: {len(TRAINING_DF) - OFFLINE_DATA_SIZE})")
-                
-                # Update total_samples for the rest of the function
+                logger.info(f"⚠️  Total data ({total_samples}) exceeds limit ({MAX_TOTAL_DATA}). Removed {to_remove} oldest offline samples (overflow={overflow}, offline_size={current_offline_size})")
+                with training_df_lock:
+                    training_df = training_df_copy.copy()
+                    offline_data_size = max(0, current_offline_size - to_remove)
+                    logger.info(f"✅ Updated training_df: new size={len(training_df)} (offline: {offline_data_size}, online: {len(training_df) - offline_data_size})")
                 total_samples = len(training_df_copy)
-
-            # Drop non-numeric metadata columns from offline CSV that are absent online
             metadata_cols_to_drop = ['source_file', 'reward_function_used']
             cols_present_to_drop = [c for c in metadata_cols_to_drop if c in training_df_copy.columns]
             if cols_present_to_drop:
@@ -705,95 +799,64 @@ def online_train_routine():
             ############################################################################
             
             # Normalize the entire dataset
-            normalizable_features, non_normalizable_features = data_normalizer._get_normalizable_features(
-                training_df_copy, RL_MODEL_HYPERPARAMETERS.get('NO_NORMALIZE_FEATURES', []))
-
-            # VERIFICATION: Log normalization stats BEFORE normalization
-            logger.info(f"VERIFICATION: Checking normalization stats before online training #{NUM_TRAINS}")
-            for feature in normalizable_features:
-                if feature in stats_instance.feature_stats:
-                    stats = stats_instance.feature_stats[feature]
-                    logger.info(f"VERIFICATION BEFORE: {feature} - OLD stats: count={stats.count}, mean={stats.mean}, std={stats.std}")
-                    
-                    # Log actual feature values in the new data
-                    if feature in training_df_copy.columns:
-                        actual_values = training_df_copy[feature].values
-                        new_mean = actual_values.mean()
-                        new_std = actual_values.std()
-                        logger.info(f"VERIFICATION BEFORE: {feature} - NEW data: min={actual_values.min():.3f}, max={actual_values.max():.3f}, mean={new_mean:.3f}, std={new_std:.3f}")
-                        
-                        # **PROOF OF CAUSATION**: Calculate what normalization would produce with OLD vs NEW stats
-                        # Take a sample value from the new data
-                        sample_value = actual_values[0]
-                        old_mean = stats.mean[0] if hasattr(stats.mean, '__getitem__') else stats.mean
-                        old_std = stats.std[0] if hasattr(stats.std, '__getitem__') else stats.std
-                        
-                        if old_std > 0 and new_std > 0:
-                            normalized_with_old_stats = (sample_value - old_mean) / old_std
-                            normalized_with_new_stats = (sample_value - new_mean) / new_std
-                            
-                            logger.warning(f"VERIFICATION PROOF: {feature} sample_value={sample_value:.3f}")
-                            logger.warning(f"VERIFICATION PROOF: {feature} normalized_with_OLD_stats = ({sample_value:.3f} - {old_mean:.3f}) / {old_std:.3f} = {normalized_with_old_stats:.3f}")
-                            logger.warning(f"VERIFICATION PROOF: {feature} normalized_with_NEW_stats = ({sample_value:.3f} - {new_mean:.3f}) / {new_std:.3f} = {normalized_with_new_stats:.3f}")
-                            logger.warning(f"VERIFICATION PROOF: {feature} DIFFERENCE = {abs(normalized_with_old_stats - normalized_with_new_stats):.3f}")
-                            
-                            if abs(normalized_with_old_stats) > 5:
-                                logger.error(f"VERIFICATION PROOF: {feature} OUTLIER CREATED! Using old stats produces {normalized_with_old_stats:.3f} (should be ~{normalized_with_new_stats:.3f})")
+            normalizable_features, non_normalizable_features = data_normalizer._get_normalizable_features(training_df_copy, RL_MODEL_HYPERPARAMETERS.get('NO_NORMALIZE_FEATURES', []))
 
             for feature in normalizable_features:
                 # FIX: Changed from is_training=False to is_training=True
                 # This allows normalization stats to update during online training,
                 # preventing outlier creation when new data has different distributions
                 data_normalizer._normalize_single_feature(training_df_copy, feature, stats_instance, is_training=True)
-            
-            # VERIFICATION: Log normalization stats AFTER normalization
-            logger.info(f"VERIFICATION: Checking normalization stats after online training #{NUM_TRAINS}")
-            for feature in normalizable_features:
-                if feature in stats_instance.feature_stats:
-                    stats = stats_instance.feature_stats[feature]
-                    logger.info(f"VERIFICATION AFTER: {feature} - count={stats.count}, mean={stats.mean}, std={stats.std}")
-                    # Log normalized values
-                    if feature in training_df_copy.columns:
-                        normalized_values = training_df_copy[feature].values
-                        logger.info(f"VERIFICATION AFTER: {feature} - normalized: min={normalized_values.min():.3f}, max={normalized_values.max():.3f}, mean={normalized_values.mean():.3f}, std={normalized_values.std():.3f}")
-
-            # Get sorted pod IDs from the training data (preprocessed CSV format)
+        
+            # Get sorted pod IDs and GPU mapping
             sorted_all_pod_ids = utils.get_sorted_all_pod_ids('processed_csv_columns', training_df_copy.columns.tolist())
+            # generalpodid_to_gpu_model = RL_MODEL_HYPERPARAMETERS.get('generalpodid_to_gpu_model', {})
             logger.info(f"Training with pods: {sorted_all_pod_ids}")
-
+            
             # Encode the entire dataset
             encode_start_time = time.time()
-            os.makedirs(ENCODED_DATA_DIR, exist_ok=True)
-            encoded_training_dir = os.path.join(ENCODED_DATA_DIR, "full_training_data")
+            os.makedirs(encoded_data_dir, exist_ok=True)
+            encoded_training_dir = os.path.join(encoded_data_dir, "full_training_data")
             encoding.encode_for_train(sorted_all_pod_ids, training_df_copy, encoded_training_dir, request_features_train, RL_MODEL_HYPERPARAMETERS)
             logger.info(f"Encoded {total_samples} samples to {encoded_training_dir}, encode time: {time.time() - encode_start_time} seconds")
 
             # Train on the encoded dataset
             train_start_time = time.time()
-            latency_predictor.train_latency_predictor(encoded_training_dir, final_model_dir, RL_MODEL_HYPERPARAMETERS, NUM_TRAINS)
+            latency_predictor.train_latency_predictor(encoded_training_dir, final_model_dir, RL_MODEL_HYPERPARAMETERS, num_trains)
             logger.info(f"train_latency_predictor done, train time: {time.time() - train_start_time} seconds")
 
-            # Reload model in training thread (non-blocking for inference)
-            with LATENCY_PREDICTOR_LOCK.write():
-                if LATENCY_PREDICTOR is not None:
+            # Reload global latency_predictor (for single-model fallback path)
+            with latency_predictor_lock.write():
+                if latency_predictor is not None:
                     load_start_time = time.time()
-                    LATENCY_PREDICTOR.load(final_model_dir)
+                    latency_predictor.load(final_model_dir)
                     logger.info(f"Reloaded latency predictor after training, load time: {time.time() - load_start_time} seconds")
         else:
             logger.info(f"Training with contextual bandit model")
-            simpler_contextual_bandit.train(ENCODED_DATA_DIR, final_model_dir, RL_MODEL_HYPERPARAMETERS, ENABLE_ONLINE_LEARNING)
+            simpler_contextual_bandit.train(encoded_data_dir, final_model_dir, RL_MODEL_HYPERPARAMETERS, ENABLE_ONLINE_LEARNING)
             logger.info(f"train_contextual_bandit done")
     except Exception as e:
         import traceback
         logger.error(f"Error during training: {e}")
         logger.error(traceback.format_exc())
-        TRAINING_RIGHT_NOW = False
-        return
-    logger.info(f"Successfully completed online_train_routine done, {NUM_TRAINS}th online training with {NUM_NEW_DATA} new training data, took {time.time() - training_start_time} seconds")
-    MODEL_UPDATED = True
-    TRAINING_RIGHT_NOW = False
-    NUM_TRAINS += 1
-    NUM_NEW_DATA = 0
+        training_right_now = False
+        return training_right_now, None, num_new_data, num_trains
+    logger.info(f"Successfully completed online_train_routine done, {num_trains}th online training with {num_new_data} new training data, took {time.time() - training_start_time} seconds")
+    model_updated = True
+    training_right_now = False
+    num_trains += 1
+    num_new_data = 0
+    return training_right_now, model_updated, num_new_data, num_trains
+
+    
+def online_train_routine():
+    global use_multi_model
+    global NUM_TRAINS, MODEL_UPDATED, TOTAL_NUM_DATA, FINAL_MODEL_DIR, NUM_NEW_DATA, TOTAL_NUM_NEW_DATA, RL_MODEL_HYPERPARAMETERS, TRAINING_RIGHT_NOW, TRAINING_RIGHT_NOW_GPU_L3c, TRAINING_RIGHT_NOW_NVIDIA_A30, MODEL_UPDATED_GPU_L3c, MODEL_UPDATED_NVIDIA_A30, NUM_NEW_DATA_GPU_L3c, NUM_NEW_DATA_NVIDIA_A30, NUM_TRAINS_GPU_L3c, NUM_TRAINS_NVIDIA_A30, LATENCY_PREDICTOR, TRAINING_DF, STATS_INSTANCE, STATS_INSTANCE_GPU_L3c, STATS_INSTANCE_NVIDIA_A30, OFFLINE_DATA_SIZE, OFFLINE_DATA_SIZE_GPU_L3c, OFFLINE_DATA_SIZE_NVIDIA_A30, TOTAL_NUM_DATA_GPU_L3c, TOTAL_NUM_DATA_NVIDIA_A30
+
+    if use_multi_model:
+        TRAINING_RIGHT_NOW_GPU_L3c, MODEL_UPDATED_GPU_L3c, NUM_NEW_DATA_GPU_L3c, NUM_TRAINS_GPU_L3c = online_train_helper(TRAINING_DF_GPU_L3c, TRAINING_DF_GPU_L3c_LOCK, TRAINING_RIGHT_NOW_GPU_L3c, TOTAL_NUM_NEW_DATA_GPU_L3c, NUM_NEW_DATA_GPU_L3c, MIN_NUM_TRAINING_DATA, MIN_NUM_UPDATE_DATA, OFFLINE_DATA_SIZE_GPU_L3c, NUM_TRAINS_GPU_L3c, ENCODED_DATA_DIR_GPU_L3c, FINAL_MODEL_DIR_GPU_L3c, LATENCY_PREDICTOR_GPU_L3c, LATENCY_PREDICTOR_GPU_L3c_LOCK, STATS_INSTANCE_GPU_L3c)
+        TRAINING_RIGHT_NOW_NVIDIA_A30, MODEL_UPDATED_NVIDIA_A30, NUM_NEW_DATA_NVIDIA_A30, NUM_TRAINS_NVIDIA_A30 = online_train_helper(TRAINING_DF_NVIDIA_A30, TRAINING_DF_NVIDIA_A30_LOCK, TRAINING_RIGHT_NOW_NVIDIA_A30, TOTAL_NUM_NEW_DATA_NVIDIA_A30, NUM_NEW_DATA_NVIDIA_A30, MIN_NUM_TRAINING_DATA, MIN_NUM_UPDATE_DATA, OFFLINE_DATA_SIZE_NVIDIA_A30, NUM_TRAINS_NVIDIA_A30, ENCODED_DATA_DIR_NVIDIA_A30, FINAL_MODEL_DIR_NVIDIA_A30, LATENCY_PREDICTOR_NVIDIA_A30, LATENCY_PREDICTOR_NVIDIA_A30_LOCK, STATS_INSTANCE_NVIDIA_A30)
+    else:
+        TRAINING_RIGHT_NOW, MODEL_UPDATED, NUM_NEW_DATA, NUM_TRAINS = online_train_helper(TRAINING_DF, TRAINING_DF_LOCK, TRAINING_RIGHT_NOW, TOTAL_NUM_NEW_DATA, NUM_NEW_DATA, MIN_NUM_TRAINING_DATA, MIN_NUM_UPDATE_DATA, OFFLINE_DATA_SIZE, NUM_TRAINS, ENCODED_DATA_DIR, FINAL_MODEL_DIR, LATENCY_PREDICTOR, LATENCY_PREDICTOR_LOCK, STATS_INSTANCE)
 
 
 def test_kubernetes_permissions():
@@ -974,124 +1037,6 @@ def queue_rl_update(n_steps=32):
             logger.warning("RL update queue is full, skipping update request")
 
 
-def get_current_cluster_features():
-    """
-    Fetch real-time cluster state for experience completion (next_obs).
-    
-    This mirrors the feature extraction done in /infer, but fetches CURRENT state.
-    
-    Returns:
-        pod_features: [num_pods, 10] - Current pod metrics
-        kv_hit_ratios: [num_pods, 1] - Current cache hit ratios (zeros for now)
-        request_features: [3] - Dummy request features (not used for next_obs)
-    """
-    global RL_MODEL_HYPERPARAMETERS, stats_instance
-    
-    try:
-        # Get current running pods (same as init())
-        running_pods = utils.get_running_pods_by_label(POD_LABEL_SELECTOR)
-        sorted_pod_ips = utils.fetch_running_pod_ips(running_pods)
-        num_pods = len(sorted_pod_ips)
-        
-        if num_pods == 0:
-            logger.warning("No running pods found for cluster state fetch")
-            # Return dummy state
-            return (
-                np.zeros((1, 10), dtype=np.float32),
-                np.zeros((1, 1), dtype=np.float32),
-                np.zeros(3, dtype=np.float32)
-            )
-        
-        # Initialize arrays for pod features
-        pod_features = np.zeros((num_pods, 10), dtype=np.float32)
-        
-        # Get pod_ip to general_pod_id mapping
-        pod_ip_to_generalpodid = RL_MODEL_HYPERPARAMETERS.get('pod_ip_to_generalpodid', {})
-        pod_ip_to_gpu_model_encoded = RL_MODEL_HYPERPARAMETERS.get('pod_ip_to_gpu_model_encoded', {})
-        
-        # For each pod, fetch current metrics
-        for i, pod_ip in enumerate(sorted_pod_ips):
-            try:
-                # These are the same features used in preprocess.py
-                # The exact column order depends on your feature extraction
-                # Adjust indices based on your actual feature schema
-                
-                # Example feature extraction (adjust to your schema):
-                # Column 0: running_requests (from inflight)
-                inflight_requests = utils.GetInflightRequestsForPod(pod_ip) if hasattr(utils, 'GetInflightRequestsForPod') else 0
-                pod_features[i, 0] = float(inflight_requests)
-                
-                # Column 1: queue_length (from waiting requests)
-                # Use stored metrics or default to 0
-                pod_features[i, 1] = 0  # Placeholder - implement if you track queue length
-                
-                # Column 2-3: GPU/CPU KV cache usage
-                # These would come from vLLM metrics if available
-                pod_features[i, 2] = 0  # GPU cache usage (implement if tracked)
-                pod_features[i, 3] = 0  # CPU cache usage (implement if tracked)
-                
-                # Column 4-5: Num requests running/waiting
-                pod_features[i, 4] = 0  # Running requests (implement if tracked)
-                pod_features[i, 5] = 0  # Waiting requests (implement if tracked)
-                
-                # Column 6-7: Prefill/decode token counts
-                prefill_tokens = utils.GetNumPrefillTokensForPod(pod_ip) if hasattr(utils, 'GetNumPrefillTokensForPod') else 0
-                decode_tokens = utils.GetNumDecodeTokensForPod(pod_ip) if hasattr(utils, 'GetNumDecodeTokensForPod') else 0
-                pod_features[i, 6] = float(prefill_tokens)
-                pod_features[i, 7] = float(decode_tokens)
-                
-                # Column 8: GPU type (encoded)
-                if pod_ip in pod_ip_to_gpu_model_encoded:
-                    pod_features[i, 8] = float(pod_ip_to_gpu_model_encoded[pod_ip])
-                else:
-                    pod_features[i, 8] = 0.0
-                
-                # Column 9: Availability (1.0 = available)
-                pod_features[i, 9] = 1.0  # Assume available (or check pod status)
-                
-            except Exception as e:
-                logger.warning(f"Error fetching metrics for pod {pod_ip}: {e}")
-                # Keep zeros for this pod
-        
-        # Normalize features using stats_instance (same as /infer)
-        if stats_instance is not None and stats_instance.get_max_count() > 0:
-            # Get normalizable feature names (adjust to your schema)
-            # This should match the features in your processed_df
-            feature_names = [
-                'running_requests', 'queue_length', 'gpu_cache', 'cpu_cache',
-                'num_running', 'num_waiting', 'prefill_tokens', 'decode_tokens',
-                'gpu_type', 'availability'
-            ]
-            
-            for col_idx, feature_name in enumerate(feature_names):
-                if feature_name in stats_instance.feature_stats:
-                    stats = stats_instance.feature_stats[feature_name]
-                    # Z-score normalization: (x - mean) / std
-                    if stats.std > 0:
-                        pod_features[:, col_idx] = (pod_features[:, col_idx] - stats.mean) / stats.std
-        
-        # KV hit ratios - for next_obs, we don't have per-request cache hit info
-        # So we use zeros (or could use average cache hit rates if tracked)
-        kv_hit_ratios = np.zeros((num_pods, 1), dtype=np.float32)
-        
-        # Request features - dummy (not used for next_obs, but needed for consistency)
-        request_features = np.zeros(3, dtype=np.float32)
-        
-        logger.debug(f"Fetched current cluster state: {num_pods} pods")
-        return pod_features, kv_hit_ratios, request_features
-        
-    except Exception as e:
-        logger.error(f"Error in get_current_cluster_features: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        # Return minimal valid state
-        return (
-            np.zeros((1, 10), dtype=np.float32),
-            np.zeros((1, 1), dtype=np.float32),
-            np.zeros(3, dtype=np.float32)
-        )
-
-
 def graceful_shutdown(sig=None, frame=None):
     """Handle graceful shutdown when receiving SIGTERM or SIGINT"""
     logger.info(f"Received signal {sig if sig else 'shutdown'}, shutting down gracefully...")
@@ -1116,9 +1061,9 @@ def graceful_shutdown(sig=None, frame=None):
 
 
 def init():
-    global RL_MODEL_HYPERPARAMETERS, stats_instance
+    global RL_MODEL_HYPERPARAMETERS, STATS_INSTANCE, STATS_INSTANCE_GPU_L3c, STATS_INSTANCE_NVIDIA_A30, use_multi_model, INIT_DONE
+    logger.info(f"start init(), INIT_DONE: {INIT_DONE}")
     if RL_MODEL_HYPERPARAMETERS is None:
-
         logger.info(f"{GREEN_COLOR}RL_MODEL_HYPERPARAMETERS is None{RESET_COLOR}")
 
         RL_MODEL_HYPERPARAMETERS = {}
@@ -1145,63 +1090,98 @@ def init():
         generalpodid_to_pod_ip = {}
         for pod_ip, generalpodid in pod_ip_to_generalpodid.items():
             generalpodid_to_pod_ip[generalpodid] = pod_ip
-        generalpodid_to_gpu_model = utils.fetch_generalpodid_to_gpu_model(running_vllm_pods, pod_ip_to_generalpodid)
-        pod_ip_to_gpu_model, pod_ip_to_gpu_model_encoded = utils.create_pod_ip_to_gpu_model_mapping(generalpodid_to_gpu_model, pod_ip_to_generalpodid)
+        # generalpodid_to_gpu_model = utils.fetch_generalpodid_to_gpu_model(running_vllm_pods, pod_ip_to_generalpodid)
+        # pod_ip_to_gpu_model, pod_ip_to_gpu_model_encoded = utils.create_pod_ip_to_gpu_model_mapping(generalpodid_to_gpu_model, pod_ip_to_generalpodid)
         
         logger.info(f"POD_LABEL_SELECTOR: {POD_LABEL_SELECTOR}")
         logger.info(f"len(sorted_running_pod_ips): {len(sorted_running_pod_ips)}, sorted_running_pod_ips: {sorted_running_pod_ips}")
         logger.info(f"pod_ip_to_generalpodid: {pod_ip_to_generalpodid}")
-        logger.info(f"generalpodid_to_gpu_model: {generalpodid_to_gpu_model}")
-        logger.info(f"pod_ip_to_gpu_model: {pod_ip_to_gpu_model}")
-        logger.info(f"pod_ip_to_gpu_model_encoded: {pod_ip_to_gpu_model_encoded}")
+        # logger.info(f"generalpodid_to_gpu_model: {generalpodid_to_gpu_model}")
+        # logger.info(f"pod_ip_to_gpu_model: {pod_ip_to_gpu_model}")
+        # logger.info(f"pod_ip_to_gpu_model_encoded: {pod_ip_to_gpu_model_encoded}")
 
         RL_MODEL_HYPERPARAMETERS['pod_ip_to_generalpodid'] = pod_ip_to_generalpodid
         RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip'] = generalpodid_to_pod_ip
         logger.info(f"RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']: {RL_MODEL_HYPERPARAMETERS['generalpodid_to_pod_ip']}")
         RL_MODEL_HYPERPARAMETERS['sorted_running_pod_ips'] = sorted_running_pod_ips
-        RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model'] = pod_ip_to_gpu_model
-        RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model_encoded'] = pod_ip_to_gpu_model_encoded
-        RL_MODEL_HYPERPARAMETERS['generalpodid_to_gpu_model'] = generalpodid_to_gpu_model
+        # RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model'] = pod_ip_to_gpu_model
+        # RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model_encoded'] = pod_ip_to_gpu_model_encoded
+        # RL_MODEL_HYPERPARAMETERS['generalpodid_to_gpu_model'] = generalpodid_to_gpu_model
         # Additional mappings for GPU features expected by preprocess/encoding
-        RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'] = generalpodid_to_gpu_model
-        pod_gpu_id_mapping = {}
-        for generalpodid, gpu_model in generalpodid_to_gpu_model.items():
-            if gpu_model in utils.GPU_MODEL_TO_ENCODE:
-                pod_gpu_id_mapping[generalpodid] = utils.GPU_MODEL_TO_ENCODE[gpu_model]
-            else:
-                logger.error(f"Unknown GPU model for {generalpodid}: {gpu_model}")
-                assert False
-        RL_MODEL_HYPERPARAMETERS['pod_gpu_id_mapping'] = pod_gpu_id_mapping
+        # RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'] = generalpodid_to_gpu_model
+        # pod_gpu_id_mapping = {}
+        # for generalpodid, gpu_model in generalpodid_to_gpu_model.items():
+        #     if gpu_model in utils.GPU_MODEL_TO_ENCODE:
+        #         pod_gpu_id_mapping[generalpodid] = utils.GPU_MODEL_TO_ENCODE[gpu_model]
+        #     else:
+        #         logger.error(f"Unknown GPU model for {generalpodid}: {gpu_model}")
+        #         assert False
+        # RL_MODEL_HYPERPARAMETERS['pod_gpu_id_mapping'] = pod_gpu_id_mapping
+        
         
         # Load normalization statistics from CSV file
-        if os.path.exists(feature_normalization_stats_file):
-            logger.info(f"Loading normalization statistics from: {feature_normalization_stats_file}")
-            try:
-                stats_instance = data_normalizer.FeatureStats.load_from_csv(feature_normalization_stats_file)
-                if stats_instance is not None:
-                    logger.info(f"Successfully loaded stats for {len(stats_instance.feature_stats)} features")
-                else:
-                    logger.error("Failed to load normalization statistics")
+        if use_multi_model:
+            feature_normalization_stats_file_gpu_l3c = f"{FINAL_MODEL_DIR_GPU_L3c}/feature_normalization_statistics.csv"
+            feature_normalization_stats_file_nvidia_a30 = f"{FINAL_MODEL_DIR_NVIDIA_A30}/feature_normalization_statistics.csv"
+            if os.path.exists(feature_normalization_stats_file_gpu_l3c):
+                logger.info(f"Loading normalization statistics from: {feature_normalization_stats_file_gpu_l3c}")
+                try:
+                    STATS_INSTANCE_GPU_L3c = data_normalizer.FeatureStats.load_from_csv(feature_normalization_stats_file_gpu_l3c)
+                except Exception as e:
+                    logger.error(f"Failed to load normalization statistics: {e}")
                     assert False
-            except Exception as e:
-                logger.error(f"Failed to load normalization statistics: {e}")
+            else:
+                logger.error(f"Normalization statistics file not found: {feature_normalization_stats_file_gpu_l3c}")
                 assert False
+            if STATS_INSTANCE_GPU_L3c is not None:
+                logger.info(f"Successfully loaded stats for {len(STATS_INSTANCE_GPU_L3c.feature_stats)} features")
+                for feature_name, stats in STATS_INSTANCE_GPU_L3c.feature_stats.items():
+                    logger.info(f"STATS_INSTANCE_GPU_L3c, {feature_name}: count={stats.count}, mean={stats.mean}, std={stats.std}")
+
+
+            if os.path.exists(feature_normalization_stats_file_nvidia_a30):
+                logger.info(f"Loading normalization statistics from: {feature_normalization_stats_file_nvidia_a30}")
+                try:
+                    STATS_INSTANCE_NVIDIA_A30 = data_normalizer.FeatureStats.load_from_csv(feature_normalization_stats_file_nvidia_a30)
+                except Exception as e:
+                    logger.error(f"Failed to load normalization statistics: {e}")
+                    assert False
+            else:
+                logger.error(f"Normalization statistics file not found: {feature_normalization_stats_file_nvidia_a30}")
+                assert False
+            if STATS_INSTANCE_NVIDIA_A30 is not None:
+                logger.info(f"Successfully loaded stats for {len(STATS_INSTANCE_NVIDIA_A30.feature_stats)} features")
+                for feature_name, stats in STATS_INSTANCE_NVIDIA_A30.feature_stats.items():
+                    logger.info(f"STATS_INSTANCE_NVIDIA_A30, {feature_name}: count={stats.count}, mean={stats.mean}, std={stats.std}")
         else:
-            logger.error(f"Normalization statistics file not found: {feature_normalization_stats_file}")
-            assert False
+            if os.path.exists(feature_normalization_stats_file):
+                logger.info(f"Loading normalization statistics from: {feature_normalization_stats_file}")
+                try:
+                    STATS_INSTANCE = data_normalizer.FeatureStats.load_from_csv(feature_normalization_stats_file)
+                    if STATS_INSTANCE is not None:
+                        logger.info(f"Successfully loaded stats for {len(STATS_INSTANCE.feature_stats)} features")
+                    else:
+                        logger.error("Failed to load normalization statistics")
+                        assert False
+                except Exception as e:
+                    logger.error(f"Failed to load normalization statistics: {e}")
+                    assert False
+            else:
+                logger.error(f"Normalization statistics file not found: {feature_normalization_stats_file}")
+                assert False
     
-    # Print feature statistics if available
-    if stats_instance is not None:
-        logger.info("Per-feature statistics loaded:")
-        for feature_name, stats in stats_instance.feature_stats.items():
-            logger.info(f"stats_instance, {feature_name}: count={stats.count}, mean={stats.mean}, std={stats.std}")
-    else:
-        logger.warning("No normalization statistics available - inference will fail")
-        assert False
+            # Print feature statistics if available
+            if STATS_INSTANCE is not None:
+                logger.info("Per-feature statistics loaded:")
+                for feature_name, stats in STATS_INSTANCE.feature_stats.items():
+                    logger.info(f"STATS_INSTANCE, {feature_name}: count={stats.count}, mean={stats.mean}, std={stats.std}")
+            else:
+                logger.warning("No normalization statistics available - inference will fail")
+                assert False
     
     # Add checkpointing configuration to hyperparameters
     RL_MODEL_HYPERPARAMETERS['CHECKPOINT_INTERVAL_STEPS'] = 100
-    RL_MODEL_HYPERPARAMETERS['CHECKPOINT_DIR'] = os.path.join(final_model_dir, 'checkpoints')
+    RL_MODEL_HYPERPARAMETERS['CHECKPOINT_DIR'] = os.path.join(FINAL_MODEL_DIR, 'checkpoints')
     
     # Create checkpoint directory if it doesn't exist
     os.makedirs(RL_MODEL_HYPERPARAMETERS['CHECKPOINT_DIR'], exist_ok=True)
@@ -1209,33 +1189,84 @@ def init():
     logger.info(f"Checkpointing every {RL_MODEL_HYPERPARAMETERS['CHECKPOINT_INTERVAL_STEPS']} steps")
 
     # Load offline training data for online learning
-    global TRAINING_DF, OFFLINE_DATA_SIZE
+    global TRAINING_DF, OFFLINE_DATA_SIZE, TRAINING_DF_GPU_L3c, TRAINING_DF_NVIDIA_A30, TRAINING_DF_GPU_L3c_LOCK, TRAINING_DF_NVIDIA_A30_LOCK, OFFLINE_DATA_SIZE_GPU_L3c, OFFLINE_DATA_SIZE_NVIDIA_A30, TOTAL_NUM_NEW_DATA, TOTAL_NUM_NEW_DATA_GPU_L3c, TOTAL_NUM_NEW_DATA_NVIDIA_A30
     if ENABLE_ONLINE_LEARNING:
-        offline_csv_path = "/app/offline_training_data.csv"
-        if os.path.exists(offline_csv_path):
-            try:
-                with TRAINING_DF_LOCK:
-                    TRAINING_DF = pd.read_csv(offline_csv_path)
-                    # shuffle the training data
-                    TRAINING_DF = TRAINING_DF.sample(frac=1).reset_index(drop=True)
-                    OFFLINE_DATA_SIZE = len(TRAINING_DF)
-                    logger.info(f"✅ Loaded offline training data: {len(TRAINING_DF)} samples from {offline_csv_path}")
-                    logger.info(f"   Columns: {list(TRAINING_DF.columns[:10])}...")  # Show first 10 columns
-            except Exception as e:
-                logger.error(f"Failed to load offline training data: {e}")
+        if use_multi_model:
+            offline_csv_path_GPU_L3c = "/app/offline_training_data_GPU-L3c.csv"
+            offline_csv_path_NVIDIA_A30 = "/app/offline_training_data_NVIDIA-A30.csv"
+            ###################################################################### 
+            ## GPU-L3c
+            ###################################################################### 
+            if os.path.exists(offline_csv_path_GPU_L3c):
+                try:
+                    with TRAINING_DF_GPU_L3c_LOCK:
+                        TRAINING_DF_GPU_L3c = pd.read_csv(offline_csv_path_GPU_L3c)
+                        # shuffle the training data
+                        TRAINING_DF_GPU_L3c = TRAINING_DF_GPU_L3c.sample(frac=1).reset_index(drop=True)
+                        OFFLINE_DATA_SIZE_GPU_L3c = len(TRAINING_DF_GPU_L3c)
+                        logger.info(f"✅ Loaded offline training data: {len(TRAINING_DF_GPU_L3c)} samples from {offline_csv_path_GPU_L3c}")
+                        logger.info(f"   Columns: {list(TRAINING_DF_GPU_L3c.columns[:10])}...")  # Show first 10 columns
+                except Exception as e:
+                    logger.error(f"Failed to load offline training data: {e}")
+                    TRAINING_DF_GPU_L3c = pd.DataFrame()
+                    OFFLINE_DATA_SIZE_GPU_L3c = 0
+                    logger.warning("Starting with empty training dataframe")
+            else:
+                logger.warning(f"Offline training data not found at {offline_csv_path_GPU_L3c}")
+                logger.warning("offline_csv_path_GPU_L3c, Online learning will start from scratch with only new data")
+                TRAINING_DF_GPU_L3c = pd.DataFrame()
+                OFFLINE_DATA_SIZE_GPU_L3c = 0
+            TOTAL_NUM_NEW_DATA_GPU_L3c = len(TRAINING_DF_GPU_L3c)
+            ###################################################################### 
+            ## NVIDIA-A30
+            ######################################################################
+            if os.path.exists(offline_csv_path_NVIDIA_A30):
+                try:
+                    with TRAINING_DF_NVIDIA_A30_LOCK:
+                        TRAINING_DF_NVIDIA_A30 = pd.read_csv(offline_csv_path_NVIDIA_A30)
+                        # shuffle the training data
+                        TRAINING_DF_NVIDIA_A30 = TRAINING_DF_NVIDIA_A30.sample(frac=1).reset_index(drop=True)
+                        OFFLINE_DATA_SIZE_NVIDIA_A30 = len(TRAINING_DF_NVIDIA_A30)
+                        logger.info(f"✅ Loaded offline training data: {len(TRAINING_DF_NVIDIA_A30)} samples from {offline_csv_path_NVIDIA_A30}")
+                        logger.info(f"   Columns: {list(TRAINING_DF_NVIDIA_A30.columns[:10])}...")  # Show first 10 columns
+                except Exception as e:
+                    logger.error(f"Failed to load offline training data: {e}")
+                    TRAINING_DF_NVIDIA_A30 = pd.DataFrame()
+                    OFFLINE_DATA_SIZE_NVIDIA_A30 = 0
+                    logger.warning("Starting with empty training dataframe")
+            else:
+                logger.warning(f"Offline training data not found at {offline_csv_path_NVIDIA_A30}")
+                logger.warning("offline_csv_path_NVIDIA_A30, Online learning will start from scratch with only new data")
+                TRAINING_DF_NVIDIA_A30 = pd.DataFrame()
+                OFFLINE_DATA_SIZE_NVIDIA_A30 = 0
+            TOTAL_NUM_NEW_DATA_NVIDIA_A30 = len(TRAINING_DF_NVIDIA_A30)
+            TOTAL_NUM_NEW_DATA = TOTAL_NUM_NEW_DATA_GPU_L3c + TOTAL_NUM_NEW_DATA_NVIDIA_A30
+        else:
+            offline_csv_path = "/app/offline_training_data.csv"
+            if os.path.exists(offline_csv_path):
+                try:
+                    with TRAINING_DF_LOCK:
+                        TRAINING_DF = pd.read_csv(offline_csv_path)
+                        # shuffle the training data
+                        TRAINING_DF = TRAINING_DF.sample(frac=1).reset_index(drop=True)
+                        OFFLINE_DATA_SIZE = len(TRAINING_DF)
+                        logger.info(f"✅ Loaded offline training data: {len(TRAINING_DF)} samples from {offline_csv_path}")
+                        logger.info(f"   Columns: {list(TRAINING_DF.columns[:10])}...")  # Show first 10 columns
+                except Exception as e:
+                    logger.error(f"Failed to load offline training data: {e}")
+                    TRAINING_DF = pd.DataFrame()
+                    OFFLINE_DATA_SIZE = 0
+                    logger.warning("Starting with empty training dataframe")
+            else:
+                logger.warning(f"Offline training data not found at {offline_csv_path}")
+                logger.warning("Online learning will start from scratch with only new data")
                 TRAINING_DF = pd.DataFrame()
                 OFFLINE_DATA_SIZE = 0
-                logger.warning("Starting with empty training dataframe")
-        else:
-            logger.warning(f"Offline training data not found at {offline_csv_path}")
-            logger.warning("Online learning will start from scratch with only new data")
-            TRAINING_DF = pd.DataFrame()
-            OFFLINE_DATA_SIZE = 0
+            TOTAL_NUM_NEW_DATA = len(TRAINING_DF)
     else:
         logger.info("Online learning disabled, skipping offline data load")
     
     # Initialize scalable RL agent if configured
-    TOTAL_NUM_NEW_DATA = len(TRAINING_DF)
     logger.info(f"{BLUE_COLOR}model_type: {RL_MODEL_HYPERPARAMETERS['MODEL_TYPE']}{RESET_COLOR}")
 
 
@@ -1314,7 +1345,7 @@ def init():
         start_scalable_rl_training_worker()
         logger.info(f"{GREEN_COLOR}Scalable RL agent initialized and training thread started{RESET_COLOR}")
         logger.info("scalable_rl_routing_agent, Scalable RL agent initialized and training thread started")
-
+    INIT_DONE = True
 
 def periodic_checkpoint_scalable_rl():
     """
@@ -1427,7 +1458,6 @@ if __name__ == "__main__":
     logger.info(f"Port {port} is available, starting Flask app properly!")
     
     init()
-
     logger.info(f"{RED_COLOR}init() finished in main()...{RESET_COLOR}")
 
     scheduler = BackgroundScheduler()

@@ -288,14 +288,24 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
         # 'podMetricsLastSecond',  # Made optional - will be handled separately
         'numPrefillTokensForAllPods', 
         'numDecodeTokensForAllPods',
+        'GPU',  # GPU model mapping per pod (required for heterogeneous GPU support)
     ]
     
     json_parse_start_time = time.time()
     for col in json_columns:
-        # if col in parsed_df.columns:
-        sample_val = parsed_df[col].iloc[0]
-        if isinstance(sample_val, str):
-            parsed_df[col] = parsed_df[col].apply(safe_parse_json)
+        if col not in parsed_df.columns:
+            logger.debug(f"Column {col} not in dataframe, skipping")
+            continue
+        try:
+            sample_val = parsed_df[col].iloc[0]
+            if isinstance(sample_val, str):
+                logger.debug(f"Parsing JSON column: {col}")
+                parsed_df[col] = parsed_df[col].apply(safe_parse_json)
+                logger.debug(f"Successfully parsed {col}, sample: {parsed_df[col].iloc[0]}")
+        except Exception as e:
+            logger.error(f"Error parsing JSON column {col}: {e}")
+            logger.error(f"Sample value: {sample_val}")
+            raise
     
     # Handle podMetricsLastSecond separately (optional column)
     if 'podMetricsLastSecond' in parsed_df.columns:
@@ -334,7 +344,7 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
         # 'podMetricsLastSecond',  # Optional column - may be empty or missing
         'numPrefillTokensForAllPods',
         'numDecodeTokensForAllPods',
-        # 'GPU_model',
+        'GPU',  # GPU model mapping per pod
         'subAlgorithm', # old training data does not have it... so...
         # 'prev_reward', ## uncomment it for scalable RL agent training
     ]
@@ -345,12 +355,13 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
         parsed_df['subAlgorithm'] = None
     ###########################################
 
-    if INCLUDE_GPU_IN_FEATURE:
-        def get_gpu_model_encoded(selected_pod):
-            selected_pod_generalpodid = RL_MODEL_HYPERPARAMETERS['pod_ip_to_generalpodid'][selected_pod]
-            return RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model_encoded'][selected_pod_generalpodid]
-        parsed_df['gpu_model_encoded'] = parsed_df['selectedpod'].apply(get_gpu_model_encoded)
-        parsed_df['gpu_model_encoded'] = parsed_df['gpu_model_encoded'].astype(int)
+    # if INCLUDE_GPU_IN_FEATURE:
+    #     def get_gpu_model_encoded(selected_pod):
+    #         selected_pod_generalpodid = RL_MODEL_HYPERPARAMETERS['pod_ip_to_generalpodid'][selected_pod]
+    #         return RL_MODEL_HYPERPARAMETERS['pod_ip_to_gpu_model_encoded'][selected_pod_generalpodid]
+    #     parsed_df['gpu_model_encoded'] = parsed_df['selectedpod'].apply(get_gpu_model_encoded)
+    #     parsed_df['gpu_model_encoded'] = parsed_df['gpu_model_encoded'].astype(int)
+    ## TODO: assume parsed_df has a column 'GPU'
     
     # Check for missing expected columns
     missing_columns = [col for col in expected_columns if col not in parsed_df.columns]
@@ -406,13 +417,13 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
         'subAlgorithm': parsed_df['subAlgorithm'].values,
         # 'prev_reward': parsed_df['prev_reward'].values,
     }
-    if INCLUDE_GPU_IN_FEATURE:
-        base_data['gpu_model_encoded'] = parsed_df['gpu_model_encoded'].values
-        # Fix 2: Use proper GPU mapping instead of hardcoding
-        if 'pod_gpu_mapping' not in RL_MODEL_HYPERPARAMETERS:
-            logger.error("Error: pod_gpu_mapping not found in RL_MODEL_HYPERPARAMETERS")
-            assert False
-        pod_gpu_models = {pod_id: RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'][pod_id] for pod_id in sorted_all_pod_ids}
+    # if INCLUDE_GPU_IN_FEATURE:
+    #     base_data['gpu_model_encoded'] = parsed_df['gpu_model_encoded'].values
+    #     # Fix 2: Use proper GPU mapping instead of hardcoding
+    #     if 'pod_gpu_mapping' not in RL_MODEL_HYPERPARAMETERS:
+    #         logger.error("Error: pod_gpu_mapping not found in RL_MODEL_HYPERPARAMETERS")
+    #         assert False
+    #     pod_gpu_models = {pod_id: RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'][pod_id] for pod_id in sorted_all_pod_ids}
     
     # Pre-extract all JSON data to avoid repeated parsing
     all_kv_cache = parsed_df['allPodsKvCacheHitRatios'].values
@@ -423,6 +434,7 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
     all_waiting = parsed_df['vllmNumRequestsWaiting'].values
     all_prefill = parsed_df['numPrefillTokensForAllPods'].values
     all_decode = parsed_df['numDecodeTokensForAllPods'].values
+    all_gpu = parsed_df['GPU'].values
     # NOTE: podMetricsLastSecond features are not used in training anymore
     # all_pod_metrics = parsed_df['podMetricsLastSecond'].values
     
@@ -430,6 +442,7 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
     excluded_pod_features = set(RL_MODEL_HYPERPARAMETERS.get('EXCLUDED_POD_FEATURES', []))
     if 'none' in excluded_pod_features or 'None' in excluded_pod_features:
         excluded_pod_features = set()
+
     for pod_id in sorted_all_pod_ids:
         # Vectorized extraction for each pod across all rows
         if 'kv_hit_ratio' not in excluded_pod_features:
@@ -448,12 +461,21 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
             base_data[f"{pod_id}-prefill_tokens"] = [data.get(pod_id, 0) for data in all_prefill]
         if 'decode_tokens' not in excluded_pod_features:
             base_data[f"{pod_id}-decode_tokens"] = [data.get(pod_id, 0) for data in all_decode]
-        if INCLUDE_GPU_IN_FEATURE:
-            if pod_id not in RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping']:
-                logger.error(f"Error: Pod ID {pod_id} not found in RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping']")
+        if 'GPU' not in excluded_pod_features:
+            try:
+                base_data[f"{pod_id}-GPU"] = [data.get(pod_id, 0) for data in all_gpu]
+            except Exception as e:
+                logger.error(f"all_gpu: {all_gpu}")
+                logger.error(f"pasred_df.iloc[0]: {parsed_df.iloc[0]}")
+                logger.error(f"Error: {e}")
                 assert False
-            gpu_model = RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'][pod_id]
-            base_data[f"{pod_id}-gpu_model"] = [gpu_model] * len(parsed_df)
+        
+        # if INCLUDE_GPU_IN_FEATURE:
+        #     if pod_id not in RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping']:
+        #         logger.error(f"Error: Pod ID {pod_id} not found in RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping']")
+        #         assert False
+        #     gpu_model = RL_MODEL_HYPERPARAMETERS['pod_gpu_mapping'][pod_id]
+        #     base_data[f"{pod_id}-gpu_model"] = [gpu_model] * len(parsed_df)
     get_value_overhead = time.time() - get_value_start_time # 0ms
     num_rows = len(base_data['request_id'])
     pod_index_start_time = time.time()
@@ -524,22 +546,22 @@ def preprocess_data_unified(parsed_df, RL_MODEL_HYPERPARAMETERS, sorted_all_pod_
         'slo_update_overhead': -1,
     }
     
-    if is_training:
-        # Training mode: return mapping info for action space creation
-        if INCLUDE_GPU_IN_FEATURE:
-            mapping_info = {
-                'pod_to_index': pod_to_index,
-                'index_to_pod': index_to_pod,
-            }
-            mapping_info['pod_gpu_models'] = pod_gpu_models
-            logger.debug("\nPod GPU model mapping:")
-            for pod_id, gpu_model in pod_gpu_models.items():
-                logger.debug(f"  Pod {pod_id} -> GPU model {gpu_model}")
+    # if is_training:
+    #     # Training mode: return mapping info for action space creation
+    #     if INCLUDE_GPU_IN_FEATURE:
+    #         mapping_info = {
+    #             'pod_to_index': pod_to_index,
+    #             'index_to_pod': index_to_pod,
+    #         }
+    #         mapping_info['pod_gpu_models'] = pod_gpu_models
+    #         logger.debug("\nPod GPU model mapping:")
+    #         for pod_id, gpu_model in pod_gpu_models.items():
+    #             logger.debug(f"  Pod {pod_id} -> GPU model {gpu_model}")
         
-        return processed_df, sorted_all_pod_ids, preprocess_overhead_summary
-    else:
-        # Inference mode: simplified return for speed
-        return processed_df, sorted_all_pod_ids, preprocess_overhead_summary
+    return processed_df, sorted_all_pod_ids, preprocess_overhead_summary
+    # else:
+    #     # Inference mode: simplified return for speed
+    #     return processed_df, sorted_all_pod_ids, preprocess_overhead_summary
 
 
 def parse_log_message(log_message):
